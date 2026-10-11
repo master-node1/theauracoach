@@ -1,0 +1,40 @@
+{
+  "comment": "Path -> owning service. Checked against the running gateway by check-routes.mjs. Keep in sync with docs/api/API-guide.md#routing.",
+  "routes": {
+    "/v1/me": "profile",
+    "/v1/me/profile": "profile",
+    "/v1/me/exports/123": "profile",
+    "/v1/onboarding/complete": "profile",
+    "/v1/admin/roles": "profile",
+    "/v1/me/notification-preferences": "notification",
+    "/v1/me/devices": "notification",
+    "/v1/notifications/1/read": "notification",
+    "/v1/exercises/back-squat": "workout",
+    "/v1/workout-plans/current": "workout",
+    "/v1/workout-sessions/1/sets": "workout",
+    "/v1/admin/exercises/1/publish": "workout",
+    "/v1/foods/barcode/890": "nutrition",
+    "/v1/nutrition/days/2026-10-11": "nutrition",
+    "/v1/meal-plans/2026-10-12": "nutrition",
+    "/v1/recipes/dal-tadka": "nutrition",
+    "/v1/admin/foods/1/publish": "nutrition",
+    "/v1/dashboard/today": "progress",
+    "/v1/progress/weight": "progress",
+    "/v1/coach/conversations": "coach",
+    "/v1/recommendations/1/accept": "coach",
+    "/v1/admin/prompts/1/publish": "coach",
+    "/v1/admin/usage": "coach",
+    "/v1/admin/audit": "audit",
+    "/v1/me/notification-preferences/x": "notification",
+    "/v1/coach": "coach"
+  },
+  "notRouted": [
+    "/internal/v1/plans",
+    "/v1/unknown",
+    "/",
+    "/v1/meals",
+    "/v1/meplease",
+    "/v1/foodsx",
+    "/v1/coaching"
+  ]
+}

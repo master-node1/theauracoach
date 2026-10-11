@@ -110,7 +110,7 @@ progress-service keeps per-user daily facts built from `WorkoutCompleted`, `Sess
 ## 8. Authentication and authorisation
 
 - Cognito user pool with Google and Apple federation; mobile uses Authorization Code + PKCE via `expo-auth-session`; web uses the same via a Next.js BFF that keeps tokens in `HttpOnly; Secure; SameSite=Lax` cookies.
-- Each service validates access tokens with `service-kit` (`aws-jwt-verify`, JWKS cached) and uses `sub` as the user id (profile-service maps it to `User.id` on first call and publishes `UserRegistered`).
+- Each service validates access tokens with `service-kit` (`jose`, JWKS cached) and uses `sub` as the user id: `User.id` equals the Cognito `sub`, created by profile-service on the first call, which also publishes `UserRegistered` ([auth LLD §3](../modules/authentication/LLD.md#3-user-identity-across-services)).
 - RBAC roles: `user`, `content_editor`, `nutrition_reviewer`, `safety_reviewer`, `ai_admin`, `support`, `owner`. profile-service owns role grants (audited) and mirrors them to Cognito groups; services read the `cognito:groups` claim and map groups to permission strings (`exercise:publish`) with the shared map in `packages/contracts`.
 - Resource-level: every user-owned table has `userId`; repositories require it (`findOwned(userId, id)`) and return 404 on mismatch. A Prisma extension in `service-kit` rejects queries on owned models without a `userId` filter.
 

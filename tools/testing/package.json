@@ -1,0 +1,24 @@
+{
+  "name": "@aura/testing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Test helpers: scratch databases with a service's migrations applied, and test configuration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@aura/contracts": "workspace:*",
+    "@aura/dev-auth": "workspace:*",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

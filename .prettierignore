@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+dist
+**/src/generated
+**/migrations/**/*.sql
+docs
+*.md

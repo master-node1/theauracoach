@@ -1,0 +1,25 @@
+{
+  "name": "@aura/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-service flows run in one process against real Postgres and Redis",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint test",
+    "test:int": "vitest run"
+  },
+  "devDependencies": {
+    "@aura/notification-service": "workspace:*",
+    "@aura/profile-service": "workspace:*",
+    "@aura/service-kit": "workspace:*",
+    "@aura/testing": "workspace:*",
+    "@nestjs/common": "11.2.7",
+    "@nestjs/core": "11.2.7",
+    "@nestjs/testing": "11.2.7",
+    "@swc/core": "1.16.18",
+    "@types/supertest": "7.2.1",
+    "supertest": "7.3.1",
+    "unplugin-swc": "2.0.0",
+    "vitest": "3.2.7"
+  }
+}

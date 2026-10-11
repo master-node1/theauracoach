@@ -1,0 +1,109 @@
+# AuraCoach API gateway. Routes public /v1 paths to the owning service (docs/api/API-guide.md#routing).
+# It does no authentication: every service verifies tokens itself. /internal/* is never routed.
+# Upstream addresses come from the environment (envsubst at container start).
+
+limit_req_zone $binary_remote_addr zone=per_ip:10m rate=${GATEWAY_RATE_PER_SECOND}r/s;
+limit_req_status 429;
+
+map $http_x_request_id $aura_request_id {
+  "~^[A-Za-z0-9._-]{8,128}$" $http_x_request_id;
+  default                     $request_id;
+}
+
+upstream profile      { server ${PROFILE_UPSTREAM}; keepalive 16; }
+upstream workout      { server ${WORKOUT_UPSTREAM}; keepalive 16; }
+upstream nutrition    { server ${NUTRITION_UPSTREAM}; keepalive 16; }
+upstream progress     { server ${PROGRESS_UPSTREAM}; keepalive 16; }
+upstream coach        { server ${COACH_UPSTREAM}; keepalive 16; }
+upstream notification { server ${NOTIFICATION_UPSTREAM}; keepalive 16; }
+upstream audit        { server ${AUDIT_UPSTREAM}; keepalive 16; }
+
+server {
+  listen 8080;
+  server_tokens off;
+  client_max_body_size 1m;
+
+  proxy_http_version 1.1;
+  proxy_set_header Connection "";
+  proxy_set_header Host $host;
+  proxy_set_header X-Request-Id $aura_request_id;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_hide_header X-Powered-By;
+  proxy_connect_timeout 2s;
+  proxy_read_timeout 30s;
+  add_header X-Request-Id $aura_request_id always;
+
+  error_page 429 = @rate_limited;
+  location @rate_limited {
+    default_type application/problem+json;
+    add_header Retry-After 1 always;
+    return 429 '{"type":"https://docs.auracoach.app/problems/rate-limited","title":"Too many requests","status":429,"code":"RATE_LIMITED"}';
+  }
+
+  error_page 502 503 504 = @unavailable;
+  location @unavailable {
+    default_type application/problem+json;
+    return 503 '{"type":"https://docs.auracoach.app/problems/unavailable","title":"Service unavailable","status":503,"code":"UNAVAILABLE"}';
+  }
+
+  location = /health { access_log off; default_type application/json; return 200 '{"status":"ok"}'; }
+
+  # Regex locations are tried in order, so more specific paths come first.
+  # Each pattern matches the segment itself or the segment followed by "/", never a longer word.
+
+  # notification-service (before profile-service, which owns the rest of /v1/me)
+  location ~ ^/v1/(me/notification-preferences|me/devices|notifications)(/|$) {
+    limit_req zone=per_ip burst=40 nodelay;
+    proxy_pass http://notification;
+  }
+
+  # profile-service
+  location ~ ^/v1/(me|onboarding|admin/roles|admin/users)(/|$) {
+    limit_req zone=per_ip burst=40 nodelay;
+    proxy_pass http://profile;
+  }
+
+  # workout-service
+  location ~ ^/v1/(exercises|workout-plans|workout-sessions|admin/exercises|admin/templates)(/|$) {
+    limit_req zone=per_ip burst=40 nodelay;
+    proxy_pass http://workout;
+  }
+
+  # nutrition-service
+  location ~ ^/v1/(foods|nutrition|meal-plans|recipes|admin/foods|admin/recipes)(/|$) {
+    limit_req zone=per_ip burst=40 nodelay;
+    proxy_pass http://nutrition;
+  }
+
+  # progress-service
+  location ~ ^/v1/(dashboard|progress)(/|$) {
+    limit_req zone=per_ip burst=40 nodelay;
+    proxy_pass http://progress;
+  }
+
+  # coach-service: streamed replies need no buffering and long reads
+  location ~ ^/v1/coach(/|$) {
+    limit_req zone=per_ip burst=20 nodelay;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 120s;
+    proxy_pass http://coach;
+  }
+  location ~ ^/v1/(recommendations|admin/prompts|admin/model-configs|admin/policies|admin/reviews|admin/feedback|admin/usage)(/|$) {
+    limit_req zone=per_ip burst=40 nodelay;
+    proxy_pass http://coach;
+  }
+
+  # audit-service
+  location ~ ^/v1/admin/audit(/|$) {
+    limit_req zone=per_ip burst=40 nodelay;
+    proxy_pass http://audit;
+  }
+
+  # Anything else, including /internal, is not part of the public API.
+  location / {
+    default_type application/problem+json;
+    return 404 '{"type":"https://docs.auracoach.app/problems/not-found","title":"Not found","status":404,"code":"NOT_FOUND"}';
+  }
+}

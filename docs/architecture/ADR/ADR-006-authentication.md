@@ -9,7 +9,7 @@ Need email/password, Google, Apple (required on iOS when other social logins exi
 Self-built auth module (argon2id, refresh rotation); Cognito; Auth0/Clerk; Firebase Auth.
 
 ## Decision
-Cognito user pool in `ap-south-1` with Google and Apple IdPs. Authorization Code + PKCE on mobile (`expo-auth-session`, tokens in `expo-secure-store`) and on web through a Next.js BFF that stores tokens in HttpOnly cookies. API validates access tokens against JWKS (`aws-jwt-verify`), provisions `User` on first call. Admin roles require TOTP MFA (Cognito group + app check).
+Cognito user pool in `ap-south-1` with Google and Apple IdPs. Authorization Code + PKCE on mobile (`expo-auth-session`, tokens in `expo-secure-store`) and on web through a Next.js BFF that stores tokens in HttpOnly cookies. Services validate access tokens against JWKS (`jose` in `service-kit`); profile-service provisions `User` on first call with `id` equal to the Cognito `sub`. Admin roles require TOTP MFA (Cognito group + app check).
 
 ## Consequences
 + No password storage in our DB; managed brute-force protection; in-region.

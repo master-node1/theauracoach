@@ -1,0 +1,114 @@
+// notification-service Prisma schema. This service owns only its own database (notification_db).
+// References to other services' data are plain id columns (no foreign keys);
+// deletion arrives via the AccountDeleted event. Design: docs/architecture/service-catalog.md
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto]
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum NotificationChannel {
+  PUSH
+  EMAIL
+  IN_APP
+}
+
+enum NotificationStatus {
+  SCHEDULED
+  SENT
+  FAILED
+  CANCELLED
+  SUPPRESSED
+}
+
+model Device {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  platform   DevicePlatform
+  pushToken  String         @unique
+  appVersion String
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  @@index([userId])
+}
+
+model Notification {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @db.Uuid
+  type         String              @db.VarChar(40) // workout_reminder, meal_reminder, weekly_summary, inactivity, plan_ready
+  channel      NotificationChannel
+  status       NotificationStatus  @default(SCHEDULED)
+  scheduledFor DateTime
+  sentAt       DateTime?
+  dedupeKey    String // e.g. "workout_reminder:2026-10-12"
+  payload      Json
+  readAt       DateTime?
+  error        String?
+  createdAt    DateTime            @default(now())
+
+  @@unique([userId, dedupeKey, channel])
+  @@index([status, scheduledFor])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model NotificationPreference {
+  userId                       String   @id @db.Uuid
+  timezone                     String   @default("Asia/Kolkata")
+  locale                       String   @default("en-IN")
+  consented                    Boolean  @default(false)
+  quietHoursStart              String   @default("22:00")
+  quietHoursEnd                String   @default("07:00")
+  workoutReminder              Boolean  @default(true)
+  workoutReminderMinutesBefore Int      @default(30)
+  mealReminders                Boolean  @default(true)
+  mealReminderSlots            String[]
+  weeklySummary                Boolean  @default(true)
+  inactivityNudges             Int      @default(2)
+  paused                       Boolean  @default(false) // set on AccountDeletionRequested
+  updatedAt                    DateTime @updatedAt
+}
+
+/// Facts that suppress reminders (e.g. session completed, slot logged), from events.
+model SuppressionFact {
+  userId    String   @db.Uuid
+  key       String   @db.VarChar(80) // e.g. workout_done:2026-10-12, meal_logged:2026-10-12:LUNCH
+  createdAt DateTime @default(now())
+
+  @@id([userId, key])
+}
+
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String    @db.VarChar(60)
+  version     Int       @default(1)
+  userId      String?   @db.Uuid
+  payload     Json
+  traceparent String?
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
+}
+
+model ProcessedEvent {
+  eventId     String   @id
+  type        String   @db.VarChar(60)
+  processedAt DateTime @default(now())
+}
