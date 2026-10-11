@@ -1,0 +1,2116 @@
+openapi: 3.1.0
+info:
+  title: AuraCoach API
+  version: 0.1.0-draft
+  summary: Design contract for the AuraCoach MVP (Phase 3). Implementation generates this file from Zod contracts in Phase 4.
+  description: |
+    All endpoints require a Cognito access token unless marked `security: []`.
+    User-owned resources return 404 for resources owned by another user.
+    Errors use RFC 9457 problem details. See API-guide.md for conventions.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: https://api.dev.auracoach.app
+    description: Development
+  - url: https://api.auracoach.app
+    description: Production
+security:
+  - bearerAuth: []
+tags:
+  - name: me
+    description: Account, profile, preferences, consents, export and deletion
+  - name: onboarding
+    description: Questionnaire, screening and initial plan creation
+  - name: exercises
+    description: Exercise library
+  - name: workouts
+    description: Plans, sessions, sets and substitutions
+  - name: nutrition
+    description: Foods, logging, targets and alternatives
+  - name: meal-plans
+    description: Meal plans, recipes and grocery lists
+  - name: progress
+    description: Measurements, trends and check-ins
+  - name: dashboard
+    description: Today view
+  - name: coach
+    description: AI coach conversations and memories
+  - name: recommendations
+    description: Engine and coach proposals
+  - name: notifications
+    description: In-app inbox
+  - name: admin
+    description: Content, configuration, usage and audit (RBAC)
+  - name: system
+    description: Health checks
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: Liveness and readiness
+      security: []
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok, degraded] }
+                  checks:
+                    type: object
+                    additionalProperties: { type: string, enum: [ok, degraded, down] }
+
+  /v1/me:
+    get:
+      tags: [me]
+      operationId: getMe
+      summary: Current user, profile and onboarding state
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    delete:
+      tags: [me]
+      operationId: requestAccountDeletion
+      summary: Request account deletion (30-day grace period)
+      responses:
+        '202':
+          description: Deletion scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deletionDueAt]
+                properties:
+                  deletionDueAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /v1/me/restore:
+    post:
+      tags: [me]
+      operationId: restoreAccount
+      summary: Cancel a pending deletion
+      responses:
+        '204': { description: Restored }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/me/profile:
+    patch:
+      tags: [me]
+      operationId: updateProfile
+      summary: Update profile fields; plan-affecting changes create proposals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileUpdate' }
+      responses:
+        '200':
+          description: Updated profile and any proposals created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile, proposals]
+                properties:
+                  profile: { $ref: '#/components/schemas/Profile' }
+                  proposals:
+                    type: array
+                    items: { $ref: '#/components/schemas/Recommendation' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/me/preferences:
+    get:
+      tags: [me]
+      operationId: getPreferences
+      summary: Get preferences
+      responses:
+        '200':
+          description: Preferences
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Preferences' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    patch:
+      tags: [me]
+      operationId: updatePreferences
+      summary: Update preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Preferences' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Preferences' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/me/notification-preferences:
+    get:
+      tags: [me]
+      operationId: getNotificationPreferences
+      summary: Get reminder and quiet-hours preferences
+      responses:
+        '200':
+          description: Notification preferences
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPreferences' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    patch:
+      tags: [me]
+      operationId: updateNotificationPreferences
+      summary: Update reminder and quiet-hours preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationPreferences' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPreferences' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/me/consents:
+    get:
+      tags: [me]
+      operationId: listConsents
+      summary: Latest consent state per purpose
+      responses:
+        '200':
+          description: Consents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Consent' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [me]
+      operationId: recordConsent
+      summary: Record consent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [purpose, granted, policyVersion]
+              properties:
+                purpose: { $ref: '#/components/schemas/ConsentPurpose' }
+                granted: { type: boolean }
+                policyVersion: { type: string, maxLength: 20 }
+      responses:
+        '201':
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Consent' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/me/exports:
+    post:
+      tags: [me]
+      operationId: requestExport
+      summary: Request a full data export
+      responses:
+        '202':
+          description: Export queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/me/exports/{id}:
+    get:
+      tags: [me]
+      operationId: getExport
+      summary: Get export
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Export status and download URL when ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/me/devices:
+    post:
+      tags: [me]
+      operationId: registerDevice
+      summary: Register device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [platform, pushToken, appVersion]
+              properties:
+                platform: { type: string, enum: [IOS, ANDROID, WEB] }
+                pushToken: { type: string, maxLength: 255 }
+                appVersion: { type: string, maxLength: 20 }
+      responses:
+        '204': { description: Registered }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/onboarding/questionnaire:
+    get:
+      tags: [onboarding]
+      operationId: getQuestionnaire
+      summary: Versioned onboarding and safety questions
+      responses:
+        '200':
+          description: Questionnaire
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Questionnaire' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/onboarding/draft:
+    put:
+      tags: [onboarding]
+      operationId: saveOnboardingDraft
+      summary: Save onboarding draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Partial OnboardingInput
+      responses:
+        '204': { description: Saved }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/onboarding/complete:
+    post:
+      tags: [onboarding]
+      operationId: completeOnboarding
+      summary: Validate answers, save profile and assessment, then create plan and targets (saga)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OnboardingInput' }
+      responses:
+        '201':
+          description: Onboarding completed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingResult' }
+        '202':
+          description: Profile saved; plan or targets still being created. Poll /v1/onboarding/status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingStatus' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/onboarding/status:
+    get:
+      tags: [onboarding]
+      operationId: getOnboardingStatus
+      summary: Onboarding progress, with the result once READY
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingStatus' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /v1/exercises:
+    get:
+      tags: [exercises]
+      operationId: listExercises
+      summary: List exercises
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: muscle, in: query, schema: { type: string } }
+        - { name: equipment, in: query, schema: { type: string } }
+        - { name: pattern, in: query, schema: { type: string } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Page of exercises
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/ExerciseSummary' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/exercises/{slug}:
+    get:
+      tags: [exercises]
+      operationId: getExercise
+      summary: Get exercise
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Exercise detail
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exercise' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/workout-plans/current:
+    get:
+      tags: [workouts]
+      operationId: getCurrentPlan
+      summary: Get current plan
+      responses:
+        '200':
+          description: Active plan with the current week
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkoutPlan' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/workout-plans/current/weeks/{weekStart}:
+    get:
+      tags: [workouts]
+      operationId: getPlanWeek
+      summary: Get plan week
+      parameters:
+        - { name: weekStart, in: path, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Plan week
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanWeek' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/workout-plans/regenerate:
+    post:
+      tags: [workouts]
+      operationId: proposeRegeneratedPlan
+      summary: Propose a new plan after profile changes (applied only on accept)
+      responses:
+        '201':
+          description: Proposal created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Recommendation' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/workout-sessions:
+    get:
+      tags: [workouts]
+      operationId: listSessions
+      summary: List sessions
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/SessionStatus' } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/WorkoutSession' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/workout-sessions/{id}:
+    get:
+      tags: [workouts]
+      operationId: getSession
+      summary: Get session
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Session with planned exercises and logged sets
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkoutSession' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/workout-sessions/{id}/start:
+    post:
+      tags: [workouts]
+      operationId: startSession
+      summary: Start session
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkoutSession' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/workout-sessions/{id}/sets:
+    put:
+      tags: [workouts]
+      operationId: upsertSets
+      summary: Idempotent batch upsert of sets keyed by clientId (offline sync)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sets]
+              properties:
+                sets:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { $ref: '#/components/schemas/SetInput' }
+      responses:
+        '200':
+          description: Stored sets
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/WorkoutSet' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/workout-sessions/{id}/complete:
+    post:
+      tags: [workouts]
+      operationId: completeSession
+      summary: Complete session
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                perceivedDifficulty: { type: integer, minimum: 1, maximum: 10 }
+                soreness: { type: integer, minimum: 1, maximum: 5 }
+                notes: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: Completed with PRs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session, personalRecords]
+                properties:
+                  session: { $ref: '#/components/schemas/WorkoutSession' }
+                  personalRecords:
+                    type: array
+                    items: { $ref: '#/components/schemas/PersonalRecord' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/workout-sessions/{id}/exercises/{plannedExerciseId}/substitutions:
+    post:
+      tags: [workouts]
+      operationId: suggestSubstitutions
+      summary: Suggest substitutions
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - { name: plannedExerciseId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, enum: [equipment_unavailable, too_difficult, discomfort, preference] }
+                unavailableEquipment:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Up to 5 engine-ranked substitutes
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 5
+                items: { $ref: '#/components/schemas/ExerciseSummary' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/workout-sessions/{id}/exercises/{plannedExerciseId}:
+    put:
+      tags: [workouts]
+      operationId: applySubstitution
+      summary: Apply substitution
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - { name: plannedExerciseId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [exerciseId]
+              properties:
+                exerciseId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Updated planned exercise
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlannedExercise' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/foods:
+    get:
+      tags: [nutrition]
+      operationId: searchFoods
+      summary: Search foods
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 80 } }
+        - { name: includeIncompatible, in: query, schema: { type: boolean, default: false } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Foods ranked for this user
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/FoodSummary' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [nutrition]
+      operationId: createCustomFood
+      summary: Create a private custom food
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomFoodInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Food' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/foods/{id}:
+    get:
+      tags: [nutrition]
+      operationId: getFood
+      summary: Get food
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Food with nutrients per 100 g and units
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Food' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/foods/barcode/{code}:
+    get:
+      tags: [nutrition]
+      operationId: lookupBarcode
+      summary: Lookup barcode
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string, pattern: '^[0-9]{8,14}$' } }
+      responses:
+        '200':
+          description: Food for barcode
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Food' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/nutrition/days/{date}:
+    get:
+      tags: [nutrition]
+      operationId: getNutritionDay
+      summary: Get nutrition day
+      parameters:
+        - { name: date, in: path, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Entries, totals and targets for a day
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NutritionDay' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/nutrition/entries:
+    post:
+      tags: [nutrition]
+      operationId: logFood
+      summary: Log food
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MealEntryInput' }
+      responses:
+        '201':
+          description: Logged entry with nutrient snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MealEntry' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/nutrition/entries/{id}:
+    patch:
+      tags: [nutrition]
+      operationId: updateEntry
+      summary: Update entry
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                quantity: { type: number, exclusiveMinimum: 0, maximum: 5000 }
+                unitCode: { type: string, maxLength: 20 }
+                state: { $ref: '#/components/schemas/FoodState' }
+                slot: { $ref: '#/components/schemas/MealSlot' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MealEntry' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [nutrition]
+      operationId: deleteEntry
+      summary: Delete entry
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/nutrition/water:
+    post:
+      tags: [nutrition]
+      operationId: logWater
+      summary: Log water
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [date, ml]
+              properties:
+                date: { type: string, format: date }
+                ml: { type: integer, minimum: 1, maximum: 5000 }
+                clientId: { type: string, format: uuid }
+      responses:
+        '201': { description: Logged }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/nutrition/targets/current:
+    get:
+      tags: [nutrition]
+      operationId: getCurrentTargets
+      summary: Get current targets
+      responses:
+        '200':
+          description: Current targets with rationale
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NutritionTarget' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/nutrition/alternatives:
+    get:
+      tags: [nutrition]
+      operationId: getMealAlternatives
+      summary: Get meal alternatives
+      parameters:
+        - { name: slot, in: query, required: true, schema: { $ref: '#/components/schemas/MealSlot' } }
+        - { name: context, in: query, required: true, schema: { type: string, enum: [eating_out, no_cooking, travel] } }
+      responses:
+        '200':
+          description: Ranked alternatives
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FoodSummary' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/meal-plans:
+    post:
+      tags: [meal-plans]
+      operationId: generateMealPlan
+      summary: Generate meal plan
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [weekStart]
+              properties:
+                weekStart: { type: string, format: date }
+                maxPrepMinutesWeekday: { type: integer, minimum: 5, maximum: 120 }
+                costTier: { type: integer, minimum: 1, maximum: 3 }
+      responses:
+        '201':
+          description: Generated plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MealPlan' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/meal-plans/{weekStart}:
+    get:
+      tags: [meal-plans]
+      operationId: getMealPlan
+      summary: Get meal plan
+      parameters:
+        - { name: weekStart, in: path, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Meal plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MealPlan' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/meal-plans/{id}/grocery-list:
+    get:
+      tags: [meal-plans]
+      operationId: getGroceryList
+      summary: Get grocery list
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Aggregated grocery list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [foodId, name, grams, category]
+                  properties:
+                    foodId: { type: string, format: uuid }
+                    name: { type: string }
+                    grams: { type: number }
+                    displayQuantity: { type: string }
+                    category: { type: string }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/recipes/{slug}:
+    get:
+      tags: [meal-plans]
+      operationId: getRecipe
+      summary: Get recipe
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Recipe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Recipe' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/dashboard/today:
+    get:
+      tags: [dashboard]
+      operationId: getDashboardToday
+      summary: Get dashboard today
+      responses:
+        '200':
+          description: Today view model
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardToday' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/progress/measurements:
+    get:
+      tags: [progress]
+      operationId: listMeasurements
+      summary: List measurements
+      parameters:
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/MeasurementType' } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Measurements
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Measurement' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [progress]
+      operationId: addMeasurement
+      summary: Add measurement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeasurementInput' }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Measurement' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/progress/weight:
+    get:
+      tags: [progress]
+      operationId: getWeightTrend
+      summary: Get weight trend
+      parameters:
+        - { name: range, in: query, schema: { type: string, enum: [30d, 90d, 180d, 365d], default: 90d } }
+      responses:
+        '200':
+          description: Raw points, trend and estimate band
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WeightTrend' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/progress/check-ins/{date}:
+    put:
+      tags: [progress]
+      operationId: upsertCheckIn
+      summary: Upsert check in
+      parameters:
+        - { name: date, in: path, required: true, schema: { type: string, format: date } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckIn' }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckIn' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/coach/conversations:
+    get:
+      tags: [coach]
+      operationId: listConversations
+      summary: List conversations
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/Conversation' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [coach]
+      operationId: createConversation
+      summary: Create conversation
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Conversation' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /v1/coach/conversations/{id}/messages:
+    get:
+      tags: [coach]
+      operationId: listMessages
+      summary: List messages
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Messages, newest first
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/CoachMessage' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [coach]
+      operationId: sendMessage
+      summary: Send a message; streams the reply as SSE when Accept is text/event-stream
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [text, clientId]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 2000 }
+                clientId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Coach reply
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CoachTurn' }
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Events: `delta` {text}, `proposal` {Recommendation}, `notice` {kind, text},
+                  `done` {messageId, followUps[]}, `error` {code, message}.
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503':
+          description: Coach temporarily unavailable; core features unaffected
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /v1/coach/messages/{id}/feedback:
+    post:
+      tags: [coach]
+      operationId: rateMessage
+      summary: Rate message
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [rating]
+              properties:
+                rating: { type: integer, enum: [-1, 1] }
+                reason: { type: string, enum: [incorrect, unsafe, unhelpful, tone, other] }
+                comment: { type: string, maxLength: 1000 }
+      responses:
+        '204': { description: Recorded }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/coach/memories:
+    get:
+      tags: [coach]
+      operationId: listMemories
+      summary: List memories
+      responses:
+        '200':
+          description: User-approved memories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CoachMemory' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [coach]
+      operationId: approveMemory
+      summary: Approve memory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [key, value]
+              properties:
+                key: { type: string, maxLength: 60 }
+                value: { type: string, maxLength: 280 }
+                sourceMessageId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CoachMemory' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/coach/memories/{id}:
+    delete:
+      tags: [coach]
+      operationId: deleteMemory
+      summary: Delete memory
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/recommendations:
+    get:
+      tags: [recommendations]
+      operationId: listRecommendations
+      summary: List recommendations
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/RecommendationStatus' } }
+      responses:
+        '200':
+          description: Recommendations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Recommendation' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/recommendations/{id}/accept:
+    post:
+      tags: [recommendations]
+      operationId: acceptRecommendation
+      summary: Re-validate and apply a proposal
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Recommendation' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Proposal no longer valid (state changed or expired)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /v1/recommendations/{id}/decline:
+    post:
+      tags: [recommendations]
+      operationId: declineRecommendation
+      summary: Decline recommendation
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Declined
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Recommendation' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/notifications:
+    get:
+      tags: [notifications]
+      operationId: listNotifications
+      summary: List notifications
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: In-app inbox
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/Notification' }
+
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/notifications/{id}/read:
+    post:
+      tags: [notifications]
+      operationId: markNotificationRead
+      summary: Mark notification read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204': { description: Marked read }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/admin/exercises:
+    post:
+      tags: [admin]
+      operationId: adminCreateExercise
+      summary: Create an exercise draft (permission exercise:write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExerciseInput' }
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exercise' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/{contentType}/{id}/publish:
+    post:
+      tags: [admin]
+      operationId: adminPublishContent
+      summary: Publish a reviewed draft (permission <type>:publish); audited
+      parameters:
+        - { name: contentType, in: path, required: true, schema: { type: string, enum: [exercises, foods, recipes, templates, prompts] } }
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200': { description: Published }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/usage:
+    get:
+      tags: [admin]
+      operationId: adminGetUsage
+      summary: AI usage and cost (permission usage:read)
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - { name: groupBy, in: query, schema: { type: string, enum: [day, feature, model], default: day } }
+      responses:
+        '200':
+          description: Usage rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [key, inputTokens, outputTokens, costUsd, requests]
+                  properties:
+                    key: { type: string }
+                    inputTokens: { type: integer }
+                    outputTokens: { type: integer }
+                    cacheReadTokens: { type: integer }
+                    costUsd: { type: number }
+                    requests: { type: integer }
+                    errorRate: { type: number }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /v1/admin/audit:
+    get:
+      tags: [admin]
+      operationId: adminListAudit
+      summary: Admin list audit
+      parameters:
+        - { name: entityType, in: query, schema: { type: string } }
+        - { name: entityId, in: query, schema: { type: string } }
+        - { name: actorId, in: query, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/AuditEntry' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Amazon Cognito access token
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor from the previous page's `nextCursor`
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthenticated:
+      description: Missing or invalid token
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Insufficient permission, missing consent or MFA
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Resource does not exist or is not owned by the caller
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: State conflict
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationFailed:
+      description: Request failed validation
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    RateLimited:
+      description: Too many requests or quota reached
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, description: 'Stable machine code, e.g. VALIDATION_FAILED, SESSION_CLOSED, CONSENT_REQUIRED, COACH_QUOTA_REACHED' }
+        detail: { type: string }
+        requestId: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path: { type: string }
+              message: { type: string }
+
+    PageMeta:
+      type: object
+      required: [nextCursor]
+      properties:
+        nextCursor: { type: [string, 'null'] }
+
+    Confidence: { type: string, enum: [HIGH, MEDIUM, LOW] }
+    FoodState: { type: string, enum: [RAW, COOKED, AS_SOLD] }
+    MealSlot: { type: string, enum: [BREAKFAST, MORNING_SNACK, LUNCH, EVENING_SNACK, DINNER, OTHER] }
+    SessionStatus: { type: string, enum: [PLANNED, IN_PROGRESS, COMPLETED, PARTIAL, MISSED, SKIPPED] }
+    GoalType: { type: string, enum: [FAT_LOSS, MUSCLE_GAIN, STRENGTH, ENDURANCE, GENERAL_FITNESS] }
+    DietType: { type: string, enum: [VEGETARIAN, EGGETARIAN, NON_VEGETARIAN, VEGAN, JAIN, PESCATARIAN] }
+    ConsentPurpose: { type: string, enum: [CORE_SERVICE, AI_COACH, NOTIFICATIONS, MARKETING, PROGRESS_PHOTOS, HEALTH_INTEGRATIONS] }
+    MeasurementType: { type: string, enum: [WEIGHT_KG, WAIST_CM, CHEST_CM, HIPS_CM, ARM_CM, THIGH_CM, NECK_CM, BODY_FAT_PCT] }
+    RecommendationStatus: { type: string, enum: [PENDING, ACCEPTED, DECLINED, EXPIRED, INVALIDATED] }
+
+    NutrientMap:
+      type: object
+      description: Nutrient code to value, e.g. energy_kcal, protein_g, carb_g, fat_g, fibre_g, iron_mg
+      additionalProperties: { type: number }
+
+    Me:
+      type: object
+      required: [id, email, onboardingComplete, roles]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: [string, 'null'] }
+        timezone: { type: string }
+        locale: { type: string }
+        onboardingComplete: { type: boolean }
+        status: { type: string, enum: [ACTIVE, PENDING_DELETION] }
+        roles: { type: array, items: { type: string } }
+        profile: { $ref: '#/components/schemas/Profile' }
+
+    Profile:
+      type: object
+      required: [dateOfBirth, sex, heightCm, activityLevel, experience, dietType, location, intensityCap]
+      properties:
+        dateOfBirth: { type: string, format: date }
+        sex: { type: string, enum: [FEMALE, MALE] }
+        heightCm: { type: number, minimum: 100, maximum: 250 }
+        activityLevel: { type: string, enum: [SEDENTARY, LIGHT, MODERATE, ACTIVE, VERY_ACTIVE] }
+        experience: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
+        unitSystem: { type: string, enum: [METRIC, IMPERIAL] }
+        dietType: { $ref: '#/components/schemas/DietType' }
+        cuisines: { type: array, items: { type: string } }
+        allergens: { type: array, items: { type: string } }
+        trainingDays: { type: array, items: { type: integer, minimum: 0, maximum: 6 } }
+        sessionMinutes: { type: integer, minimum: 15, maximum: 120 }
+        location: { type: string, enum: [GYM, HOME, OUTDOOR] }
+        equipment: { type: array, items: { type: string } }
+        intensityCap: { type: string, enum: [STANDARD, LOW], readOnly: true }
+
+    ProfileUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName: { type: string, maxLength: 60 }
+        heightCm: { type: number, minimum: 100, maximum: 250 }
+        activityLevel: { type: string, enum: [SEDENTARY, LIGHT, MODERATE, ACTIVE, VERY_ACTIVE] }
+        experience: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
+        unitSystem: { type: string, enum: [METRIC, IMPERIAL] }
+        dietType: { $ref: '#/components/schemas/DietType' }
+        cuisines: { type: array, maxItems: 10, items: { type: string } }
+        allergens: { type: array, maxItems: 20, items: { type: string } }
+        trainingDays: { type: array, maxItems: 7, items: { type: integer, minimum: 0, maximum: 6 } }
+        sessionMinutes: { type: integer, minimum: 15, maximum: 120 }
+        location: { type: string, enum: [GYM, HOME, OUTDOOR] }
+        equipment: { type: array, maxItems: 30, items: { type: string } }
+        goal: { $ref: '#/components/schemas/GoalInput' }
+
+    Preferences:
+      type: object
+      additionalProperties: false
+      description: Owned by profile-service
+      properties:
+        theme: { type: string, enum: [system, light, dark] }
+        coachTone: { type: string, enum: [supportive, direct] }
+
+    NotificationPreferences:
+      type: object
+      additionalProperties: false
+      description: Owned by notification-service
+      properties:
+        quietHoursStart: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        quietHoursEnd: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        workoutReminder: { type: boolean }
+        workoutReminderMinutesBefore: { type: integer, minimum: 0, maximum: 240 }
+        mealReminders: { type: boolean }
+        mealReminderSlots: { type: array, maxItems: 3, items: { $ref: '#/components/schemas/MealSlot' } }
+        weeklySummary: { type: boolean }
+        inactivityNudges: { type: integer, minimum: 0, maximum: 3 }
+
+    OnboardingStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [NOT_STARTED, IN_PROGRESS, PLANNING, READY] }
+        result: { $ref: '#/components/schemas/OnboardingResult' }
+
+    Consent:
+      type: object
+      required: [purpose, granted, policyVersion, createdAt]
+      properties:
+        purpose: { $ref: '#/components/schemas/ConsentPurpose' }
+        granted: { type: boolean }
+        policyVersion: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    DataRequest:
+      type: object
+      required: [id, kind, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [export, delete] }
+        status: { type: string, enum: [queued, running, ready, failed, done] }
+        downloadUrl: { type: [string, 'null'], format: uri }
+        createdAt: { type: string, format: date-time }
+
+    Questionnaire:
+      type: object
+      required: [version, screening]
+      properties:
+        version: { type: string }
+        screening:
+          type: array
+          items:
+            type: object
+            required: [code, text, type]
+            properties:
+              code: { type: string }
+              text: { type: string }
+              type: { type: string, enum: [boolean, multi_select] }
+              options: { type: array, items: { type: string } }
+
+    GoalInput:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: { $ref: '#/components/schemas/GoalType' }
+        targetWeightKg: { type: number, minimum: 30, maximum: 300 }
+        weeklyRatePct: { type: number, minimum: -1, maximum: 0.5 }
+
+    OnboardingInput:
+      type: object
+      additionalProperties: false
+      required: [questionnaireVersion, profile, weightKg, goal, screening, consents]
+      properties:
+        questionnaireVersion: { type: string }
+        profile:
+          allOf:
+            - $ref: '#/components/schemas/Profile'
+        weightKg: { type: number, minimum: 25, maximum: 350 }
+        goal: { $ref: '#/components/schemas/GoalInput' }
+        screening:
+          type: object
+          required: [answers]
+          properties:
+            answers:
+              type: object
+              additionalProperties: { type: boolean }
+            injuries:
+              type: array
+              items:
+                type: object
+                required: [code, severity]
+                properties:
+                  code: { type: string }
+                  severity: { type: string, enum: [mild, moderate, severe] }
+        consents:
+          type: array
+          items:
+            type: object
+            required: [purpose, granted, policyVersion]
+            properties:
+              purpose: { $ref: '#/components/schemas/ConsentPurpose' }
+              granted: { type: boolean }
+              policyVersion: { type: string }
+
+    OnboardingResult:
+      type: object
+      required: [assessment, targets, plan, notices]
+      properties:
+        assessment: { $ref: '#/components/schemas/Assessment' }
+        targets: { $ref: '#/components/schemas/NutritionTarget' }
+        plan: { $ref: '#/components/schemas/WorkoutPlan' }
+        notices:
+          type: array
+          items:
+            type: object
+            required: [kind, text]
+            properties:
+              kind: { type: string, enum: [medical_clearance, pregnancy, goal_capped, info] }
+              text: { type: string }
+
+    Assessment:
+      type: object
+      required: [bmi, bmrKcal, tdeeKcal, recommendedRatePctPerWeek, rationaleCodes]
+      properties:
+        bmi: { type: number }
+        bmiNote: { type: string }
+        bmrKcal: { type: integer }
+        tdeeKcal: { type: integer }
+        recommendedRatePctPerWeek: { type: number }
+        rateRangeKgPerWeek: { type: array, minItems: 2, maxItems: 2, items: { type: number } }
+        rationaleCodes: { type: array, items: { type: string } }
+
+    ExerciseSummary:
+      type: object
+      required: [id, slug, name, primaryMuscles, equipment]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        primaryMuscles: { type: array, items: { type: string } }
+        equipment: { type: array, items: { type: string } }
+        difficulty: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
+        thumbnailUrl: { type: [string, 'null'], format: uri }
+
+    Exercise:
+      allOf:
+        - $ref: '#/components/schemas/ExerciseSummary'
+        - type: object
+          properties:
+            version: { type: integer }
+            movementPattern: { type: string }
+            secondaryMuscles: { type: array, items: { type: string } }
+            instructions: { type: array, items: { type: string } }
+            cues: { type: array, items: { type: string } }
+            commonMistakes: { type: array, items: { type: string } }
+            contraindications: { type: array, items: { type: string } }
+            regression: { $ref: '#/components/schemas/ExerciseSummary' }
+            progression: { $ref: '#/components/schemas/ExerciseSummary' }
+            media:
+              type: array
+              items:
+                type: object
+                required: [kind, url, altText]
+                properties:
+                  kind: { type: string, enum: [VIDEO, IMAGE, ANIMATION] }
+                  url: { type: string, format: uri }
+                  captionsUrl: { type: [string, 'null'], format: uri }
+                  altText: { type: string }
+
+    ExerciseInput:
+      type: object
+      additionalProperties: false
+      required: [slug, name, movementPattern, mechanics, difficulty, primaryMuscles, equipment, instructions]
+      properties:
+        slug: { type: string, pattern: '^[a-z0-9-]{3,80}$' }
+        name: { type: string, maxLength: 80 }
+        movementPattern: { type: string }
+        mechanics: { type: string, enum: [compound, isolation] }
+        difficulty: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
+        primaryMuscles: { type: array, minItems: 1, items: { type: string } }
+        secondaryMuscles: { type: array, items: { type: string } }
+        equipment: { type: array, items: { type: string } }
+        instructions: { type: array, minItems: 1, items: { type: string, maxLength: 300 } }
+        cues: { type: array, items: { type: string, maxLength: 120 } }
+        commonMistakes: { type: array, items: { type: string, maxLength: 200 } }
+        contraindications: { type: array, items: { type: string } }
+        defaultRestSec: { type: integer, minimum: 15, maximum: 600 }
+
+    PlannedExercise:
+      type: object
+      required: [id, order, exercise, sets, repMin, repMax, targetRpe, restSec]
+      properties:
+        id: { type: string, format: uuid }
+        order: { type: integer }
+        exercise: { $ref: '#/components/schemas/ExerciseSummary' }
+        sets: { type: integer }
+        repMin: { type: integer }
+        repMax: { type: integer }
+        targetLoadKg: { type: [number, 'null'] }
+        targetRpe: { type: number }
+        restSec: { type: integer }
+        progressionNote: { type: [string, 'null'] }
+        substitutedFrom: { $ref: '#/components/schemas/ExerciseSummary' }
+
+    SetInput:
+      type: object
+      additionalProperties: false
+      required: [clientId, exerciseId, setNumber]
+      properties:
+        clientId: { type: string, format: uuid }
+        exerciseId: { type: string, format: uuid }
+        setNumber: { type: integer, minimum: 1, maximum: 20 }
+        reps: { type: integer, minimum: 0, maximum: 100 }
+        loadKg: { type: number, minimum: 0, maximum: 500 }
+        durationSec: { type: integer, minimum: 0, maximum: 7200 }
+        distanceM: { type: integer, minimum: 0, maximum: 100000 }
+        rpe: { type: number, minimum: 1, maximum: 10 }
+        isWarmup: { type: boolean }
+        painReported: { type: boolean }
+        completedAt: { type: string, format: date-time }
+
+    WorkoutSet:
+      allOf:
+        - $ref: '#/components/schemas/SetInput'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+
+    WorkoutSession:
+      type: object
+      required: [id, name, scheduledDate, status, planned, sets]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        scheduledDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/SessionStatus' }
+        estimatedMinutes: { type: integer }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        perceivedDifficulty: { type: [integer, 'null'] }
+        soreness: { type: [integer, 'null'] }
+        planned:
+          type: array
+          items: { $ref: '#/components/schemas/PlannedExercise' }
+        sets:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSet' }
+
+    PlanWeek:
+      type: object
+      required: [weekStart, weekIndex, kind, sessions, rationale]
+      properties:
+        weekStart: { type: string, format: date }
+        weekIndex: { type: integer }
+        kind: { type: string, enum: [NORMAL, DELOAD] }
+        rationale:
+          type: array
+          items:
+            type: object
+            required: [code, text]
+            properties:
+              code: { type: string }
+              text: { type: string }
+              exerciseId: { type: string, format: uuid }
+        sessions:
+          type: array
+          items: { $ref: '#/components/schemas/WorkoutSession' }
+
+    WorkoutPlan:
+      type: object
+      required: [id, status, startDate, currentWeek]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, SUPERSEDED, ARCHIVED] }
+        templateName: { type: string }
+        startDate: { type: string, format: date }
+        currentWeek: { $ref: '#/components/schemas/PlanWeek' }
+
+    PersonalRecord:
+      type: object
+      required: [exerciseId, kind, value, achievedAt]
+      properties:
+        exerciseId: { type: string, format: uuid }
+        exerciseName: { type: string }
+        kind: { type: string, enum: [e1rm, max_load, max_reps, max_volume] }
+        value: { type: number }
+        achievedAt: { type: string, format: date-time }
+
+    FoodUnit:
+      type: object
+      required: [code, label, grams]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        grams: { type: number }
+
+    FoodSummary:
+      type: object
+      required: [id, name, source, confidence, state, per100]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        brand: { type: [string, 'null'] }
+        source: { type: string, enum: [IFCT_2017, USDA_FDC, OPEN_FOOD_FACTS, CURATED_RECIPE, USER] }
+        confidence: { $ref: '#/components/schemas/Confidence' }
+        state: { $ref: '#/components/schemas/FoodState' }
+        per100: { $ref: '#/components/schemas/NutrientMap' }
+        defaultUnit: { $ref: '#/components/schemas/FoodUnit' }
+        compatible: { type: boolean, description: 'false when it conflicts with the user diet or allergens' }
+        warnings: { type: array, items: { type: string } }
+
+    Food:
+      allOf:
+        - $ref: '#/components/schemas/FoodSummary'
+        - type: object
+          properties:
+            localNames: { type: array, items: { type: string } }
+            units: { type: array, items: { $ref: '#/components/schemas/FoodUnit' } }
+            allergens: { type: array, items: { type: string } }
+            dietTags: { type: array, items: { type: string } }
+            sourceRef: { type: [string, 'null'] }
+            attribution: { type: [string, 'null'] }
+
+    CustomFoodInput:
+      type: object
+      additionalProperties: false
+      required: [name, state, per100]
+      properties:
+        name: { type: string, maxLength: 120 }
+        brand: { type: string, maxLength: 80 }
+        state: { $ref: '#/components/schemas/FoodState' }
+        per100:
+          type: object
+          required: [energy_kcal, protein_g, carb_g, fat_g]
+          additionalProperties: { type: number, minimum: 0 }
+          properties:
+            energy_kcal: { type: number, minimum: 0, maximum: 950 }
+            protein_g: { type: number, minimum: 0, maximum: 100 }
+            carb_g: { type: number, minimum: 0, maximum: 100 }
+            fat_g: { type: number, minimum: 0, maximum: 100 }
+        units: { type: array, maxItems: 10, items: { $ref: '#/components/schemas/FoodUnit' } }
+
+    MealEntryInput:
+      type: object
+      additionalProperties: false
+      required: [clientId, date, slot, quantity, unitCode, state]
+      properties:
+        clientId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        slot: { $ref: '#/components/schemas/MealSlot' }
+        foodId: { type: string, format: uuid }
+        manualName: { type: string, maxLength: 120 }
+        manualNutrients: { $ref: '#/components/schemas/NutrientMap' }
+        quantity: { type: number, exclusiveMinimum: 0, maximum: 5000 }
+        unitCode: { type: string, maxLength: 20 }
+        state: { $ref: '#/components/schemas/FoodState' }
+        method: { type: string, enum: [search, barcode, manual, plan] }
+      oneOf:
+        - required: [foodId]
+        - required: [manualName, manualNutrients]
+
+    MealEntry:
+      type: object
+      required: [id, date, slot, name, quantity, unitCode, grams, state, nutrients, confidence]
+      properties:
+        id: { type: string, format: uuid }
+        date: { type: string, format: date }
+        slot: { $ref: '#/components/schemas/MealSlot' }
+        foodId: { type: [string, 'null'], format: uuid }
+        name: { type: string }
+        quantity: { type: number }
+        unitCode: { type: string }
+        grams: { type: number }
+        state: { $ref: '#/components/schemas/FoodState' }
+        nutrients: { $ref: '#/components/schemas/NutrientMap' }
+        confidence: { $ref: '#/components/schemas/Confidence' }
+
+    NutritionTarget:
+      type: object
+      required: [effectiveFrom, energyKcal, proteinG, carbG, fatG, fibreG, waterMl, rationale]
+      properties:
+        effectiveFrom: { type: string, format: date }
+        energyKcal: { type: integer }
+        proteinG: { type: integer }
+        carbG: { type: integer }
+        fatG: { type: integer }
+        fibreG: { type: integer }
+        waterMl: { type: integer }
+        micros: { $ref: '#/components/schemas/NutrientMap' }
+        rationale:
+          type: array
+          items:
+            type: object
+            required: [code, text]
+            properties:
+              code: { type: string }
+              text: { type: string }
+
+    NutritionDay:
+      type: object
+      required: [date, entries, totals, waterMl]
+      properties:
+        date: { type: string, format: date }
+        entries: { type: array, items: { $ref: '#/components/schemas/MealEntry' } }
+        totals: { $ref: '#/components/schemas/NutrientMap' }
+        waterMl: { type: integer }
+        target: { $ref: '#/components/schemas/NutritionTarget' }
+
+    Recipe:
+      type: object
+      required: [id, slug, name, servings, ingredients, steps, perServing, confidence]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        cuisine: { type: [string, 'null'] }
+        dietTags: { type: array, items: { type: string } }
+        allergens: { type: array, items: { type: string } }
+        servings: { type: integer }
+        prepMinutes: { type: integer }
+        cookMinutes: { type: integer }
+        imageUrl: { type: [string, 'null'], format: uri }
+        ingredients:
+          type: array
+          items:
+            type: object
+            required: [foodId, name, grams]
+            properties:
+              foodId: { type: string, format: uuid }
+              name: { type: string }
+              grams: { type: number }
+              note: { type: [string, 'null'] }
+        steps: { type: array, items: { type: string } }
+        substitutions:
+          type: array
+          items:
+            type: object
+            properties:
+              ingredientFoodId: { type: string, format: uuid }
+              alternatives: { type: array, items: { type: string } }
+              note: { type: string }
+        perServing: { $ref: '#/components/schemas/NutrientMap' }
+        confidence: { $ref: '#/components/schemas/Confidence' }
+
+    MealPlan:
+      type: object
+      required: [id, weekStart, days]
+      properties:
+        id: { type: string, format: uuid }
+        weekStart: { type: string, format: date }
+        warnings: { type: array, items: { type: string } }
+        days:
+          type: array
+          items:
+            type: object
+            required: [date, items, totals]
+            properties:
+              date: { type: string, format: date }
+              totals: { $ref: '#/components/schemas/NutrientMap' }
+              items:
+                type: array
+                items:
+                  type: object
+                  required: [id, slot, recipeSlug, recipeName, servings]
+                  properties:
+                    id: { type: string, format: uuid }
+                    slot: { $ref: '#/components/schemas/MealSlot' }
+                    recipeSlug: { type: string }
+                    recipeName: { type: string }
+                    servings: { type: number }
+
+    Measurement:
+      type: object
+      required: [id, type, value, measuredAt, source]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/MeasurementType' }
+        value: { type: number }
+        measuredAt: { type: string, format: date-time }
+        source: { type: string }
+
+    MeasurementInput:
+      type: object
+      additionalProperties: false
+      required: [clientId, type, value, measuredAt]
+      properties:
+        clientId: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/MeasurementType' }
+        value: { type: number, exclusiveMinimum: 0, maximum: 350 }
+        measuredAt: { type: string, format: date-time }
+
+    WeightTrend:
+      type: object
+      required: [points, trend]
+      properties:
+        points:
+          type: array
+          items:
+            type: object
+            required: [date, value]
+            properties:
+              date: { type: string, format: date }
+              value: { type: number }
+        trend:
+          type: array
+          items:
+            type: object
+            required: [date, value]
+            properties:
+              date: { type: string, format: date }
+              value: { type: number }
+        weeklyRatePct: { type: [number, 'null'] }
+        estimate:
+          type: [object, 'null']
+          description: Shown only with enough data; a range, never a promise
+          properties:
+            earliest: { type: string, format: date }
+            latest: { type: string, format: date }
+
+    CheckIn:
+      type: object
+      additionalProperties: false
+      properties:
+        sleepHours: { type: number, minimum: 0, maximum: 16 }
+        sleepQuality: { type: integer, minimum: 1, maximum: 5 }
+        energy: { type: integer, minimum: 1, maximum: 5 }
+        soreness: { type: integer, minimum: 1, maximum: 5 }
+        mood: { type: integer, minimum: 1, maximum: 5 }
+
+    DashboardToday:
+      type: object
+      required: [date, nutrition, consistency, recommendations]
+      properties:
+        date: { type: string, format: date }
+        session: { $ref: '#/components/schemas/WorkoutSession' }
+        nutrition:
+          type: object
+          required: [totals, target]
+          properties:
+            totals: { $ref: '#/components/schemas/NutrientMap' }
+            target: { $ref: '#/components/schemas/NutritionTarget' }
+            waterMl: { type: integer }
+        consistency:
+          type: object
+          required: [planned, completed]
+          properties:
+            planned: { type: integer }
+            completed: { type: number }
+        weightSparkline:
+          type: array
+          items: { type: number }
+        checkInDone: { type: boolean }
+        recommendations:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/Recommendation' }
+
+    Recommendation:
+      type: object
+      required: [id, kind, source, status, title, explanation, expiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [WORKOUT_SWAP, WORKOUT_RESCHEDULE, PLAN_ADJUSTMENT, NUTRITION_TARGET_CHANGE, MEAL_SWAP, GENERAL_TIP] }
+        source: { type: string, enum: [ENGINE, COACH] }
+        status: { $ref: '#/components/schemas/RecommendationStatus' }
+        title: { type: string }
+        explanation: { type: string }
+        changes:
+          type: array
+          description: Human-readable before/after lines rendered on the proposal card
+          items:
+            type: object
+            required: [label, before, after]
+            properties:
+              label: { type: string }
+              before: { type: string }
+              after: { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    Conversation:
+      type: object
+      required: [id, createdAt, lastMessageAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        lastMessageAt: { type: string, format: date-time }
+
+    CoachMessage:
+      type: object
+      required: [id, role, content, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [USER, ASSISTANT, SYSTEM_NOTICE] }
+        content: { type: string }
+        proposals: { type: array, items: { $ref: '#/components/schemas/Recommendation' } }
+        followUps: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+
+    CoachTurn:
+      type: object
+      required: [userMessage, reply]
+      properties:
+        userMessage: { $ref: '#/components/schemas/CoachMessage' }
+        reply: { $ref: '#/components/schemas/CoachMessage' }
+        safety: { type: string, enum: [none, advised_professional, urgent_care] }
+
+    CoachMemory:
+      type: object
+      required: [id, key, value, approvedAt]
+      properties:
+        id: { type: string, format: uuid }
+        key: { type: string }
+        value: { type: string }
+        approvedAt: { type: string, format: date-time }
+
+    Notification:
+      type: object
+      required: [id, type, title, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        deepLink: { type: [string, 'null'] }
+        readAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    AuditEntry:
+      type: object
+      required: [id, action, entityType, entityId, createdAt]
+      properties:
+        id: { type: string }
+        actorId: { type: [string, 'null'], format: uuid }
+        actorRole: { type: [string, 'null'] }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        before: { type: [object, 'null'] }
+        after: { type: [object, 'null'] }
+        createdAt: { type: string, format: date-time }
