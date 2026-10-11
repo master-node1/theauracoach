@@ -1,6 +1,6 @@
 # Entity Relationship Design
 
-Source of truth: one Prisma schema per service in [services/](services/) (drafts, each validated with `prisma validate`): [profile](services/profile.prisma) · [workout](services/workout.prisma) · [nutrition](services/nutrition.prisma) · [progress](services/progress.prisma) · [coach](services/coach.prisma) · [notification](services/notification.prisma) · [audit](services/audit.prisma). Field-level detail: [data-dictionary.md](data-dictionary.md).
+Source of truth: one Prisma schema per service, next to its migrations: [profile](../../services/profile-service/prisma/schema.prisma) · [workout](../../services/workout-service/prisma/schema.prisma) · [nutrition](../../services/nutrition-service/prisma/schema.prisma) · [progress](../../services/progress-service/prisma/schema.prisma) · [coach](../../services/coach-service/prisma/schema.prisma) · [notification](../../services/notification-service/prisma/schema.prisma) · [audit](../../services/audit-service/prisma/schema.prisma). Field-level detail: [data-dictionary.md](data-dictionary.md).
 
 Each service owns one database. The diagram below is the **logical** model across services; relationships that cross a service boundary are plain id columns (no foreign keys), kept consistent by events.
 

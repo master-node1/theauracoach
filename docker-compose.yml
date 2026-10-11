@@ -1,0 +1,319 @@
+# Local stack: docker compose up --build
+# Gateway http://localhost:8080 · dev-auth (token issuer) http://localhost:4100
+# Every value here is for local development only. Nothing in this file is a real credential.
+name: auracoach
+
+x-service-env: &service-env
+  NODE_ENV: development
+  PORT: '3000'
+  LOG_LEVEL: info
+  REDIS_URL: redis://redis:6379
+  AUTH_JWKS_URL: http://dev-auth:4100/.well-known/jwks.json
+  AUTH_ISSUER: http://localhost:4100
+  AUTH_CLIENT_IDS: aura-dev-client
+  INTERNAL_TOKEN_SECRET: local-dev-only-internal-secret-change-me
+
+x-depends: &depends
+  postgres: { condition: service_healthy }
+  redis: { condition: service_healthy }
+  dev-auth: { condition: service_started }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local-dev-only
+    ports: ['5432:5432']
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/local/postgres-init.sh:/docker-entrypoint-initdb.d/10-service-databases.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports: ['6379:6379']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  dev-auth:
+    build: { context: ., dockerfile: tools/dev-auth/Dockerfile }
+    environment:
+      DEV_AUTH_ISSUER: http://localhost:4100
+    ports: ['4100:4100']
+
+  api-gateway:
+    build: { context: ., dockerfile: services/api-gateway/Dockerfile }
+    environment:
+      PROFILE_UPSTREAM: profile:3000
+      WORKOUT_UPSTREAM: workout:3000
+      NUTRITION_UPSTREAM: nutrition:3000
+      PROGRESS_UPSTREAM: progress:3000
+      COACH_UPSTREAM: coach:3000
+      NOTIFICATION_UPSTREAM: notification:3000
+      AUDIT_UPSTREAM: audit:3000
+    ports: ['8080:8080']
+    depends_on:
+      profile: { condition: service_healthy }
+      workout: { condition: service_healthy }
+      nutrition: { condition: service_healthy }
+      progress: { condition: service_healthy }
+      coach: { condition: service_healthy }
+      notification: { condition: service_healthy }
+      audit: { condition: service_healthy }
+
+  profile:
+    build: { context: ., dockerfile: services/profile-service/Dockerfile }
+    image: auracoach/profile-service:local
+    # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
+    command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: profile-service
+      DATABASE_URL: postgresql://profile_svc:local-dev-only@postgres:5432/profile_db
+      INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000,nutrition-service=http://nutrition:3000'
+    ports: ['3001:3000']
+    depends_on: *depends
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  profile-worker:
+    image: auracoach/profile-service:local
+    command: ['node', 'dist/main.worker.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: profile-service
+      DATABASE_URL: postgresql://profile_svc:local-dev-only@postgres:5432/profile_db
+      INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000,nutrition-service=http://nutrition:3000'
+    depends_on:
+      profile: { condition: service_healthy }
+
+  workout:
+    build: { context: ., dockerfile: services/workout-service/Dockerfile }
+    image: auracoach/workout-service:local
+    # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
+    command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: workout-service
+      DATABASE_URL: postgresql://workout_svc:local-dev-only@postgres:5432/workout_db
+      INTERNAL_SERVICE_URLS: ''
+    ports: ['3002:3000']
+    depends_on: *depends
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  workout-worker:
+    image: auracoach/workout-service:local
+    command: ['node', 'dist/main.worker.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: workout-service
+      DATABASE_URL: postgresql://workout_svc:local-dev-only@postgres:5432/workout_db
+      INTERNAL_SERVICE_URLS: ''
+    depends_on:
+      workout: { condition: service_healthy }
+
+  nutrition:
+    build: { context: ., dockerfile: services/nutrition-service/Dockerfile }
+    image: auracoach/nutrition-service:local
+    # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
+    command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: nutrition-service
+      DATABASE_URL: postgresql://nutrition_svc:local-dev-only@postgres:5432/nutrition_db
+      INTERNAL_SERVICE_URLS: ''
+    ports: ['3003:3000']
+    depends_on: *depends
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  nutrition-worker:
+    image: auracoach/nutrition-service:local
+    command: ['node', 'dist/main.worker.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: nutrition-service
+      DATABASE_URL: postgresql://nutrition_svc:local-dev-only@postgres:5432/nutrition_db
+      INTERNAL_SERVICE_URLS: ''
+    depends_on:
+      nutrition: { condition: service_healthy }
+
+  progress:
+    build: { context: ., dockerfile: services/progress-service/Dockerfile }
+    image: auracoach/progress-service:local
+    # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
+    command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: progress-service
+      DATABASE_URL: postgresql://progress_svc:local-dev-only@postgres:5432/progress_db
+      INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000'
+    ports: ['3004:3000']
+    depends_on: *depends
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  progress-worker:
+    image: auracoach/progress-service:local
+    command: ['node', 'dist/main.worker.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: progress-service
+      DATABASE_URL: postgresql://progress_svc:local-dev-only@postgres:5432/progress_db
+      INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000'
+    depends_on:
+      progress: { condition: service_healthy }
+
+  coach:
+    build: { context: ., dockerfile: services/coach-service/Dockerfile }
+    image: auracoach/coach-service:local
+    # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
+    command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: coach-service
+      DATABASE_URL: postgresql://coach_svc:local-dev-only@postgres:5432/coach_db
+      INTERNAL_SERVICE_URLS: 'profile-service=http://profile:3000,workout-service=http://workout:3000,nutrition-service=http://nutrition:3000,progress-service=http://progress:3000'
+    ports: ['3005:3000']
+    depends_on: *depends
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  coach-worker:
+    image: auracoach/coach-service:local
+    command: ['node', 'dist/main.worker.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: coach-service
+      DATABASE_URL: postgresql://coach_svc:local-dev-only@postgres:5432/coach_db
+      INTERNAL_SERVICE_URLS: 'profile-service=http://profile:3000,workout-service=http://workout:3000,nutrition-service=http://nutrition:3000,progress-service=http://progress:3000'
+    depends_on:
+      coach: { condition: service_healthy }
+
+  notification:
+    build: { context: ., dockerfile: services/notification-service/Dockerfile }
+    image: auracoach/notification-service:local
+    # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
+    command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: notification-service
+      DATABASE_URL: postgresql://notification_svc:local-dev-only@postgres:5432/notification_db
+      INTERNAL_SERVICE_URLS: ''
+    ports: ['3006:3000']
+    depends_on: *depends
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  notification-worker:
+    image: auracoach/notification-service:local
+    command: ['node', 'dist/main.worker.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: notification-service
+      DATABASE_URL: postgresql://notification_svc:local-dev-only@postgres:5432/notification_db
+      INTERNAL_SERVICE_URLS: ''
+    depends_on:
+      notification: { condition: service_healthy }
+
+  audit:
+    build: { context: ., dockerfile: services/audit-service/Dockerfile }
+    image: auracoach/audit-service:local
+    # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
+    command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: audit-service
+      DATABASE_URL: postgresql://audit_svc:local-dev-only@postgres:5432/audit_db
+      INTERNAL_SERVICE_URLS: ''
+    ports: ['3007:3000']
+    depends_on: *depends
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  audit-worker:
+    image: auracoach/audit-service:local
+    command: ['node', 'dist/main.worker.js']
+    environment:
+      <<: *service-env
+      SERVICE_NAME: audit-service
+      DATABASE_URL: postgresql://audit_svc:local-dev-only@postgres:5432/audit_db
+      INTERNAL_SERVICE_URLS: ''
+    depends_on:
+      audit: { condition: service_healthy }
+
+volumes:
+  pgdata:

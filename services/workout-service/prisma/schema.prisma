@@ -1,0 +1,373 @@
+// workout-service Prisma schema. This service owns only its own database (workout_db).
+// References to other services' data are plain id columns (no foreign keys);
+// deletion arrives via the AccountDeleted event. Design: docs/architecture/service-catalog.md
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
+}
+
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum GoalType {
+  FAT_LOSS
+  MUSCLE_GAIN
+  STRENGTH
+  ENDURANCE
+  GENERAL_FITNESS
+}
+
+enum IntensityCap {
+  STANDARD
+  LOW
+}
+
+enum MediaKind {
+  VIDEO
+  IMAGE
+  ANIMATION
+}
+
+enum PlanStatus {
+  ACTIVE
+  SUPERSEDED
+  ARCHIVED
+}
+
+enum SessionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  PARTIAL
+  MISSED
+  SKIPPED
+}
+
+enum Sex {
+  FEMALE
+  MALE
+}
+
+enum TrainingLocation {
+  GYM
+  HOME
+  OUTDOOR
+}
+
+enum WeekKind {
+  NORMAL
+  DELOAD
+}
+
+model Equipment {
+  code      String              @id @db.VarChar(40) // dumbbell, barbell, bench, pull_up_bar, resistance_band...
+  name      String
+  exercises ExerciseEquipment[]
+  users     UserEquipment[]
+}
+
+model UserEquipment {
+  userId        String    @db.Uuid
+  equipmentCode String    @db.VarChar(40)
+  equipment     Equipment @relation(fields: [equipmentCode], references: [code])
+  maxLoadKg     Decimal?  @db.Decimal(5, 1) // e.g. adjustable dumbbell max
+  incrementKg   Decimal?  @db.Decimal(4, 2)
+
+  @@id([userId, equipmentCode])
+}
+
+model MuscleGroup {
+  code      String           @id @db.VarChar(30) // quadriceps, glutes, chest...
+  name      String
+  exercises ExerciseMuscle[]
+}
+
+model Exercise {
+  id                String          @id @default(uuid()) @db.Uuid
+  slug              String          @unique
+  name              String
+  status            ContentStatus   @default(DRAFT)
+  version           Int             @default(1)
+  movementPattern   String          @db.VarChar(30) // squat, hinge, push_h, push_v, pull_h, pull_v, lunge, carry, core, cardio
+  mechanics         String          @db.VarChar(10) // compound | isolation
+  difficulty        ExperienceLevel
+  isBodyweight      Boolean         @default(false)
+  instructions      String[]
+  commonMistakes    String[]
+  cues              String[]
+  contraindications String[] // e.g. {"knee_high_load","spinal_flexion_loaded"}
+  regressionId      String?         @db.Uuid
+  progressionId     String?         @db.Uuid
+  regression        Exercise?       @relation("Regression", fields: [regressionId], references: [id])
+  progression       Exercise?       @relation("Progression", fields: [progressionId], references: [id])
+  regressionOf      Exercise[]      @relation("Regression")
+  progressionOf     Exercise[]      @relation("Progression")
+  defaultRestSec    Int             @default(90)
+  metValue          Decimal?        @db.Decimal(4, 1)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  publishedAt       DateTime?
+
+  muscles          ExerciseMuscle[]
+  equipment        ExerciseEquipment[]
+  media            ExerciseMedia[]
+  templateItems    WorkoutTemplateExercise[]
+  plannedExercises PlannedExercise[]
+  sets             WorkoutSet[]
+  personalRecords  PersonalRecord[]
+
+  @@index([status, movementPattern])
+}
+
+model ExerciseMuscle {
+  exerciseId String      @db.Uuid
+  muscleCode String      @db.VarChar(30)
+  role       String      @db.VarChar(10) // primary | secondary
+  exercise   Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  muscle     MuscleGroup @relation(fields: [muscleCode], references: [code])
+
+  @@id([exerciseId, muscleCode])
+  @@index([muscleCode, role])
+}
+
+model ExerciseEquipment {
+  exerciseId    String    @db.Uuid
+  equipmentCode String    @db.VarChar(40)
+  exercise      Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  equipment     Equipment @relation(fields: [equipmentCode], references: [code])
+
+  @@id([exerciseId, equipmentCode])
+}
+
+model ExerciseMedia {
+  id          String    @id @default(uuid()) @db.Uuid
+  exerciseId  String    @db.Uuid
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  kind        MediaKind
+  storageKey  String
+  captionsKey String?
+  altText     String
+  durationSec Int?
+  sortOrder   Int       @default(0)
+}
+
+model WorkoutTemplate {
+  id          String                    @id @default(uuid()) @db.Uuid
+  slug        String                    @unique
+  name        String
+  status      ContentStatus             @default(DRAFT)
+  version     Int                       @default(1)
+  goal        GoalType
+  experience  ExperienceLevel
+  daysPerWeek Int
+  location    TrainingLocation
+  split       String                    @db.VarChar(30) // full_body, upper_lower, ppl
+  days        Json // [{dayIndex, name, focus}]
+  items       WorkoutTemplateExercise[]
+  plans       WorkoutPlan[]
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  @@index([status, goal, experience, daysPerWeek, location])
+}
+
+model WorkoutTemplateExercise {
+  id         String          @id @default(uuid()) @db.Uuid
+  templateId String          @db.Uuid
+  template   WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  dayIndex   Int
+  order      Int
+  exerciseId String          @db.Uuid
+  exercise   Exercise        @relation(fields: [exerciseId], references: [id])
+  sets       Int
+  repMin     Int
+  repMax     Int
+  targetRpe  Decimal         @db.Decimal(3, 1)
+  restSec    Int
+
+  @@unique([templateId, dayIndex, order])
+}
+
+model WorkoutPlan {
+  id            String            @id @default(uuid()) @db.Uuid
+  userId        String            @db.Uuid
+  templateId    String?           @db.Uuid
+  template      WorkoutTemplate?  @relation(fields: [templateId], references: [id])
+  goalId        String?           @db.Uuid
+  status        PlanStatus        @default(ACTIVE)
+  engineVersion String            @db.VarChar(20)
+  startDate     DateTime          @db.Date
+  weeks         WorkoutPlanWeek[]
+  createdAt     DateTime          @default(now())
+  // partial unique index (one ACTIVE plan per user) added in migration SQL
+
+  @@index([userId, status])
+}
+
+model WorkoutPlanWeek {
+  id        String           @id @default(uuid()) @db.Uuid
+  planId    String           @db.Uuid
+  plan      WorkoutPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  weekStart DateTime         @db.Date
+  weekIndex Int
+  kind      WeekKind         @default(NORMAL)
+  rationale Json // engine explanation codes, shown to user and coach
+  sessions  WorkoutSession[]
+
+  @@unique([planId, weekStart])
+}
+
+model WorkoutSession {
+  id                  String            @id @default(uuid()) @db.Uuid
+  userId              String            @db.Uuid
+  planWeekId          String?           @db.Uuid
+  planWeek            WorkoutPlanWeek?  @relation(fields: [planWeekId], references: [id], onDelete: SetNull)
+  name                String
+  scheduledDate       DateTime          @db.Date
+  status              SessionStatus     @default(PLANNED)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  perceivedDifficulty Int? // 1-10 session RPE
+  soreness            Int? // 1-5
+  notes               String?           @db.VarChar(500)
+  clientId            String?           @db.Uuid // offline idempotency key
+  planned             PlannedExercise[]
+  sets                WorkoutSet[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([userId, clientId])
+  @@index([userId, scheduledDate])
+  @@index([userId, status, scheduledDate])
+}
+
+model PlannedExercise {
+  id                String         @id @default(uuid()) @db.Uuid
+  sessionId         String         @db.Uuid
+  session           WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  order             Int
+  exerciseId        String         @db.Uuid
+  exercise          Exercise       @relation(fields: [exerciseId], references: [id])
+  sets              Int
+  repMin            Int
+  repMax            Int
+  targetLoadKg      Decimal?       @db.Decimal(6, 2)
+  targetRpe         Decimal        @db.Decimal(3, 1)
+  restSec           Int
+  substitutedFromId String?        @db.Uuid
+  progressionNote   String?
+
+  @@unique([sessionId, order])
+}
+
+model WorkoutSet {
+  id           String         @id @default(uuid()) @db.Uuid
+  sessionId    String         @db.Uuid
+  session      WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId   String         @db.Uuid
+  exercise     Exercise       @relation(fields: [exerciseId], references: [id])
+  setNumber    Int
+  reps         Int?
+  loadKg       Decimal?       @db.Decimal(6, 2)
+  durationSec  Int?
+  distanceM    Int?
+  rpe          Decimal?       @db.Decimal(3, 1)
+  isWarmup     Boolean        @default(false)
+  painReported Boolean        @default(false)
+  completedAt  DateTime       @default(now())
+  clientId     String?        @db.Uuid
+
+  @@unique([sessionId, exerciseId, setNumber])
+  @@unique([sessionId, clientId])
+  @@index([exerciseId, completedAt])
+}
+
+model PersonalRecord {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  exerciseId String   @db.Uuid
+  exercise   Exercise @relation(fields: [exerciseId], references: [id])
+  kind       String   @db.VarChar(20) // e1rm | max_load | max_reps | max_volume
+  value      Decimal  @db.Decimal(8, 2)
+  setId      String   @db.Uuid
+  achievedAt DateTime
+
+  @@index([userId, exerciseId, kind])
+}
+
+/// Replica of profile data needed by the plan engine (from ProfileChanged / OnboardingCompleted).
+model UserTrainingProfile {
+  userId         String           @id @db.Uuid
+  sex            Sex
+  birthYear      Int
+  experience     ExperienceLevel
+  location       TrainingLocation
+  trainingDays   Int[]
+  sessionMinutes Int
+  intensityCap   IntensityCap
+  conditions     Json // [{ code, severity }]
+  timezone       String
+  goalType       GoalType
+  sourceEventId  String
+  updatedAt      DateTime         @updatedAt
+}
+
+/// Recovery signals from progress-service CheckInSaved, used by weekly adaptation.
+model RecoverySignal {
+  userId     String   @db.Uuid
+  date       DateTime @db.Date
+  sleepHours Decimal? @db.Decimal(3, 1)
+  energy     Int?
+  soreness   Int?
+
+  @@id([userId, date])
+}
+
+/// Engine policy values (contraindication map, volume bounds); changes audited.
+model WorkoutPolicy {
+  key         String   @id @db.VarChar(40)
+  value       Json
+  description String
+  updatedById String   @db.Uuid
+  updatedAt   DateTime @updatedAt
+}
+
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String    @db.VarChar(60)
+  version     Int       @default(1)
+  userId      String?   @db.Uuid
+  payload     Json
+  traceparent String?
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
+}
+
+model ProcessedEvent {
+  eventId     String   @id
+  type        String   @db.VarChar(60)
+  processedAt DateTime @default(now())
+}

@@ -82,7 +82,7 @@ Any new arrow needs an ADR update. Cycles are not allowed.
 - One ElastiCache Redis cluster with ACL users per service and key prefixes; Redis Streams for events, BullMQ for each service's jobs.
 - S3 buckets: `exercise-media` (public via CloudFront, workout-service writes), `user-private` (exports, P2 photos; prefix per service with IAM-scoped access).
 
-Schemas per service: [database/services/](../database/services/).
+Schemas per service: `services/<name>/prisma/schema.prisma`, with migrations next to them.
 
 ## 6. Cross-service flows
 

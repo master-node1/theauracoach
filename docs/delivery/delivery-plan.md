@@ -47,6 +47,15 @@ flowchart LR
 | Risks | Expo + monorepo tooling friction (Metro config); EKS and seven services is more platform work than one API, so the chart and template come first |
 | Acceptance | A user can sign up and see an empty "Today" on web, iOS simulator and Android emulator in dev; CI green and only changed services build; every service is healthy in dev EKS; `docker compose up` + `pnpm dev` works from a clean clone |
 
+### Phase 4 progress
+
+| Increment | Status |
+|---|---|
+| Monorepo, `packages/contracts`, `packages/service-kit`, 7 service skeletons with their databases, nginx gateway, docker compose stack, first event (`UserRegistered` profile → notification), CI with change detection ([TAC-1](https://harisireddi7776.atlassian.net/browse/TAC-1)) | In review |
+| Web and mobile shells with Cognito sign-in through the BFF | Not started |
+| Helm chart, Terraform `platform` and `service` stacks, dev EKS, image push and deploy | Not started |
+| OpenTelemetry tracing, EAS dev builds, remaining operations docs | Not started |
+
 ## Phase 5 — MVP vertical slices (≈ 8–10 sprints)
 
 Each slice ships API + web + mobile + tests + docs, behind a feature flag, and is demoed.

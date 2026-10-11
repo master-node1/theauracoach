@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+  - services/*
+  - tools/*
+  - tests/*
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - '@swc/core'
+  - esbuild
+  - prisma

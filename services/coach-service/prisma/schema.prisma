@@ -1,0 +1,227 @@
+// coach-service Prisma schema. This service owns only its own database (coach_db).
+// References to other services' data are plain id columns (no foreign keys);
+// deletion arrives via the AccountDeleted event. Design: docs/architecture/service-catalog.md
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto]
+}
+
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM_NOTICE
+}
+
+enum RecommendationKind {
+  WORKOUT_SWAP
+  WORKOUT_RESCHEDULE
+  PLAN_ADJUSTMENT
+  NUTRITION_TARGET_CHANGE
+  MEAL_SWAP
+  GENERAL_TIP
+}
+
+enum RecommendationSource {
+  ENGINE
+  COACH
+}
+
+enum RecommendationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  INVALIDATED
+}
+
+model CoachConversation {
+  id            String         @id @default(uuid()) @db.Uuid
+  userId        String         @db.Uuid
+  title         String?        @db.VarChar(80)
+  summary       String? // rolling summary after 20 turns
+  safetyFlag    Boolean        @default(false)
+  messages      CoachMessage[]
+  createdAt     DateTime       @default(now())
+  lastMessageAt DateTime       @default(now())
+
+  @@index([userId, lastMessageAt(sort: Desc)])
+}
+
+model CoachMessage {
+  id              String            @id @default(uuid()) @db.Uuid
+  conversationId  String            @db.Uuid
+  conversation    CoachConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role            MessageRole
+  content         String
+  toolCalls       Json? // [{name, inputHash, ok, durationMs}] — no raw outputs
+  safety          Json? // {pre: category, post: category, action}
+  aiRequestId     String?           @db.Uuid
+  promptVersion   String?           @db.VarChar(40)
+  clientId        String?           @db.Uuid
+  createdAt       DateTime          @default(now())
+  recommendations Recommendation[]
+  feedback        UserFeedback[]
+
+  @@unique([conversationId, clientId])
+  @@index([conversationId, createdAt])
+}
+
+model Recommendation {
+  id           String               @id @default(uuid()) @db.Uuid
+  userId       String               @db.Uuid
+  kind         RecommendationKind
+  source       RecommendationSource
+  status       RecommendationStatus @default(PENDING)
+  title        String               @db.VarChar(120)
+  explanation  String
+  payload      Json // engine-validated change set
+  basisVersion String // hash of the state the proposal was validated against
+  messageId    String?              @db.Uuid
+  message      CoachMessage?        @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  expiresAt    DateTime
+  decidedAt    DateTime?
+  createdAt    DateTime             @default(now())
+
+  @@index([userId, status, createdAt(sort: Desc)])
+}
+
+model CoachMemory {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  key             String   @db.VarChar(60) // e.g. "prefers_morning_training"
+  value           String   @db.VarChar(280)
+  approvedAt      DateTime @default(now()) // only user-approved memories are stored
+  sourceMessageId String?  @db.Uuid
+
+  @@unique([userId, key])
+}
+
+model UserFeedback {
+  id           String        @id @default(uuid()) @db.Uuid
+  userId       String        @db.Uuid
+  messageId    String?       @db.Uuid
+  message      CoachMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  targetType   String        @db.VarChar(30) // coach_message | plan | food | exercise | app
+  targetId     String?       @db.Uuid
+  rating       Int? // -1 | 1 for thumbs, 1-5 for others
+  reason       String?       @db.VarChar(40)
+  comment      String?       @db.VarChar(1000)
+  reviewStatus String        @default("new") @db.VarChar(20)
+  createdAt    DateTime      @default(now())
+
+  @@index([reviewStatus, createdAt])
+}
+
+model SafetyReview {
+  id             String    @id @default(uuid()) @db.Uuid
+  conversationId String    @db.Uuid
+  messageId      String    @db.Uuid
+  category       String    @db.VarChar(40) // red_flag_symptom, eating_disorder_signal, unsafe_request, injection_attempt
+  status         String    @default("open") @db.VarChar(20)
+  reviewerId     String?   @db.Uuid
+  resolution     String?
+  createdAt      DateTime  @default(now())
+  resolvedAt     DateTime?
+
+  @@index([status, createdAt])
+}
+
+model AiPromptVersion {
+  id           String        @id @default(uuid()) @db.Uuid
+  key          String        @db.VarChar(40) // coach_system, weekly_summary, safety_classifier
+  version      Int
+  status       ContentStatus @default(DRAFT)
+  template     String
+  outputSchema Json?
+  evalScore    Json? // latest eval run results gating publish
+  createdById  String        @db.Uuid
+  createdAt    DateTime      @default(now())
+  publishedAt  DateTime?
+
+  @@unique([key, version])
+}
+
+model AiModelConfig {
+  feature        String   @id @db.VarChar(40)
+  provider       String   @db.VarChar(20)
+  model          String   @db.VarChar(60)
+  effort         String   @db.VarChar(10)
+  maxTokens      Int
+  timeoutMs      Int
+  dailyUserQuota Int?
+  enabled        Boolean  @default(true)
+  updatedById    String   @db.Uuid
+  updatedAt      DateTime @updatedAt
+}
+
+model CoachingPolicy {
+  key         String   @id @db.VarChar(40) // calorie_floor_female, max_weekly_loss_pct, red_flag_terms...
+  value       Json
+  description String
+  updatedById String   @db.Uuid
+  updatedAt   DateTime @updatedAt
+}
+
+model UsageRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String?  @db.Uuid
+  feature         String   @db.VarChar(40) // coach_chat, weekly_summary, safety_classifier, meal_photo
+  provider        String   @db.VarChar(20)
+  model           String   @db.VarChar(60)
+  inputTokens     Int
+  outputTokens    Int
+  cacheReadTokens Int      @default(0)
+  costMicroUsd    BigInt
+  latencyMs       Int
+  outcome         String   @db.VarChar(20) // ok | error | refusal | timeout | budget_blocked
+  requestId       String   @db.Uuid
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([feature, createdAt])
+}
+
+/// Consent replica from ConsentChanged so ConsentGuard needs no sync call.
+model UserConsentState {
+  userId    String   @id @db.Uuid
+  aiCoach   Boolean
+  updatedAt DateTime @updatedAt
+}
+
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String    @db.VarChar(60)
+  version     Int       @default(1)
+  userId      String?   @db.Uuid
+  payload     Json
+  traceparent String?
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
+}
+
+model ProcessedEvent {
+  eventId     String   @id
+  type        String   @db.VarChar(60)
+  processedAt DateTime @default(now())
+}
