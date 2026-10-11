@@ -12,7 +12,14 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm turbo run build --filter=@aura/profile-service...
 RUN pnpm --filter=@aura/profile-service deploy --prod --legacy /out
 
-FROM base AS runtime
+FROM node:22.22-bookworm-slim AS runtime
+# Patch OS packages, and drop npm and corepack: the runtime never installs anything,
+# and npm's bundled dependencies are the image's main source of scanner findings.
+RUN apt-get update && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+     /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 ENV NODE_ENV=production PORT=3000
 WORKDIR /app
 COPY --from=build --chown=node:node /out ./
