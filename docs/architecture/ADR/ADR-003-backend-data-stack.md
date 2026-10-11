@@ -9,7 +9,7 @@ Relational, constraint-heavy data (plans → sessions → sets; foods → nutrie
 NestJS + Prisma + Postgres; NestJS + TypeORM; Fastify + Drizzle; MongoDB.
 
 ## Decision
-NestJS 11 + Prisma 6 + PostgreSQL 16 (RDS) + Redis 7 (ElastiCache) + BullMQ. Raw SQL via `prisma.$queryRaw` (tagged templates only) for analytics and search. Migrations via `prisma migrate`, reviewed SQL checked in.
+NestJS 11 + Prisma 6 + PostgreSQL 16 (RDS) + Redis 7 (ElastiCache) + BullMQ, used by every service. Each service owns one database (one RDS instance with a database and user per service in MVP) and its own Prisma schema; no cross-database queries. Raw SQL via `prisma.$queryRaw` (tagged templates only) for analytics and search. Migrations via `prisma migrate`, reviewed SQL checked in.
 
 ## Consequences
 + Familiar stack, typed queries, good migration story.

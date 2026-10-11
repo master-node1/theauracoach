@@ -2,6 +2,10 @@
 
 Contract: [openapi.yaml](openapi.yaml) (OpenAPI 3.1, lints clean with `redocly lint`; the only warning is the public health check having no 4xx response). In Phase 4 the spec is generated from Zod schemas in `packages/contracts` and this file becomes the CI-checked artefact; a typed client (`packages/api-client`) is generated for web and mobile.
 
+## Routing
+
+The public API is one contract served by several services. The nginx `api-gateway` validates nothing itself; it routes by path prefix (`/v1/me`, `/v1/onboarding`, `/v1/admin/roles` → profile; `/v1/exercises`, `/v1/workout-*` → workout; `/v1/foods`, `/v1/nutrition`, `/v1/meal-plans`, `/v1/recipes` → nutrition; `/v1/dashboard`, `/v1/progress` → progress; `/v1/coach`, `/v1/recommendations`, `/v1/admin/usage` → coach; `/v1/me/notification-preferences`, `/v1/me/devices`, `/v1/notifications` → notification; `/v1/admin/audit` → audit; `/v1/admin/{contentType}/…` → the service that owns that content type). More specific prefixes win, so `/v1/me/devices` reaches notification while the rest of `/v1/me` reaches profile. The full table is in the [service catalog](../architecture/service-catalog.md). `/internal/v1` is never routed by the gateway. Each service validates the Cognito token itself.
+
 ## Conventions
 
 | Topic | Rule |

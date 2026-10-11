@@ -1,0 +1,344 @@
+// nutrition-service — draft Prisma schema (Phase 3 design).
+// Lives at services/nutrition-service/prisma/schema.prisma from Phase 4.
+// Owns only its own database (nutrition_db). References to other services' data are
+// plain id columns (no foreign keys); deletion arrives via the AccountDeleted event.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm, unaccent, citext]
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+  VERY_ACTIVE
+}
+
+enum Confidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DietType {
+  VEGETARIAN
+  EGGETARIAN
+  NON_VEGETARIAN
+  VEGAN
+  JAIN
+  PESCATARIAN
+}
+
+enum FoodSource {
+  IFCT_2017
+  USDA_FDC
+  OPEN_FOOD_FACTS
+  CURATED_RECIPE
+  USER
+}
+
+enum FoodState {
+  RAW
+  COOKED
+  AS_SOLD
+}
+
+enum GoalType {
+  FAT_LOSS
+  MUSCLE_GAIN
+  STRENGTH
+  ENDURANCE
+  GENERAL_FITNESS
+}
+
+enum MealSlot {
+  BREAKFAST
+  MORNING_SNACK
+  LUNCH
+  EVENING_SNACK
+  DINNER
+  OTHER
+}
+
+enum PlanStatus {
+  ACTIVE
+  SUPERSEDED
+  ARCHIVED
+}
+
+enum Sex {
+  FEMALE
+  MALE
+}
+
+model Nutrient {
+  code    String         @id @db.VarChar(20) // energy_kcal, protein_g, carb_g, fat_g, fibre_g, iron_mg...
+  name    String
+  unit    String         @db.VarChar(10)
+  isMacro Boolean        @default(false)
+  values  FoodNutrient[]
+}
+
+model Allergen {
+  code String @id @db.VarChar(30) // peanut, tree_nut, milk, egg, gluten, soy, fish, shellfish, sesame, mustard
+  name String
+}
+
+model FoodItem {
+  id              String             @id @default(uuid()) @db.Uuid
+  name            String
+  localNames      String[] // e.g. {"arhar dal","tuvar paruppu"}
+  brand           String?
+  barcode         String?            @unique
+  source          FoodSource
+  sourceRef       String? // IFCT code, FDC id, OFF code
+  confidence      Confidence
+  state           FoodState
+  rawEquivalentId String?            @db.Uuid // cooked item → raw item for yield conversion
+  rawEquivalent   FoodItem?          @relation("RawEquivalent", fields: [rawEquivalentId], references: [id])
+  cookedForms     FoodItem[]         @relation("RawEquivalent")
+  yieldFactor     Decimal?           @db.Decimal(4, 3) // cooked grams per raw gram
+  densityGPerMl   Decimal?           @db.Decimal(5, 3)
+  dietTags        String[] // vegetarian, vegan, jain, contains_egg, contains_meat, contains_fish
+  allergens       String[] // Allergen.code
+  cuisine         String?
+  status          ContentStatus      @default(PUBLISHED)
+  createdById     String?            @db.Uuid // set only for USER foods
+  recipeId        String?            @unique @db.Uuid // composite dish computed from a recipe
+  recipe          Recipe?            @relation("RecipeFood", fields: [recipeId], references: [id])
+  nutrients       FoodNutrient[] // per 100 g (or 100 ml when densityGPerMl set)
+  units           FoodUnit[]
+  ingredientIn    RecipeIngredient[]
+  mealEntries     MealEntry[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  // GIN trigram index on name and localNames added in migration SQL
+
+  @@index([status, source])
+  @@index([createdById])
+}
+
+model FoodNutrient {
+  foodId       String   @db.Uuid
+  nutrientCode String   @db.VarChar(20)
+  food         FoodItem @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  nutrient     Nutrient @relation(fields: [nutrientCode], references: [code])
+  per100       Decimal  @db.Decimal(10, 3)
+
+  @@id([foodId, nutrientCode])
+}
+
+model FoodUnit {
+  id     String   @id @default(uuid()) @db.Uuid
+  foodId String   @db.Uuid
+  food   FoodItem @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  code   String   @db.VarChar(20) // katori, roti, piece, cup, tbsp, ladle, slice, serving
+  label  String
+  grams  Decimal  @db.Decimal(7, 2)
+
+  @@unique([foodId, code])
+}
+
+model Recipe {
+  id            String             @id @default(uuid()) @db.Uuid
+  slug          String             @unique
+  name          String
+  status        ContentStatus      @default(DRAFT)
+  version       Int                @default(1)
+  cuisine       String?
+  dietTags      String[]
+  allergens     String[] // derived from ingredients on publish
+  servings      Int
+  cookedYieldG  Decimal            @db.Decimal(7, 1) // total cooked weight
+  prepMinutes   Int
+  cookMinutes   Int
+  costTier      Int                @default(2) // 1 budget .. 3 premium
+  steps         String[]
+  substitutions Json // [{ingredientFoodId, alternatives:[foodId], note}]
+  imageKey      String?
+  ingredients   RecipeIngredient[]
+  food          FoodItem?          @relation("RecipeFood")
+  mealPlanItems MealPlanItem[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([status, cuisine])
+}
+
+model RecipeIngredient {
+  id       String   @id @default(uuid()) @db.Uuid
+  recipeId String   @db.Uuid
+  recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  foodId   String   @db.Uuid
+  food     FoodItem @relation(fields: [foodId], references: [id])
+  grams    Decimal  @db.Decimal(7, 1) // always raw weight as purchased
+  note     String?
+  order    Int
+
+  @@unique([recipeId, order])
+}
+
+model NutritionTarget {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  effectiveFrom DateTime @db.Date
+  energyKcal    Int
+  proteinG      Int
+  carbG         Int
+  fatG          Int
+  fibreG        Int
+  waterMl       Int
+  micros        Json // { iron_mg: 18, calcium_mg: 1000, ... }
+  engineVersion String   @db.VarChar(20)
+  rationale     Json // explanation codes and inputs
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, effectiveFrom])
+}
+
+model MealPlan {
+  id            String         @id @default(uuid()) @db.Uuid
+  userId        String         @db.Uuid
+  weekStart     DateTime       @db.Date
+  status        PlanStatus     @default(ACTIVE)
+  engineVersion String         @db.VarChar(20)
+  items         MealPlanItem[]
+  createdAt     DateTime       @default(now())
+
+  @@index([userId, weekStart])
+}
+
+model MealPlanItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  mealPlanId String   @db.Uuid
+  mealPlan   MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date
+  slot       MealSlot
+  recipeId   String   @db.Uuid
+  recipe     Recipe   @relation(fields: [recipeId], references: [id])
+  servings   Decimal  @db.Decimal(4, 2)
+
+  @@unique([mealPlanId, date, slot, recipeId])
+}
+
+model MealEntry {
+  id         String     @id @default(uuid()) @db.Uuid
+  userId     String     @db.Uuid
+  date       DateTime   @db.Date // user-local date
+  slot       MealSlot
+  foodId     String?    @db.Uuid
+  food       FoodItem?  @relation(fields: [foodId], references: [id])
+  manualName String?    @db.VarChar(120)
+  quantity   Decimal    @db.Decimal(8, 2) // in `unitCode`
+  unitCode   String     @db.VarChar(20) // g, ml, katori, roti...
+  grams      Decimal    @db.Decimal(8, 2) // normalised
+  state      FoodState
+  nutrients  Json // snapshot { energy_kcal, protein_g, ... } at log time
+  confidence Confidence
+  method     String     @db.VarChar(10) // search | barcode | manual | plan | photo
+  clientId   String?    @db.Uuid
+  loggedAt   DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  // CHECK (food_id IS NOT NULL OR manual_name IS NOT NULL) in migration SQL
+
+  @@unique([userId, clientId])
+  @@index([userId, date])
+}
+
+model WaterEntry {
+  id       String   @id @default(uuid()) @db.Uuid
+  userId   String   @db.Uuid
+  date     DateTime @db.Date
+  ml       Int
+  clientId String?  @db.Uuid
+  loggedAt DateTime @default(now())
+
+  @@unique([userId, clientId])
+  @@index([userId, date])
+}
+
+model DailyNutritionSummary {
+  userId     String   @db.Uuid
+  date       DateTime @db.Date
+  totals     Json // { energy_kcal, protein_g, carb_g, fat_g, fibre_g, ... }
+  waterMl    Int
+  targetId   String?  @db.Uuid
+  entryCount Int
+  updatedAt  DateTime @updatedAt
+
+  @@id([userId, date])
+}
+
+/// Replica of profile data needed by the targets and meal-plan engines.
+model UserNutritionProfile {
+  userId          String        @id @db.Uuid
+  sex             Sex
+  birthYear       Int
+  heightCm        Decimal       @db.Decimal(5, 1)
+  activityLevel   ActivityLevel
+  dietType        DietType
+  allergens       String[]
+  cuisines        String[]
+  dislikedFoodIds String[]      @db.Uuid
+  fastingDays     Int[]
+  goalType        GoalType
+  weeklyRatePct   Decimal?      @db.Decimal(4, 2)
+  pregnancy       Boolean       @default(false)
+  timezone        String
+  sourceEventId   String
+  updatedAt       DateTime      @updatedAt
+}
+
+/// Weight readings from progress-service MeasurementAdded, used for target adaptation.
+model WeightFact {
+  userId     String   @db.Uuid
+  measuredAt DateTime
+  weightKg   Decimal  @db.Decimal(5, 1)
+
+  @@id([userId, measuredAt])
+}
+
+/// Engine policy values (calorie floors, max weekly loss); changes audited.
+model NutritionPolicy {
+  key         String   @id @db.VarChar(40)
+  value       Json
+  description String
+  updatedById String   @db.Uuid
+  updatedAt   DateTime @updatedAt
+}
+
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String    @db.VarChar(60)
+  version     Int       @default(1)
+  userId      String?   @db.Uuid
+  payload     Json
+  traceparent String?
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
+}
+
+model ProcessedEvent {
+  eventId     String   @id
+  type        String   @db.VarChar(60)
+  processedAt DateTime @default(now())
+}

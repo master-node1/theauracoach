@@ -1,5 +1,7 @@
 # Progress, Dashboard and Analytics — Low-Level Design
 
+Service: **progress-service** · see the [service catalog](../../architecture/service-catalog.md) for owned data, events and allowed calls.
+
 ## 1. Responsibilities
 
 Measurements, daily check-ins, dashboard aggregation, trends, strength analytics, plateau detection, weekly summaries (data side; text comes from the coach).
@@ -14,9 +16,12 @@ Measurements, daily check-ins, dashboard aggregation, trends, strength analytics
 
 ## 3. Dashboard read model
 
-`GET /v1/dashboard/today` assembles: today's session, nutrition totals vs target, protein/fibre/water, consistency strip, weight sparkline (last 30 trend points), check-in status, up to 3 recommendations (engine first, then coach tips). Cached per user 5 min; invalidated by `MealLogged`, `WorkoutCompleted`, `MeasurementAdded`, `RecommendationChanged`. p95 target 150 ms from cache, 400 ms cold.
+progress-service builds `WorkoutDayFact`, `NutritionDayFact` and `ExerciseBestFact` from workout and nutrition events, so dashboard and analytics queries never call other services except for today's session detail.
 
-Recommendation ranking (deterministic): safety notices > pending proposals > protein gap > hydration > activity nudge; at most one per category; copy templates reviewed for tone.
+
+`GET /v1/dashboard/today` assembles: today's session (sync `GET workout-service /internal/v1/users/{id}/week`, 300 ms timeout; on failure the card links to Train), nutrition totals vs target, protein/fibre/water, consistency strip, weight sparkline (last 30 trend points), check-in status, up to 3 recommendations (engine first, then coach tips). Cached per user 5 min; invalidated by `MealLogged`, `WorkoutCompleted`, `MeasurementAdded`, `RecommendationChanged`. p95 target 150 ms from cache, 400 ms cold.
+
+Pending proposals come from coach-service's `RecommendationCreated` events (title and id only). Recommendation ranking (deterministic): safety notices > pending proposals > protein gap > hydration > activity nudge; at most one per category; copy templates reviewed for tone.
 
 ## 4. API
 

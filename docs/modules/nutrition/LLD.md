@@ -1,17 +1,21 @@
 # Nutrition — Low-Level Design
 
+Service: **nutrition-service** · see the [service catalog](../../architecture/service-catalog.md) for owned data, events and allowed calls.
+
 ## 1. Responsibilities
 
 Food catalogue and search, serving normalisation, logging, daily summaries, targets engine, meal-plan generator, recipes, grocery lists, barcode lookup, target adaptation.
 
 ```text
-apps/api/src/modules/nutrition/
+services/nutrition-service/src/
   controllers/ foods.controller.ts logs.controller.ts targets.controller.ts meal-plans.controller.ts recipes.controller.ts
   application/ food-search.service.ts logging.service.ts targets.service.ts meal-plan.service.ts barcode.service.ts grocery.service.ts
   infrastructure/ nutrition.repository.ts off.client.ts search.repository.ts
 packages/domain/nutrition/
   targets.ts normalise-serving.ts compute-nutrients.ts meal-plan.ts adapt-targets.ts composite-recipe.ts
 ```
+
+nutrition-service keeps `UserNutritionProfile` (from `ProfileChanged` / `OnboardingCompleted`) and `WeightFact` (from `MeasurementAdded`), so targets, meal plans and adaptation never call another service. Adaptation proposals are emitted as `TargetChangeProposed`; coach-service turns them into user-facing `Recommendation` cards and calls back `/internal/v1/proposals/apply` on accept.
 
 ## 2. Targets engine (`calculateTargets`)
 
@@ -94,6 +98,9 @@ Alternatives (C9): `suggestAlternatives(slot, remaining macros, context: eating_
 | GET | /v1/meal-plans/{id}/grocery-list |
 | GET | /v1/recipes/{slug} |
 | GET | /v1/nutrition/alternatives?slot=&context= |
+| POST | /internal/v1/targets (onboarding, idempotent on onboardingId) |
+| GET | /internal/v1/users/{id}/day/{date} · /internal/v1/foods/search (coach tools) |
+| POST | /internal/v1/proposals/validate · /apply |
 
 ## 8. Tests
 

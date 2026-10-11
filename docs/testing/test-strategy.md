@@ -7,8 +7,10 @@
 | Unit — domain | Pure engines in `packages/domain` (targets, plans, progression, units, trends) | Vitest, fast-check (property tests) | Every PR, < 60 s |
 | Unit — application | Nest services with fake ports | Vitest + `@nestjs/testing` | Every PR |
 | Contract | Zod ↔ OpenAPI sync, generated client compiles, Spectral/Redocly lint, breaking-change diff (`oasdiff`) | Redocly, oasdiff | Every PR |
-| Integration — API | Controller → service → Prisma → Postgres/Redis | Supertest, Testcontainers (Postgres 16, Redis 7), WireMock for OFF/Expo/AI | Every PR |
-| Database | Migrations apply cleanly from zero and from previous release; constraints enforced; drift check | Prisma migrate + Testcontainers | Every PR |
+| Contract — services | Event payloads validated against `packages/contracts` schemas by producer and consumer tests; internal APIs covered by consumer-driven pacts (coach → workout/nutrition/progress, profile → workout/nutrition); a consumer may not deploy against a provider version that breaks its pact | Vitest + Pact | Every PR touching a service or `packages/contracts` |
+| Integration — service | One service: controller → application → Prisma → its own Postgres database and Redis; other services stubbed via `InternalClient` fakes | Supertest, Testcontainers (Postgres 16, Redis 7), WireMock for OFF/Expo/AI | Every PR |
+| Saga and events | Onboarding saga, account deletion and export fan-out run across all services in docker compose; redelivered events are processed once; DLQ after 5 attempts | Vitest + compose | Nightly and before release |
+| Database | Each service's migrations apply cleanly from zero and from previous release; constraints enforced; drift check | Prisma migrate + Testcontainers | Every PR |
 | Frontend components | UI components, hooks, forms, states | Vitest + Testing Library (web), Jest + RNTL (mobile) | Every PR |
 | Accessibility | axe on every web route; RN accessibility props lint; manual VoiceOver/TalkBack checklist per release | axe-core/Playwright, eslint-plugin-react-native-a11y | PR (auto), release (manual) |
 | E2E web | Critical journeys | Playwright against dev/staging | Merge to main, release |

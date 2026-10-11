@@ -1,0 +1,130 @@
+// progress-service — draft Prisma schema (Phase 3 design).
+// Lives at services/progress-service/prisma/schema.prisma from Phase 4.
+// Owns only its own database (progress_db). References to other services' data are
+// plain id columns (no foreign keys); deletion arrives via the AccountDeleted event.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto]
+}
+
+enum IntegrationProvider {
+  APPLE_HEALTH
+  HEALTH_CONNECT
+}
+
+enum MeasurementType {
+  WEIGHT_KG
+  WAIST_CM
+  CHEST_CM
+  HIPS_CM
+  ARM_CM
+  THIGH_CM
+  NECK_CM
+  BODY_FAT_PCT
+}
+
+model BodyMeasurement {
+  id         String          @id @default(uuid()) @db.Uuid
+  userId     String          @db.Uuid
+  type       MeasurementType
+  value      Decimal         @db.Decimal(6, 2)
+  measuredAt DateTime
+  source     String          @default("manual") @db.VarChar(20) // manual | apple_health | health_connect
+  clientId   String?         @db.Uuid
+
+  @@unique([userId, clientId])
+  @@index([userId, type, measuredAt(sort: Desc)])
+}
+
+model DailyCheckIn {
+  userId       String   @db.Uuid
+  date         DateTime @db.Date
+  sleepHours   Decimal? @db.Decimal(3, 1)
+  sleepQuality Int? // 1-5
+  energy       Int? // 1-5
+  soreness     Int? // 1-5
+  mood         Int? // 1-5
+  steps        Int?
+  updatedAt    DateTime @updatedAt
+
+  @@id([userId, date])
+}
+
+model DeviceIntegration {
+  id          String              @id @default(uuid()) @db.Uuid
+  userId      String              @db.Uuid
+  provider    IntegrationProvider
+  scopes      String[]
+  connectedAt DateTime            @default(now())
+  lastSyncAt  DateTime?
+  revokedAt   DateTime?
+
+  @@unique([userId, provider])
+}
+
+/// Read model from workout-service events.
+model WorkoutDayFact {
+  userId     String   @db.Uuid
+  date       DateTime @db.Date
+  planned    Int      @default(0)
+  completed  Decimal  @default(0) @db.Decimal(4, 1) // COMPLETED = 1, PARTIAL = 0.5
+  missed     Int      @default(0)
+  volumeKg   Decimal  @default(0) @db.Decimal(10, 1)
+  sessionIds String[] @db.Uuid
+  updatedAt  DateTime @updatedAt
+
+  @@id([userId, date])
+}
+
+/// Read model from nutrition-service events.
+model NutritionDayFact {
+  userId     String   @db.Uuid
+  date       DateTime @db.Date
+  totals     Json
+  target     Json?
+  entryCount Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@id([userId, date])
+}
+
+/// Best set per exercise per session, from WorkoutCompleted, for strength charts.
+model ExerciseBestFact {
+  userId       String   @db.Uuid
+  exerciseId   String   @db.Uuid
+  exerciseName String
+  date         DateTime @db.Date
+  e1rmKg       Decimal? @db.Decimal(6, 2)
+  bestLoadKg   Decimal? @db.Decimal(6, 2)
+  bestReps     Int?
+
+  @@id([userId, exerciseId, date])
+}
+
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String    @db.VarChar(60)
+  version     Int       @default(1)
+  userId      String?   @db.Uuid
+  payload     Json
+  traceparent String?
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
+}
+
+model ProcessedEvent {
+  eventId     String   @id
+  type        String   @db.VarChar(60)
+  processedAt DateTime @default(now())
+}

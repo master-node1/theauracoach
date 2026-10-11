@@ -1,70 +1,136 @@
 # Platform (Cross-Cutting) — Low-Level Design
 
-Covers what every module shares: request pipeline, jobs, caching, idempotency, events, rate limits, audit, dependency injection and test boundaries. API conventions (errors, pagination) are in the [API guide](../../api/API-guide.md).
+Service: **`packages/service-kit`, used by every service** · see the [service catalog](../../architecture/service-catalog.md) for owned data, events and allowed calls.
 
-## 1. Request pipeline (NestJS)
+Covers what every service shares: request pipeline, service-to-service calls, events, jobs, caching, idempotency, rate limits, audit, dependency injection and test boundaries. API conventions (errors, pagination) are in the [API guide](../../api/API-guide.md).
 
-`RequestIdMiddleware` (accepts/creates `X-Request-Id`, binds OTel context) → `Helmet` → `ThrottlerGuard` (Redis) → `JwtAuthGuard` → `RolesGuard` → `ConsentGuard` → `ZodValidationPipe` → controller → `AuditInterceptor` (admin) → `ResponseMappingInterceptor` → `ProblemDetailsFilter` (RFC 9457 errors, no stack traces).
+## 1. Service skeleton
 
-Logging: `pino` JSON with `requestId`, `traceId`, `route`, `status`, `durationMs`, `userHash` (HMAC of user id). Redaction paths: `req.body`, `*.email`, `*.notes*`, `authorization`, `cookie`.
+```text
+services/<name>-service/
+  src/
+    main.http.ts            # public /v1 + /internal/v1 controllers
+    main.worker.ts          # outbox relay, event consumers, BullMQ processors
+    app.module.ts
+    <feature>/ controllers/ application/ infrastructure/ events/
+  prisma/ schema.prisma migrations/ seed.ts
+  test/ unit/ integration/ contract/
+  Dockerfile  README.md  docs/{HLD,LLD,API,DATABASE,FLOWS,TESTING}.md
+```
 
-## 2. Domain events and outbox
+`service-kit` provides `ServiceKitModule.forRoot({ name, db, redis, events })`, which wires config (Zod-validated env), pino logging, OpenTelemetry, health endpoints, guards, problem-details filter, outbox, event bus, idempotency store and the internal HTTP client.
 
-Modules publish events by inserting `OutboxEvent{id, type, payload, createdAt, processedAt}` in the same transaction. Worker polls every 1 s (`FOR UPDATE SKIP LOCKED`, batch 100), dispatches to in-process handlers and BullMQ queues, marks processed. Handlers are idempotent (keyed on event id).
+## 2. Request pipeline
 
-| Event | Producers | Consumers |
-|---|---|---|
-| WorkoutCompleted | workouts | progress (PRs, summaries), notifications (suppress), cache invalidation |
-| MealLogged / MealDeleted | nutrition | progress, dashboard cache |
-| MeasurementAdded | progress | nutrition adaptation input, dashboard cache |
-| ProfileChanged | users | workouts/nutrition proposals |
-| ContentPublished | admin | cache invalidation, search reindex |
-| RecommendationAccepted | coach/engines | workouts/nutrition apply, audit |
-| AccountDeletionRequested | users | notifications cancel, devices purge |
+`RequestIdMiddleware` (accepts/creates `X-Request-Id`, binds OTel context) → `Helmet` → `ThrottlerGuard` (Redis) → `JwtAuthGuard` or `InternalServiceGuard` → `PermissionsGuard` → `ConsentGuard` → `ZodValidationPipe` → controller → `AuditInterceptor` (admin routes) → `ResponseMappingInterceptor` → `ProblemDetailsFilter` (RFC 9457 errors, no stack traces).
 
-## 3. Background jobs (BullMQ)
+Logging: `pino` JSON with `service`, `requestId`, `traceId`, `route`, `status`, `durationMs`, `userHash` (HMAC of user id). Redaction paths: `req.body`, `*.email`, `*.notes*`, `authorization`, `cookie`.
 
-| Queue | Schedule | Idempotency | Retries | On final failure |
+## 3. Internal HTTP client
+
+`InternalClient.call(target, method, path, { asUser?, body, idempotencyKey })`:
+- mints a service JWT (`iss` = self, `aud` = target, `sub_user` when acting for a user, 5 min);
+- timeout 2 s (dashboard read 300 ms), 1 retry with jitter for GET and for writes with an idempotency key;
+- circuit breaker per target (`opossum`: open after 50% failures over 20 requests, half-open after 10 s);
+- typed with the target's internal contract from `packages/contracts/internal/<service>`.
+
+## 4. Events
+
+### 4.1 Envelope
+
+```json
+{
+  "id": "evt_01J…",
+  "type": "WorkoutCompleted",
+  "version": 1,
+  "occurredAt": "2026-10-11T06:42:10Z",
+  "producer": "workout-service",
+  "userId": "8f1c…",
+  "traceparent": "00-…",
+  "data": { "sessionId": "…", "date": "2026-10-11", "status": "COMPLETED", "volumeKg": 5240, "durationMin": 38 }
+}
+```
+
+### 4.2 Outbox → Redis Streams
+
+1. Application service writes its rows and an `OutboxEvent` row in one transaction.
+2. Relay (worker) polls every 250 ms (`FOR UPDATE SKIP LOCKED`, batch 100), `XADD aura.<Type>.v<version>`, marks `publishedAt`; on Redis failure retries with backoff and alerts if backlog > 1,000 or oldest > 60 s.
+3. Consumers read with `XREADGROUP` (group = consuming service), handle, record `ProcessedEvent(eventId)` in the same transaction as their own writes, then `XACK`. Pending entries older than 60 s are reclaimed with `XAUTOCLAIM`; after 5 failed attempts the entry moves to `aura.dlq.<service>` and pages on-call.
+4. Streams trimmed to ~7 days; outbox rows deleted after 7 days.
+
+### 4.3 Event catalogue (v1)
+
+| Event | Producer | Consumers | Key data |
+|---|---|---|---|
+| UserRegistered | profile | notification, audit | userId, timezone, locale |
+| ProfileChanged | profile | workout, nutrition, coach | changed fields: sex, birthYear, heightCm, activity, experience, dietType, allergens, cuisines, equipment, trainingDays, sessionMinutes, location, intensityCap, conditionCodes, goal |
+| ConsentChanged | profile | coach, notification, audit | purpose, granted |
+| OnboardingCompleted | profile | workout, nutrition | onboardingId, snapshot needed for plan and targets |
+| ExportRequested / ExportPartReady | profile / each service | each service / profile | requestId |
+| AccountDeletionRequested / AccountDeleted / UserDataPurged | profile / profile / each service | notification / all / profile | userId |
+| PlanCreated, PlanWeekReady | workout | progress, notification, coach | planId, weekStart, rationale codes |
+| PlanAdjustmentProposed | workout | coach | change set, basisVersion, explanation codes |
+| WorkoutCompleted, SessionMissed, PersonalRecordSet | workout | progress, notification | sessionId, date, status, volume, PRs |
+| TargetsSet, TargetChangeProposed | nutrition | progress, coach | targets / proposal |
+| MealLogged, MealDeleted, WaterLogged | nutrition | progress, notification | date, slot, kcal and macro totals for the entry (no food names) |
+| MeasurementAdded, CheckInSaved, PlateauDetected | progress | nutrition, workout, coach | type, value, date / scores / kind |
+| RecommendationCreated, RecommendationAccepted | coach | notification, audit | id, kind, owner service |
+| SafetyFlagRaised | coach | audit | conversationId, category |
+| ContentPublished | workout, nutrition, coach | same service (cache), audit | contentType, id, version |
+| AuditEvent | every service | audit | actor, action, entity, before/after (redacted) |
+
+Compatibility: adding optional fields is a minor change within a version; anything else is a new version, consumers ship support first, producers dual-publish until all consumers move.
+
+## 5. Background jobs (BullMQ, per service)
+
+| Service | Queue | Schedule | Idempotency | On final failure |
 |---|---|---|---|---|
-| outbox.dispatch | continuous | event id | handler-level 5× | dead-letter table + alert |
-| plans.weekly-adapt | Sunday 04:00 local, fan-out per user | (userId, weekStart) unique on WorkoutPlanWeek | 3× backoff | keep current week, alert if > 1% fail |
-| nutrition.adapt-targets | Sunday 05:00 local | (userId, effectiveFrom) | 3× | skip week |
-| sessions.mark-missed | nightly 02:00 local | status guard | 3× | retried next night |
-| notifications.plan / send / receipts | nightly / delayed / 15 min | dedupeKey | 3× | status FAILED |
-| coach.weekly-summary | Sunday 08:30 local | (userId, week) | 2× | template summary without AI |
-| privacy.export | on request | one active per user | 3× | DataRequest failed + support alert |
-| privacy.purge | daily 03:00 UTC | status guard | 5× | alert (compliance) |
-| content.recompute-composites | on recipe publish | recipe version | 3× | block publish |
-| ai.usage-rollup | every 5 min | window key | 3× | — |
+| workout | plans.weekly-adapt | Sunday 04:00 user-local, fan-out per user | (userId, weekStart) unique on WorkoutPlanWeek | keep current week, alert if > 1% fail |
+| workout | sessions.mark-missed | nightly 02:00 local | status guard | retried next night |
+| nutrition | nutrition.adapt-targets | Sunday 05:00 local | (userId, effectiveFrom) | skip week |
+| nutrition | composites.recompute | on recipe publish | recipe version | block publish |
+| nutrition | foods.data-qa | nightly | — | report only |
+| progress | progress.plateau-scan | Sunday 06:00 local | (userId, week) | skip |
+| coach | coach.weekly-summary | Sunday 08:30 local | (userId, week) | template summary without AI |
+| coach | ai.usage-rollup | every 5 min | window key | — |
+| notification | notifications.plan / send / receipts | nightly / delayed / 15 min | dedupeKey | status FAILED |
+| profile | privacy.export-collect | on parts ready | requestId | DataRequest failed + support alert |
+| profile | privacy.purge | daily 03:00 UTC | status guard | alert (compliance) |
+| audit | audit.retention | monthly | partition | alert |
 
-Worker concurrency per queue configured; per-user fan-out jobs use `jobId = queue:userId:period` to dedupe.
+Per-user fan-out jobs use `jobId = queue:userId:period` to dedupe across worker replicas.
 
-## 4. Caching strategy
+## 6. Caching (inside the owning service)
 
-| Key | TTL | Invalidation |
-|---|---|---|
-| `ex:list:{hash}`, `ex:{slug}` | 1 h | ContentPublished(exercise) — tag set `tag:exercise` |
-| `food:search:{q}:{diet}:{allergens}` | 10 min | ContentPublished(food) bumps namespace version |
-| `food:{id}` | 1 h | ContentPublished(food) |
-| `dash:{userId}:{date}` | 5 min | MealLogged, WorkoutCompleted, MeasurementAdded, RecommendationChanged |
-| `plan:{userId}:{weekStart}` | 5 min | session changes, adaptation |
-| `perm:{userId}` | 10 min | role grant/revoke |
-| `jwks` | 1 h | key rotation (kid miss → refetch) |
+| Service | Key | TTL | Invalidation |
+|---|---|---|---|
+| workout | `wo:ex:list:{hash}`, `wo:ex:{slug}` | 1 h | ContentPublished(exercise) bumps namespace version |
+| workout | `wo:plan:{userId}:{weekStart}` | 5 min | session changes, adaptation |
+| nutrition | `nu:search:{q}:{diet}:{allergens}`, `nu:food:{id}` | 10 min / 1 h | ContentPublished(food) |
+| progress | `pr:dash:{userId}:{date}` | 5 min | every consumed event for that user and date |
+| all | `jwks` | 1 h | kid miss → refetch |
 
-Never cached: coach messages, consent, anything after permission changes beyond TTL (role revoke also deletes key).
+Never cached: coach messages, consent decisions beyond the replica, anything permission-related beyond the token lifetime.
 
-## 5. Idempotency
+## 7. Idempotency
 
-- Offline writes carry `clientId` (unique per user/table).
-- Non-idempotent POSTs accept `Idempotency-Key` (stored in Redis 24 h with response hash); replay returns the stored response; mismatched body → `422 IDEMPOTENCY_KEY_REUSED`.
+- Offline writes carry `clientId` (unique per user and table).
+- Non-idempotent public POSTs accept `Idempotency-Key` (Redis 24 h with response hash); replay returns the stored response; a different body → `422 IDEMPOTENCY_KEY_REUSED`.
+- Internal writes always carry an idempotency key (onboarding id, proposal id).
+- Event handlers dedupe with `ProcessedEvent`.
 
-## 6. Rate limits and abuse
+## 8. Audit
 
-See [security architecture §5](../../architecture/security-architecture.md#5-rate-limiting-and-abuse). Additional abuse signals: rapid account creation per device, coach prompt-injection attempts (classifier category) counted per user → temporary coach cooldown after 5 in 24 h.
+`AuditInterceptor` and explicit calls write an `AuditEvent` to the service's outbox in the same transaction as the change; audit-service stores it append-only. Admin audit search queries audit-service only.
 
-## 7. Dependency injection and test boundaries
+## 9. Rate limits and abuse
+
+See [security architecture §5](../../architecture/security-architecture.md#5-rate-limiting-and-abuse). The gateway applies coarse per-IP limits; services apply per-user limits on their own routes with shared Redis counters. Coach prompt-injection attempts (classifier category) are counted per user → temporary coach cooldown after 5 in 24 h.
+
+## 10. Dependency injection and test boundaries
 
 - Domain engines are pure functions (no DI) → unit tested directly.
-- Application services depend on ports (`WorkoutsRepositoryPort`, `LlmProvider`, `PushSender`, `Clock`, `IdGenerator`) bound in module providers; tests bind fakes (`FakeAdapter`, `InMemoryPushSender`, `FixedClock`).
-- Infrastructure adapters (Prisma repositories, OFF client, Expo, SES, S3) covered by integration tests against Testcontainers / LocalStack / WireMock.
+- Application services depend on ports (`Repository`, `EventPublisher`, `InternalClient`, `LlmProvider`, `PushSender`, `Clock`, `IdGenerator`); tests bind fakes (`InMemoryEventPublisher`, `FakeInternalClient`, `FakeLlmAdapter`, `FixedClock`).
+- Infrastructure adapters (Prisma repositories, Redis Streams bus, OFF client, Expo, SES, S3) covered by integration tests against Testcontainers / LocalStack / WireMock.
 - Controllers covered by API tests via Supertest against the full Nest app with Testcontainers Postgres + Redis.
+- Cross-service contracts: consumer-driven contract tests for internal APIs (Pact) and schema tests for every event a service publishes or consumes.

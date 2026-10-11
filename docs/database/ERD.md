@@ -1,12 +1,26 @@
 # Entity Relationship Design
 
-Source of truth: [schema.prisma](schema.prisma) (draft, validated with `prisma validate`). Field-level detail: [data-dictionary.md](data-dictionary.md).
+Source of truth: one Prisma schema per service in [services/](services/) (drafts, each validated with `prisma validate`): [profile](services/profile.prisma) · [workout](services/workout.prisma) · [nutrition](services/nutrition.prisma) · [progress](services/progress.prisma) · [coach](services/coach.prisma) · [notification](services/notification.prisma) · [audit](services/audit.prisma). Field-level detail: [data-dictionary.md](data-dictionary.md).
+
+Each service owns one database. The diagram below is the **logical** model across services; relationships that cross a service boundary are plain id columns (no foreign keys), kept consistent by events.
 
 ## 1. Ownership model
 
-Every user-owned table carries `userId` with `ON DELETE CASCADE` from `User`. Content tables (exercises, foods, recipes, templates) are global and owned by the admin workflow. Operational tables (`UsageRecord`, `AuditLog`) keep a nullable or pseudonymous user reference so they survive deletion without personal data.
+| Service | Tables |
+|---|---|
+| profile | User, Profile, UserPreference, Role, UserRole, Consent, DataRequest, FitnessGoal, SafetyScreening, HealthCondition, FitnessAssessment, Onboarding, Subscription (P2) |
+| workout | Equipment, UserEquipment, MuscleGroup, Exercise (+ muscles, equipment, media), WorkoutTemplate (+ exercises), WorkoutPlan, WorkoutPlanWeek, WorkoutSession, PlannedExercise, WorkoutSet, PersonalRecord, WorkoutPolicy; replicas UserTrainingProfile, RecoverySignal |
+| nutrition | Nutrient, Allergen, FoodItem, FoodNutrient, FoodUnit, Recipe, RecipeIngredient, NutritionTarget, MealPlan, MealPlanItem, MealEntry, WaterEntry, DailyNutritionSummary, NutritionPolicy; replicas UserNutritionProfile, WeightFact |
+| progress | BodyMeasurement, DailyCheckIn, DeviceIntegration; read models WorkoutDayFact, NutritionDayFact, ExerciseBestFact |
+| coach | CoachConversation, CoachMessage, Recommendation, CoachMemory, UserFeedback, SafetyReview, AiPromptVersion, AiModelConfig, CoachingPolicy, UsageRecord; replica UserConsentState |
+| notification | Device, NotificationPreference, Notification, SuppressionFact |
+| audit | AuditLog |
 
-## 2. Core ERD
+Every service also has `OutboxEvent` and `ProcessedEvent` ([ADR-009](../architecture/ADR/ADR-009-service-communication.md)).
+
+Inside profile-service, user-owned tables cascade from `User`. In every other service, user-owned tables carry a plain `userId` and are deleted by that service's `AccountDeleted` handler. Content tables (exercises, foods, recipes, templates) are global and owned by the admin workflow. Operational tables (`UsageRecord`, `AuditLog`) keep a nullable or pseudonymous user reference so they survive deletion without personal data.
+
+## 2. Logical ERD (across services)
 
 ```mermaid
 erDiagram
@@ -14,8 +28,6 @@ erDiagram
   User ||--o| UserPreference : has
   User ||--o{ UserRole : has
   Role ||--o{ UserRole : grants
-  Role ||--o{ RolePermission : includes
-  Permission ||--o{ RolePermission : in
   User ||--o{ Consent : gives
   User ||--o{ FitnessGoal : sets
   User ||--o{ SafetyScreening : completes
@@ -80,33 +92,35 @@ Prisma cannot express these; they live in the reviewed migration files.
 
 | Object | SQL |
 |---|---|
-| One active plan per user | `CREATE UNIQUE INDEX workout_plan_one_active ON "WorkoutPlan"("userId") WHERE status = 'ACTIVE';` |
-| One active meal plan per week | `CREATE UNIQUE INDEX meal_plan_one_active ON "MealPlan"("userId","weekStart") WHERE status = 'ACTIVE';` |
+| One active plan per user (workout) | `CREATE UNIQUE INDEX workout_plan_one_active ON "WorkoutPlan"("userId") WHERE status = 'ACTIVE';` |
+| One active meal plan per week (nutrition) | `CREATE UNIQUE INDEX meal_plan_one_active ON "MealPlan"("userId","weekStart") WHERE status = 'ACTIVE';` |
 | Food search | `CREATE INDEX food_name_trgm ON "FoodItem" USING gin (unaccent_immutable(name) gin_trgm_ops);` plus `localNames` via `array_to_string` immutable wrapper |
 | Exercise search | trigram on `Exercise.name` |
 | Meal entry has food or manual name | `CHECK ("foodId" IS NOT NULL OR "manualName" IS NOT NULL)` |
 | Ranges | `CHECK (rpe BETWEEN 1 AND 10)`, `CHECK (reps BETWEEN 0 AND 100)`, `CHECK ("loadKg" >= 0)`, `CHECK (soreness BETWEEN 1 AND 5)`, `CHECK (ml BETWEEN 1 AND 5000)` |
 | Profile ranges | `CHECK ("heightCm" BETWEEN 100 AND 250)` |
 | Measurement ranges | per type via `CHECK` on (type, value) |
-| Audit append-only | `REVOKE UPDATE, DELETE ON "AuditLog" FROM app_rw;` |
+| Audit append-only (audit) | `REVOKE UPDATE, DELETE ON "AuditLog" FROM app_rw;` |
 | Partitioning (later) | `UsageRecord` and `AuditLog` range-partitioned by month once > 50 M rows |
 
-## 4. Transaction boundaries
+## 4. Transaction and consistency boundaries
 
-| Operation | Transaction scope |
-|---|---|
-| Finish onboarding | Profile + screening + conditions + goal + assessment + plan (+weeks, sessions, planned exercises) + nutrition target, single transaction |
-| Complete session | Session status + sets upsert + PR detection; `WorkoutCompleted` event emitted after commit (outbox) |
-| Log meal | MealEntry insert + DailyNutritionSummary upsert (`SELECT … FOR UPDATE` on summary row) |
-| Accept recommendation | Re-validate against current `basisVersion`, apply change set, mark ACCEPTED; reject with 409 if basis changed |
-| Publish content | Version bump + status + audit log in one transaction; cache invalidation after commit |
+Transactions never span services. Each row below is one local transaction that also writes its outbox event.
 
-Domain events use a transactional **outbox** table (`OutboxEvent`) polled by the worker, so notifications and summaries never fire for rolled-back writes.
+| Operation | Service and local transaction | Cross-service consistency |
+|---|---|---|
+| Finish onboarding | profile: profile + screening + conditions + goal + assessment + `OnboardingCompleted` | workout creates plan, nutrition creates targets (sync call, idempotent on onboarding id, event as fallback) |
+| Complete session | workout: session status + sets + PRs + `WorkoutCompleted` | progress and notification update from the event |
+| Log meal | nutrition: MealEntry + DailyNutritionSummary (`FOR UPDATE` on the summary row) + `MealLogged` | progress updates its day fact |
+| Accept recommendation | coach: status `ACCEPTING` → owner `/apply` (checks `basisVersion`, applies, emits) → coach marks `ACCEPTED`; 409 → `INVALIDATED` | retried idempotently by proposal id if coach crashes mid-way |
+| Publish content | owning service: version bump + status + `ContentPublished` + `AuditEvent` | cache invalidation in the same service, audit-service stores the event |
+| Delete account | each service: delete user rows + `UserDataPurged` | profile tracks acknowledgements |
 
 ## 5. Migration strategy
 
+- Migrations are per service (`services/<name>/prisma/migrations`) and run by that service's Helm pre-upgrade job; no migration touches another service's database.
 - `prisma migrate dev` locally; generated SQL reviewed and edited (constraints above) and committed.
 - CI runs `prisma migrate diff` to catch drift, then applies migrations to a Testcontainers Postgres and runs integration tests.
 - Expand → migrate data (worker backfill job, idempotent, batched) → contract in a later release.
 - No destructive migration without a backup checkpoint and a reviewed rollback note in the PR.
-- Seed data (`muscle groups`, `equipment`, `nutrients`, `allergens`, `roles/permissions`) as versioned idempotent seed scripts; content (exercises, foods) via admin import pipelines, not migrations.
+- Seed data (`muscle groups`, `equipment`, `nutrients`, `allergens`, `roles`) as versioned, per owning service, idempotent seed scripts; content (exercises, foods) via admin import pipelines, not migrations.

@@ -1,18 +1,21 @@
 # Workouts — Low-Level Design
 
+Service: **workout-service** · see the [service catalog](../../architecture/service-catalog.md) for owned data, events and allowed calls.
+
 ## 1. Responsibilities
 
-Exercise library (read side), templates, plan generation, weekly adaptation, session logging, substitutions, PRs. Engines are pure functions in `packages/domain/workouts`; the NestJS module wraps them with persistence, authz and events.
+Exercise library (read side), templates, plan generation, weekly adaptation, session logging, substitutions, PRs. Engines are pure functions in `packages/domain/workouts`; workout-service wraps them with persistence, authz and events. It keeps `UserTrainingProfile` (from `ProfileChanged` / `OnboardingCompleted`) and `RecoverySignal` (from `CheckInSaved`) so plan generation and adaptation never call another service.
 
 ## 2. Structure
 
 ```text
-apps/api/src/modules/workouts/
-  workouts.module.ts
+services/workout-service/src/
+  app.module.ts  main.http.ts  main.worker.ts
   controllers/ exercises.controller.ts plans.controller.ts sessions.controller.ts
   application/ plan.service.ts session.service.ts substitution.service.ts library.service.ts
   infrastructure/ workouts.repository.ts exercise-cache.ts
-  events/ workout-completed.event.ts
+  events/ publishers (WorkoutCompleted, PlanWeekReady…) consumers (ProfileChanged, OnboardingCompleted, CheckInSaved…)
+  internal/ plans.internal.controller.ts proposals.internal.controller.ts users.internal.controller.ts
 packages/domain/workouts/
   generate-plan.ts progress-week.ts substitute.ts validate-plan.ts e1rm.ts types.ts
 ```
@@ -116,13 +119,16 @@ Candidates share `movementPattern` and at least one primary muscle; equipment �
 | POST | /v1/workout-sessions/{id}/complete | Feedback body |
 | POST | /v1/workout-sessions/{id}/exercises/{plannedExerciseId}/substitutions | Suggest |
 | PUT | /v1/workout-sessions/{id}/exercises/{plannedExerciseId} | Apply substitution |
-| GET | /v1/progress/strength | e1RM series, PRs (served by progress module) |
+| GET | /v1/progress/strength | e1RM series, PRs (served by progress-service from `WorkoutCompleted` data) |
+| POST | /internal/v1/plans | Onboarding: create plan (idempotent on onboardingId) |
+| GET | /internal/v1/users/{id}/week | Current week for coach tools and dashboard |
+| POST | /internal/v1/proposals/validate · /apply | Coach proposals: validate change set, apply with basisVersion |
 
 Errors: `404 NOT_FOUND` (also for others' resources), `409 SESSION_CLOSED`, `422 VALIDATION_FAILED` with field paths.
 
 ## 8. Caching
 
-Exercise library list and detail: Redis 1 h + `ETag`, invalidated by `exercise.published` event. Current plan week: Redis 5 min per user, invalidated on session change or adaptation.
+Exercise library list and detail: Redis 1 h + `ETag`, invalidated by `ContentPublished(exercise)`. Current plan week: Redis 5 min per user, invalidated on session change or adaptation.
 
 ## 9. Tests
 

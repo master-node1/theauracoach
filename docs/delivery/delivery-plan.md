@@ -32,20 +32,20 @@ flowchart LR
 
 | | |
 |---|---|
-| Deliverables | HLD, 8 ADRs, security and deployment architecture, module LLDs, Prisma schema, ERD, data dictionary, OpenAPI contract, test strategy (all drafted in this PR) |
+| Deliverables | HLD, 9 ADRs, service catalog, security and deployment architecture, module LLDs, per-service Prisma schemas, ERD, data dictionary, OpenAPI contract, test strategy (all drafted in this PR) |
 | Dependencies | Phase 1 decisions (market drives residency; monetisation drives billing module) |
 | Risks | Cognito UX limits; AI cost per user |
-| Decisions | ADR-001…008 accepted or amended |
+| Decisions | ADR-001…009 accepted or amended (ADR-001 microservices accepted 2026-10-11) |
 | Acceptance | Owner + one external reviewer approve ADRs; OpenAPI and schema validated in CI |
 
 ## Phase 4 — Foundation (2 sprints)
 
 | | |
 |---|---|
-| Deliverables | pnpm + Turborepo monorepo (`apps/api`, `apps/worker`, `apps/web`, `apps/mobile`, `packages/*`); strict TS, ESLint (+ boundaries), Prettier, Husky + commitlint; Docker Compose local stack; Prisma baseline migration + seeds; NestJS skeleton with config, pino logging, OTel, Problem Details, health; Cognito + BFF auth end-to-end; Expo app shell with auth and tabs; Next.js shell with auth and admin layout; GitHub Actions (lint, typecheck, unit, integration with Testcontainers, CodeQL, gitleaks, Trivy); Terraform for dev; EAS dev builds; `AGENTS.md`/`CLAUDE.md`; operations docs (local development, deployment, monitoring, troubleshooting) |
+| Deliverables | pnpm + Turborepo monorepo (`services/*`, `apps/web`, `apps/mobile`, `packages/*`); strict TS, ESLint (+ boundaries), Prettier, Husky + commitlint; `packages/service-kit` (config, pino logging, OTel, Problem Details, health, auth guards, `InternalClient`, outbox relay and stream consumer); all 7 service skeletons generated from one template, each with its own database, baseline migration and seeds, plus the nginx gateway; one end-to-end event (`UserRegistered` profile → notification) proving outbox, stream, dedupe and DLQ; Docker Compose local stack (one Postgres with a database per service); Cognito + BFF auth end-to-end; Expo app shell with auth and tabs; Next.js shell with auth and admin layout; GitHub Actions with changed-service detection (lint, typecheck, unit, integration with Testcontainers, contract tests, CodeQL, gitleaks, Trivy, per-service image build); generic Helm chart and Terraform `platform` + `service` stacks for dev EKS; EAS dev builds; `AGENTS.md`/`CLAUDE.md`; operations docs (local development, deployment, monitoring, troubleshooting) |
 | Dependencies | AWS accounts, Apple/Google developer accounts, domain |
-| Risks | Expo + monorepo tooling friction (Metro config) |
-| Acceptance | A user can sign up and see an empty "Today" on web, iOS simulator and Android emulator in dev; CI green; `docker compose up` + `pnpm dev` works from a clean clone |
+| Risks | Expo + monorepo tooling friction (Metro config); EKS and seven services is more platform work than one API, so the chart and template come first |
+| Acceptance | A user can sign up and see an empty "Today" on web, iOS simulator and Android emulator in dev; CI green and only changed services build; every service is healthy in dev EKS; `docker compose up` + `pnpm dev` works from a clean clone |
 
 ## Phase 5 — MVP vertical slices (≈ 8–10 sprints)
 

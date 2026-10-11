@@ -157,6 +157,35 @@ paths:
               schema: { $ref: '#/components/schemas/Preferences' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
+  /v1/me/notification-preferences:
+    get:
+      tags: [me]
+      operationId: getNotificationPreferences
+      summary: Get reminder and quiet-hours preferences
+      responses:
+        '200':
+          description: Notification preferences
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPreferences' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    patch:
+      tags: [me]
+      operationId: updateNotificationPreferences
+      summary: Update reminder and quiet-hours preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationPreferences' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPreferences' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
   /v1/me/consents:
     get:
       tags: [me]
@@ -277,7 +306,7 @@ paths:
     post:
       tags: [onboarding]
       operationId: completeOnboarding
-      summary: Validate answers and create profile, screening, assessment, targets and plan atomically
+      summary: Validate answers, save profile and assessment, then create plan and targets (saga)
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -291,7 +320,25 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OnboardingResult' }
+        '202':
+          description: Profile saved; plan or targets still being created. Poll /v1/onboarding/status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingStatus' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/onboarding/status:
+    get:
+      tags: [onboarding]
+      operationId: getOnboardingStatus
+      summary: Onboarding progress, with the result once READY
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OnboardingStatus' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
 
   /v1/exercises:
     get:
@@ -1423,8 +1470,16 @@ components:
     Preferences:
       type: object
       additionalProperties: false
+      description: Owned by profile-service
       properties:
         theme: { type: string, enum: [system, light, dark] }
+        coachTone: { type: string, enum: [supportive, direct] }
+
+    NotificationPreferences:
+      type: object
+      additionalProperties: false
+      description: Owned by notification-service
+      properties:
         quietHoursStart: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
         quietHoursEnd: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
         workoutReminder: { type: boolean }
@@ -1433,7 +1488,13 @@ components:
         mealReminderSlots: { type: array, maxItems: 3, items: { $ref: '#/components/schemas/MealSlot' } }
         weeklySummary: { type: boolean }
         inactivityNudges: { type: integer, minimum: 0, maximum: 3 }
-        coachTone: { type: string, enum: [supportive, direct] }
+
+    OnboardingStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [NOT_STARTED, IN_PROGRESS, PLANNING, READY] }
+        result: { $ref: '#/components/schemas/OnboardingResult' }
 
     Consent:
       type: object

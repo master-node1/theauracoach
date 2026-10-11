@@ -1,5 +1,7 @@
 # Administration and Content Management — Low-Level Design
 
+Service: **apps/web `/admin` UI; endpoints live in the owning services; audit in audit-service** · see the [service catalog](../../architecture/service-catalog.md) for owned data, events and allowed calls.
+
 ## 1. Surfaces
 
 Next.js `/admin` (server components, MFA-enforced), backed by `/v1/admin/*` API routes guarded by permissions.
@@ -29,8 +31,8 @@ Usage (DAU, sessions, logs), AI cost by feature/model/day vs budget, coach thumb
 
 ## 5. Audit
 
-Every admin mutation writes `AuditLog` in the same transaction (interceptor + explicit service calls), with `before/after` minus sensitive fields. Audit viewer filters by entity, actor, time. Export for compliance.
+Every admin mutation writes an `AuditEvent` to the owning service's outbox in the same transaction (interceptor + explicit calls), with `before/after` minus sensitive fields; audit-service stores it append-only. Audit viewer filters by entity, actor, time. Export for compliance.
 
-## 6. API (prefix /v1/admin)
+## 6. API (prefix /v1/admin, routed by the gateway to the owning service)
 
-`/exercises`, `/foods`, `/recipes`, `/templates` (CRUD + `/{id}/submit`, `/{id}/publish`, `/{id}/archive`), `/prompts`, `/model-configs`, `/policies`, `/feature-flags`, `/reviews/safety`, `/feedback`, `/usage`, `/audit`, `/roles`, `/users/{id}` (support view, masked).
+`/exercises`, `/templates` (workout) · `/foods`, `/recipes` (nutrition) · `/prompts`, `/model-configs`, `/policies`, `/reviews/safety`, `/feedback`, `/usage` (coach) · `/audit` (audit) · `/roles`, `/users/{id}` (profile). Content routes: CRUD + `/{id}/submit`, `/{id}/publish`, `/{id}/archive`. The support user view (`/users/{id}`, masked) is assembled by the web BFF from each service's admin read endpoint. Feature flags are managed in AWS AppConfig.

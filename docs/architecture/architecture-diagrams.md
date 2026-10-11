@@ -10,78 +10,71 @@ flowchart TB
     mob[Expo app<br/>iOS / Android]
     web[Next.js web<br/>user + admin + BFF]
   end
-  subgraph AWS ap-south-1
+  subgraph aws["AWS ap-south-1 · EKS"]
     cf[CloudFront + WAF]
     alb[ALB]
-    api[api<br/>NestJS REST + SSE]
-    wrk[worker<br/>NestJS BullMQ consumers]
-    pg[(RDS PostgreSQL 16<br/>Multi-AZ)]
-    rd[(ElastiCache Redis 7)]
-    s3[(S3 media<br/>public-cdn / private-user)]
-    cog[Cognito user pool]
-    sm[Secrets Manager / KMS]
+    gw[api-gateway<br/>nginx]
+    prof[profile-service]
+    wo[workout-service]
+    nu[nutrition-service]
+    pr[progress-service]
+    co[coach-service]
+    nt[notification-service]
+    au[audit-service]
+    bus[(Redis Streams<br/>event bus)]
+    pg[(RDS PostgreSQL 16<br/>database per service)]
+    s3[(S3 media)]
   end
-  ext1[Anthropic API]
-  ext2[Open Food Facts]
-  ext3[Expo Push → APNs/FCM]
-  ext4[SES]
+  cog[Cognito]
+  llm[Anthropic API]
+  off[Open Food Facts]
+  push[Expo Push · SES]
 
   mob --> cf
   web --> cf
-  cf --> alb
+  cf --> alb --> gw
   alb --> web
-  alb --> api
   mob -. OAuth PKCE .-> cog
   web -. OAuth PKCE .-> cog
-  api --> pg
-  api --> rd
-  api --> s3
-  api --> ext1
-  api --> ext2
-  wrk --> pg
-  wrk --> rd
-  wrk --> ext1
-  wrk --> ext3
-  wrk --> ext4
-  api --> sm
-  wrk --> sm
+  gw --> prof & wo & nu & pr & co & nt & au
+  prof & wo & nu & pr & co & nt --> bus
+  bus --> au
+  prof & wo & nu & pr & co & nt & au --> pg
+  wo --> s3
+  co --> llm
+  nu --> off
+  nt --> push
 ```
 
-## 2. API components
+## 2. Inside one service
+
+Every NestJS service has the same shape, built from `packages/service-kit`:
 
 ```mermaid
 flowchart LR
-  subgraph api[apps/api]
+  subgraph svc[workout-service]
     direction TB
-    g[Guards: JwtAuth, Roles, RateLimit, Consent]
-    subgraph modules
-      id[identity]
-      us[users]
-      on[onboarding]
-      wo[workouts]
-      nu[nutrition]
-      pr[progress]
-      co[coach]
-      ag[ai-gateway]
-      no[notifications]
-      ad[admin]
-      au[audit]
-    end
-    bus[(in-process event bus)]
+    http[HTTP app<br/>public /v1 + /internal/v1]
+    g[Guards: JwtAuth, InternalService, Permissions, Consent, RateLimit]
+    app[Application services]
+    eng[[packages/domain engines]]
+    repo[Prisma repositories]
+    ob[(OutboxEvent)]
+    relay[Outbox relay]
+    cons[Event consumers]
+    jobs[BullMQ jobs]
   end
-  dom[[packages/domain<br/>pure engines]]
-  con[[packages/contracts<br/>Zod schemas]]
-  on --> wo & nu
-  co --> ag
-  co --> wo & nu & pr & us
-  wo --> dom
-  nu --> dom
-  pr --> dom
-  modules --> con
-  wo -- WorkoutCompleted --> bus
-  nu -- MealLogged --> bus
-  bus --> pr & no & au
+  http --> g --> app
+  app --> eng
+  app --> repo --> db[(workout_db)]
+  app --> ob
+  relay --> ob
+  relay --> bus[(Redis Streams)]
+  bus --> cons --> app
+  jobs --> app
 ```
+
+The `http` process and the `worker` process (relay, consumers, jobs) run from the same image as separate Helm deployments.
 
 ## 3. Coach tool-call sequence
 
@@ -94,7 +87,7 @@ sequenceDiagram
   participant Gw as AiGateway
   participant P as Provider adapter
   participant T as ToolExecutor
-  participant Svc as Domain services
+  participant Svc as Owning service<br/>(workout / nutrition / progress)
   C->>Ctl: POST message (SSE)
   Ctl->>Orc: handle(ctx{userId}, text)
   Orc->>Saf: precheck(text)
@@ -108,7 +101,7 @@ sequenceDiagram
       P-->>Gw: tool_use(name, input)
       Gw->>T: execute(ctx, name, input)
       T->>T: zod validate, authz, rate
-      T->>Svc: call with ctx.userId
+      T->>Svc: GET/POST /internal/v1/... (service JWT, sub_user = ctx.userId)
       Svc-->>T: minimal DTO
       T-->>Gw: tool_result
     end

@@ -21,9 +21,12 @@ Target: OWASP ASVS 4.0 Level 2, OWASP Mobile Top 10, OWASP Top 10 for LLM Applic
 
 ## 3. Authorisation
 
-- Guards: `JwtAuthGuard` → `RolesGuard` (permission strings) → `ConsentGuard` (e.g. coach requires `ai_coach` consent) → service-level ownership.
-- Ownership enforced in repositories (`where: { id, userId }`), 404 on miss (no existence oracle). Prisma client extension throws if a query on an owned model lacks `userId` (except in `admin` module with `support:read` and audit).
+- Guards: `JwtAuthGuard` (or `InternalServiceGuard` on internal routes) → `PermissionsGuard` (permission strings from Cognito groups) → `ConsentGuard` (e.g. coach requires `ai_coach` consent) → service-level ownership.
+- Ownership enforced in repositories (`where: { id, userId }`), 404 on miss (no existence oracle). Prisma client extension throws if a query on an owned model lacks `userId` (except admin routes with `user:support_read`, which are audited).
 - Coach tools derive `userId` from the request context only; tool schemas have no `userId` field.
+- Service-to-service: every `/internal/v1/*` route requires a service JWT (`iss` = calling service, `aud` = this service, 5 min expiry, signed with a per-environment key from Secrets Manager) checked by `InternalServiceGuard`, plus an allow-list of callers per route. When acting for a user the token carries `sub_user`; the callee applies the same ownership checks as for public calls. Internal routes are never exposed by the api-gateway, and NetworkPolicies block undeclared callers.
+- Each service validates end-user JWTs itself; the gateway is not a trust boundary on its own.
+- Events carry ids and codes, never free-text health data; consumers re-check ownership on their own data before acting.
 - Integration tests assert cross-user access returns 404 for every owned resource (generated from the route table).
 
 ## 4. Input and output handling
@@ -48,7 +51,7 @@ Redis sliding-window limiter; responses `429` with `Retry-After`. WAF managed ru
 
 ## 6. Secrets and environments
 
-- AWS Secrets Manager per environment; injected into ECS tasks as secrets; rotated (DB 90 days).
+- AWS Secrets Manager per environment, synced into Kubernetes by External Secrets Operator; one DB user and one Redis ACL user per service; IRSA role per service; rotated (DB 90 days).
 - GitHub Actions uses OIDC role assumption; no static AWS keys. Secret scanning (GitHub push protection + gitleaks in CI).
 - `.env.example` documents names only. Production data never copied to lower environments; staging uses synthetic data.
 

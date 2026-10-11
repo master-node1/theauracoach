@@ -13,17 +13,17 @@ Status: **Phases 1–3 drafted for review.** No application code exists yet; Pha
 |---|---|
 | Requirements | [PRD](requirements/product-requirements.md) · [User stories](requirements/user-stories.md) · [Acceptance criteria](requirements/acceptance-criteria.md) |
 | UX | [Personas](ux/personas.md) · [User journeys & flows](ux/user-journeys.md) · [Information architecture](ux/information-architecture.md) · [Design system](ux/design-system.md) · [Wireframes](ux/wireframes.md) |
-| Architecture | [HLD](architecture/HLD.md) · [Diagrams](architecture/architecture-diagrams.md) · [Security & privacy](architecture/security-architecture.md) · [Deployment](architecture/deployment-architecture.md) · [ADRs](architecture/ADR/) |
+| Architecture | [HLD](architecture/HLD.md) · [Diagrams](architecture/architecture-diagrams.md) · [Security & privacy](architecture/security-architecture.md) · [Deployment](architecture/deployment-architecture.md) · [Service catalog](architecture/service-catalog.md) · [ADRs](architecture/ADR/) |
 | Module LLDs | [Authentication](modules/authentication/LLD.md) · [Users & privacy](modules/users/LLD.md) · [Onboarding](modules/onboarding/LLD.md) · [Workouts](modules/workouts/LLD.md) · [Nutrition](modules/nutrition/LLD.md) · [AI coach & gateway](modules/ai-coach/LLD.md) · [Progress & dashboard](modules/progress/LLD.md) · [Notifications](modules/notifications/LLD.md) · [Admin](modules/admin/LLD.md) · [Platform / cross-cutting](modules/platform/LLD.md) |
 | API | [OpenAPI 3.1](api/openapi.yaml) · [API guide](api/API-guide.md) |
-| Database | [Prisma schema (draft)](database/schema.prisma) · [ERD](database/ERD.md) · [Data dictionary](database/data-dictionary.md) |
+| Database | [Per-service Prisma schemas](database/services/) · [ERD](database/ERD.md) · [Data dictionary](database/data-dictionary.md) |
 | Testing | [Test strategy](testing/test-strategy.md) · [Critical test cases](testing/test-cases.md) |
 | Operations | Written in Phase 4 alongside real commands (`operations/local-development.md`, `deployment.md`, `monitoring.md`, `troubleshooting.md`) |
 
 ## Validation of these drafts
 
-- `prisma validate` on [schema.prisma](database/schema.prisma): valid (60 models).
-- `redocly lint` on [openapi.yaml](api/openapi.yaml): valid, 64 operations; one warning (public health check has no 4xx response).
+- `prisma validate` on each of the 7 [per-service schemas](database/services/): all valid (83 models including replicas, outbox and dedupe tables).
+- `redocly lint` on [openapi.yaml](api/openapi.yaml): valid, 67 operations; one warning (public health check has no 4xx response).
 
 ## Definition of Done
 

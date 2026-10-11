@@ -1,11 +1,13 @@
 # AI Coach and AI Gateway — Low-Level Design
 
+Service: **coach-service** · see the [service catalog](../../architecture/service-catalog.md) for owned data, events and allowed calls.
+
 Principle ([ADR-004](../../architecture/ADR/ADR-004-deterministic-engines-ai-proposes.md)): the model explains, summarises, asks, and **proposes**; engines calculate and validate; users confirm.
 
 ## 1. Components
 
 ```text
-apps/api/src/modules/coach/
+services/coach-service/src/coach/
   coach.controller.ts            # REST + SSE
   coach-orchestrator.service.ts  # one turn: safety → context → model loop → post-check → persist
   context-builder.service.ts     # minimal, pseudonymous user context
@@ -13,7 +15,7 @@ apps/api/src/modules/coach/
   safety/ safety.service.ts red-flags.ts classifier.prompt.ts templates.ts
   memory.service.ts              # user-approved memories
   summaries.service.ts           # daily/weekly summaries (worker)
-apps/api/src/modules/ai-gateway/
+services/coach-service/src/ai-gateway/
   ai-gateway.service.ts          # budgets, retries, timeouts, metering, redaction
   ports/llm-provider.port.ts
   adapters/anthropic.adapter.ts  # @anthropic-ai/sdk
@@ -47,6 +49,8 @@ classDiagram
   ToolExecutor --> TargetsService
   ToolExecutor --> RecommendationService
 ```
+
+Tools are executed by calling the owning service's internal API (`InternalClient`, service JWT with `sub_user` = conversation owner); results are cached per turn. Consent comes from the local `UserConsentState` replica.
 
 ## 2. Neutral request shape
 

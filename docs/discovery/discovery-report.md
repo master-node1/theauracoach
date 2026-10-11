@@ -7,7 +7,7 @@ Status: **Draft for review** · Phase 1 (Discovery) · 2026-10-11
 | Repository | What it contains | What it means for AuraCoach |
 |---|---|---|
 | `master-node1/theauracoach` (this repo) | `README.md`, MIT `LICENSE`, Node `.gitignore`. One commit, no code. | Greenfield. No existing functionality to preserve. Folder layout, tooling and conventions are ours to choose. |
-| `master-node1/the-aura-lab` (sibling, read-only) | NestJS 10 + Prisma 6 microservices, PostgreSQL 16, Redis 7, a Python FastAPI AI service using OpenAI via LangChain, nginx gateway, GitHub Actions CI with CodeQL and njsscan, Terraform + Helm to EKS, `AGENTS.md`/`CLAUDE.md` engineering rules. | The owner already runs NestJS, Prisma, Postgres, Redis, GitHub Actions, Terraform and EKS. We reuse those skills, the ADR template and the doc conventions. We deliberately do **not** copy its microservice split (see [ADR-001](../architecture/ADR/ADR-001-modular-monolith.md)). |
+| `master-node1/the-aura-lab` (sibling, read-only) | NestJS 10 + Prisma 6 microservices, PostgreSQL 16, Redis 7, a Python FastAPI AI service using OpenAI via LangChain, nginx gateway, GitHub Actions CI with CodeQL and njsscan, Terraform + Helm to EKS, `AGENTS.md`/`CLAUDE.md` engineering rules. | The owner already runs NestJS, Prisma, Postgres, Redis, GitHub Actions, Terraform and EKS. We reuse those skills, the ADR template and the doc conventions. At the owner's request we follow its layout: microservices in one repository (see [ADR-001](../architecture/ADR/ADR-001-microservices-monorepo.md)). |
 | `master-node1/eks-terraform-template` (private, not opened) | Name suggests an EKS Terraform baseline. | Candidate base for Phase 4 infrastructure. To confirm in Phase 4. |
 
 Local toolchain in the build container: Node 22, npm 10, pnpm 10.
@@ -71,13 +71,14 @@ Free during beta. Freemium later: free tier with limited daily AI coach messages
 
 | Decision | ADR |
 |---|---|
-| Modular monolith in a pnpm/Turborepo monorepo | [ADR-001](../architecture/ADR/ADR-001-modular-monolith.md) |
+| Microservices in one pnpm/Turborepo monorepo, aura-lab style | [ADR-001](../architecture/ADR/ADR-001-microservices-monorepo.md) |
 | Next.js web + Expo React Native mobile with shared TypeScript packages | [ADR-002](../architecture/ADR/ADR-002-client-stack.md) |
-| NestJS + Prisma + PostgreSQL 16 + Redis/BullMQ | [ADR-003](../architecture/ADR/ADR-003-backend-data-stack.md) |
+| NestJS + Prisma + PostgreSQL 16 (a database per service) + Redis/BullMQ | [ADR-003](../architecture/ADR/ADR-003-backend-data-stack.md) |
 | Deterministic engines; AI only explains and proposes via tools | [ADR-004](../architecture/ADR/ADR-004-deterministic-engines-ai-proposes.md) |
 | Provider-independent AI gateway, Claude as default provider | [ADR-005](../architecture/ADR/ADR-005-ai-provider-gateway.md) |
 | Managed identity provider (AWS Cognito); API validates its JWTs | [ADR-006](../architecture/ADR/ADR-006-authentication.md) |
-| AWS `ap-south-1`, ECS Fargate first, Terraform | [ADR-007](../architecture/ADR/ADR-007-hosting.md) |
+| AWS `ap-south-1`, EKS + one generic Helm chart, Terraform | [ADR-007](../architecture/ADR/ADR-007-hosting.md) |
+| Internal REST with service tokens; events over Redis Streams with a transactional outbox | [ADR-009](../architecture/ADR/ADR-009-service-communication.md) |
 | Curated nutrition dataset with provenance and confidence | [ADR-008](../architecture/ADR/ADR-008-nutrition-data.md) |
 
 ## 10. Open questions for the product owner

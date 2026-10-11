@@ -1,19 +1,18 @@
 # Onboarding and Assessment — Low-Level Design
 
+Service: **profile-service (orchestrator), with workout-service and nutrition-service** · see the [service catalog](../../architecture/service-catalog.md) for owned data, events and allowed calls.
+
 ## 1. Flow state
 
-Draft answers saved per step (`PUT /v1/onboarding/draft`, stored in Redis 7 days + DB on completion) so users can resume on another device. `POST /v1/onboarding/complete` validates the full payload with the shared Zod schema and runs in one transaction:
+Draft answers saved per step (`PUT /v1/onboarding/draft`, Redis 7 days) so users can resume on another device. `POST /v1/onboarding/complete` validates the full payload with the shared Zod schema and runs as a saga orchestrated by profile-service ([catalog §6.1](../../architecture/service-catalog.md#61-onboarding-saga-orchestrated-by-profile-service)):
 
-1. Profile + preferences.
-2. `SafetyScreening` → flags → `intensityCap`.
-3. `HealthCondition` rows.
-4. `FitnessGoal`.
-5. `FitnessAssessment` (BMI, BMR, TDEE, safe rate).
-6. `NutritionTarget` via targets engine.
-7. `WorkoutPlan` via plan generator (first two weeks materialised).
-8. Initial reminders scheduled (after commit, outbox).
+1. **profile-service, one local transaction:** Profile + preferences, `SafetyScreening` → flags → `intensityCap`, `HealthCondition` rows, `FitnessGoal`, `FitnessAssessment` (BMI, BMR, TDEE, safe rate), `Onboarding.status = PLANNING`, outbox `OnboardingCompleted` (snapshot of everything workout and nutrition need) and `ProfileChanged`.
+2. **In parallel, synchronous with 2 s timeouts:** `POST workout-service /internal/v1/plans` (plan generator, first two weeks materialised) and `POST nutrition-service /internal/v1/targets` (targets engine), both keyed by `onboardingId`.
+3. Both succeed → `status = READY`, respond `201` with assessment, plan summary and targets.
+4. Either fails or times out → respond `202 { status: "PLANNING" }`. Both services also consume `OnboardingCompleted` and complete idempotently; the app polls `GET /v1/onboarding/status` (or receives the result on its next `GET /v1/me`). profile-service marks READY when it sees `PlanCreated` and `TargetsSet`.
+5. notification-service schedules initial reminders when it sees `PlanCreated`.
 
-Idempotent with `Idempotency-Key` header; second call returns the existing result.
+Idempotent end to end with `Idempotency-Key` on the public call and `onboardingId` on internal calls and events; a second call returns the existing result. No step is ever rolled back across services: a plan or target that fails validation is regenerated from the safe default template, never left missing.
 
 ## 2. Screening questionnaire (v1)
 
@@ -27,4 +26,4 @@ Mapping: any of the first 3 or the last PAR-Q item → `intensityCap=LOW` + "get
 
 ## 4. API
 
-`GET /v1/onboarding/questionnaire` (versioned questions), `PUT /v1/onboarding/draft`, `POST /v1/onboarding/complete`, `POST /v1/me/screening` (re-screen).
+`GET /v1/onboarding/questionnaire` (versioned questions), `PUT /v1/onboarding/draft`, `POST /v1/onboarding/complete`, `GET /v1/onboarding/status`, `POST /v1/me/screening` (re-screen).

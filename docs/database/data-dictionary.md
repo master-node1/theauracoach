@@ -2,7 +2,7 @@
 
 Conventions: UUID v4 primary keys (`@db.Uuid`), `camelCase` columns quoted in SQL, timestamps `timestamptz` in UTC, user-local calendar dates stored as `date` with the user's timezone on `User.timezone`. Weights in kg, lengths in cm, energy in kcal, volumes in ml — conversion to imperial happens only in clients via `packages/domain/units`.
 
-Sensitivity: **S** sensitive health, **P** personal, **B** behavioural, **C** content, **O** operational.
+Owning service per table: [ERD §1](ERD.md#1-ownership-model). Sensitivity: **S** sensitive health, **P** personal, **B** behavioural, **C** content, **O** operational.
 
 ## 1. Tables
 
@@ -10,10 +10,12 @@ Sensitivity: **S** sensitive health, **P** personal, **B** behavioural, **C** co
 |---|---|---|---|
 | User | P | Account | `cognitoSub` unique; `status` drives deletion; `timezone` IANA |
 | Profile | S | Body, diet and training profile | DOB date only; `allergens` from `Allergen.code`; `intensityCap` from latest screening |
-| UserPreference | P | Theme, reminders, quiet hours | `inactivityNudges` max per week |
-| Role / Permission / RolePermission / UserRole | O | RBAC | Role ids are stable strings |
+| UserPreference | P | Theme and coach tone (profile) | Reminder settings live in NotificationPreference |
+| NotificationPreference | P | Reminders, quiet hours, timezone copy (notification) | `inactivityNudges` max per week |
+| Role / UserRole | O | RBAC grants (profile), mirrored to Cognito groups | Role → permission map lives in `packages/contracts` |
 | Consent | P | Purpose-level consent history | Append-only; latest row per purpose wins |
 | DataRequest | P | Export / delete requests | Export artefact expires after 7 days |
+| Onboarding | P | Onboarding saga state (profile) | `status` NOT_STARTED → IN_PROGRESS → PLANNING → READY; READY once `PlanCreated` and `TargetsSet` are seen |
 | FitnessGoal | B | Goals over time | One ACTIVE per user (service rule) |
 | SafetyScreening | S | Questionnaire snapshots | `answers` JSON keyed by question code; `freeTextEnc` field-encrypted |
 | HealthCondition | S | Injuries and conditions | Controlled `code`; `notesEnc` encrypted |
@@ -43,14 +45,21 @@ Sensitivity: **S** sensitive health, **P** personal, **B** behavioural, **C** co
 | DeviceIntegration | P | Health platform links (P2) | |
 | Subscription | P | Paid plans (P2) | |
 | UsageRecord | O | AI tokens and cost | `userId` set null on deletion |
-| AiPromptVersion, AiModelConfig, CoachingPolicy, FeatureFlag | O | AI and product configuration | Every change audited |
-| AuditLog | O | Append-only audit | `before/after` exclude sensitive fields |
+| AiPromptVersion, AiModelConfig, CoachingPolicy | O | AI configuration (coach) | Every change audited; feature flags use AWS AppConfig |
+| WorkoutPolicy, NutritionPolicy | O | Engine policy values (workout, nutrition) | Every change audited |
+| UserTrainingProfile, RecoverySignal | S | Replicas in workout from profile/progress events | Only codes and numbers, no free text |
+| UserNutritionProfile, WeightFact | S | Replicas in nutrition from profile/progress events | Only codes and numbers |
+| WorkoutDayFact, NutritionDayFact, ExerciseBestFact | B | Read models in progress | Rebuildable from events |
+| UserConsentState | P | Consent replica in coach | |
+| SuppressionFact | O | Reminder suppression in notification | Purged after 7 days |
+| OutboxEvent, ProcessedEvent | O | Every service: event outbox and consumer dedupe | Deleted after 7 days / 30 days |
+| AuditLog | O | Append-only audit (audit), fed by `AuditEvent` from every service | `before/after` exclude sensitive fields |
 
 ## 2. Retention
 
 | Data | Retention | Deletion behaviour |
 |---|---|---|
-| Account and all S/B/P user data | Life of account | Request → `PENDING_DELETION` (login blocked, 30-day grace, cancellable) → hard delete via cascade |
+| Account and all S/B/P user data | Life of account | Request → `PENDING_DELETION` (login blocked, 30-day grace, cancellable) → `AccountDeleted` → every service deletes its rows and acknowledges |
 | Coach messages | 24 months rolling, or until account deletion | Older messages summarised then deleted |
 | Notifications | 90 days | Purged by job |
 | Export artefacts | 7 days | S3 lifecycle |
