@@ -1,0 +1,20 @@
+{
+  "name": "@aura/ui-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aura design tokens shared by the web and mobile apps (docs/ux/design-system.md)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7"
+  }
+}

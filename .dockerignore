@@ -8,3 +8,5 @@
 .git
 docs
 coverage
+# Web and mobile apps are not part of any service image.
+apps

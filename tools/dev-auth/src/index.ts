@@ -20,6 +20,15 @@ export interface DevIssuer {
     expiresIn?: string;
     tokenUse?: 'access' | 'id';
   }): Promise<string>;
+  /** An OIDC id token: audience is the client, carries `email` and the login `nonce`. */
+  mintIdToken(input: {
+    sub: string;
+    email: string;
+    clientId: string;
+    groups?: string[];
+    nonce?: string;
+    expiresIn?: string;
+  }): Promise<string>;
 }
 
 export const DEV_CLIENT_ID = 'aura-dev-client';
@@ -52,5 +61,24 @@ export async function createDevIssuer(issuer = 'http://localhost:4100'): Promise
         .setExpirationTime(input.expiresIn ?? '1h')
         .sign(privateKey);
     },
+    async mintIdToken(input) {
+      const claims: Record<string, unknown> = {
+        token_use: 'id',
+        email: input.email,
+        email_verified: true,
+        'cognito:groups': input.groups ?? [],
+      };
+      if (input.nonce) claims.nonce = input.nonce;
+      return new SignJWT(claims)
+        .setProtectedHeader({ alg: 'RS256', kid })
+        .setSubject(input.sub)
+        .setIssuer(issuer)
+        .setAudience(input.clientId)
+        .setIssuedAt()
+        .setExpirationTime(input.expiresIn ?? '1h')
+        .sign(privateKey);
+    },
   };
 }
+
+export { createOAuthHandlers, devUserId, type OAuthResult } from './oauth';

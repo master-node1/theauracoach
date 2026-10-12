@@ -48,6 +48,8 @@ services:
     build: { context: ., dockerfile: tools/dev-auth/Dockerfile }
     environment:
       DEV_AUTH_ISSUER: http://localhost:4100
+      # CI's web smoke sets this low so every request goes through the BFF's refresh path.
+      DEV_AUTH_ACCESS_TOKEN_TTL: ${DEV_AUTH_ACCESS_TOKEN_TTL:-900}
     ports: ['4100:4100']
 
   api-gateway:

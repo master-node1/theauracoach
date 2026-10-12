@@ -4,3 +4,7 @@ dist
 **/migrations/**/*.sql
 docs
 *.md
+.next
+test-results
+playwright-report
+.expo

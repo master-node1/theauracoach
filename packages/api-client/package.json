@@ -1,0 +1,23 @@
+{
+  "name": "@aura/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed client for the AuraCoach API (docs/api/openapi.yaml), used by the web BFF and the mobile app",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aura/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7"
+  }
+}
