@@ -1,0 +1,10 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": ["src/**", "assets/**", "app.config.ts", "metro.config.js", "package.json"],
+      "outputs": ["dist/**"]
+    }
+  }
+}
