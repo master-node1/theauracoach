@@ -5,7 +5,7 @@
   "description": "AuraCoach iOS and Android app (Expo). Signs in with Authorization Code + PKCE; tokens live only in the secure store.",
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "expo start",
+    "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "build": "expo export --platform android --platform ios --output-dir dist",

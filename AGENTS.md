@@ -9,6 +9,7 @@ These apply to every change in this repository. The design they come from is in 
 - Report results as Build / Tests / Lint: PASS, FAIL or NOT RUN, with the command used.
 
 ## Architecture
+- Apps live in `apps/web` (Next.js, web and admin) and `apps/mobile` (Expo). They reach the API only through the gateway: the web app through its BFF (`/api/auth/*`, `/api/v1/*`), mobile directly with a bearer token. Share code with them through `packages/api-client` and `packages/ui-tokens`.
 - Services live in `services/<name>-service` and never import each other's code (ESLint enforces it). They talk only through `/internal/v1` HTTP via `InternalClient` or through events ([ADR-009](docs/architecture/ADR/ADR-009-service-communication.md)).
 - Each service owns its database. No cross-database queries or foreign keys; copy what you need through events.
 - State changes that others care about write an event to the outbox in the same transaction (`writeOutbox`). Event payloads are defined in `packages/contracts` and versioned.
@@ -20,10 +21,12 @@ These apply to every change in this repository. The design they come from is in 
 - Every route is authenticated unless marked `@Public()`. Internal routes use `@InternalOnly(...)` with an explicit caller list.
 - Errors are RFC 9457 problem documents; never return stack traces or internal messages.
 - Do not log request bodies, emails, health notes or tokens (see `REDACT_PATHS` in `service-kit`).
+- Tokens never reach browser JavaScript or plain storage: the web app keeps them in encrypted HttpOnly `__Host-` cookies, the mobile app only in `expo-secure-store`.
 
 ## Quality gates (CI)
 - `pnpm format:check`, and `turbo run build typecheck lint test test:int --affected` must pass.
 - Changed services must build their Docker image with no fixable critical vulnerabilities, and the compose smoke test must pass.
+- Changes that affect the web app must pass its Playwright smoke against the compose stack; the mobile app must pass `expo export`.
 - Schema changes ship as Prisma migrations; destructive changes ship one release after the code stops using the old shape.
 
 <!-- BEGIN:turborepo-agent-rules -->

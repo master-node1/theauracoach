@@ -52,7 +52,7 @@ flowchart LR
 | Increment | Status |
 |---|---|
 | Monorepo, `packages/contracts`, `packages/service-kit`, 7 service skeletons with their databases, nginx gateway, docker compose stack, first event (`UserRegistered` profile → notification), CI with change detection ([TAC-1](https://harisireddi7776.atlassian.net/browse/TAC-1)) | In review |
-| Web and mobile shells with Cognito sign-in through the BFF | Not started |
+| Web (Next.js) and mobile (Expo) shells, sign-in through the BFF and PKCE against dev-auth, `packages/ui-tokens` and `packages/api-client`, web Playwright smoke in CI ([TAC-2](https://harisireddi7776.atlassian.net/browse/TAC-2)) | In review |
 | Helm chart, Terraform `platform` and `service` stacks, dev EKS, image push and deploy | Not started |
 | OpenTelemetry tracing, EAS dev builds, remaining operations docs | Not started |
 

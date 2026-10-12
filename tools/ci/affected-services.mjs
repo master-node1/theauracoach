@@ -17,7 +17,8 @@ const nodeServices = readdirSync('services').filter(
 );
 const deployables = [...nodeServices, 'api-gateway'];
 const shared = [
-  /^packages\//,
+  // ui-tokens and api-client are only used by apps/*, so they do not rebuild service images.
+  /^packages\/(contracts|service-kit)\//,
   /^tools\/(testing|dev-auth)\//,
   /^pnpm-lock\.yaml$/,
   /^package\.json$/,
