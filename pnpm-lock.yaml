@@ -30,6 +30,12 @@ importers:
         specifier: 8.71.1
         version: 8.71.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
 
+  packages/api-client:
+    devDependencies:
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)
+
   packages/contracts:
     dependencies:
       zod:
@@ -109,6 +115,12 @@ importers:
       unplugin-swc:
         specifier: 2.0.0
         version: 2.0.0(@swc/core@1.16.18)(esbuild@0.28.2)(rollup@4.64.5)(vite@7.3.7(@types/node@22.20.5)(jiti@2.7.0))
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)
+
+  packages/ui-tokens:
+    devDependencies:
       vitest:
         specifier: 3.2.7
         version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)
@@ -545,6 +557,10 @@ importers:
       jose:
         specifier: 5.10.0
         version: 5.10.0
+    devDependencies:
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)
 
   tools/testing:
     dependencies:

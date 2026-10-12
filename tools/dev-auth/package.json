@@ -2,7 +2,7 @@
   "name": "@aura/dev-auth",
   "version": "0.1.0",
   "private": true,
-  "description": "Local stand-in for Cognito: serves a JWKS and issues access tokens. Development and tests only.",
+  "description": "Local stand-in for Cognito: JWKS, test tokens and the Authorization Code + PKCE sign-in flow. Development and tests only.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -11,13 +11,17 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src",
-    "start": "node dist/server.js"
+    "lint": "eslint src test",
+    "start": "node dist/server.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "jose": "5.10.0"
   },
   "files": [
     "dist"
-  ]
+  ],
+  "devDependencies": {
+    "vitest": "3.2.7"
+  }
 }
