@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError, createApiClient } from '../src';
+import { ApiError, createApiClient, trimTrailingSlashes } from '../src';
 
 const me = {
   id: '0b6f5c1e-8f0a-4b8e-9c47-3d2a1e5f7a90',
@@ -47,5 +47,11 @@ describe('api client', () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(401);
     expect((error as ApiError).code).toBe('UNAUTHENTICATED');
+  });
+
+  it('trims trailing slashes', () => {
+    expect(trimTrailingSlashes('http://gateway///')).toBe('http://gateway');
+    expect(trimTrailingSlashes('/'.repeat(100_000))).toBe('');
+    expect(trimTrailingSlashes('http://gateway')).toBe('http://gateway');
   });
 });

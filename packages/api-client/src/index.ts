@@ -54,9 +54,16 @@ export interface ApiClient {
   me(): Promise<MeResponse>;
 }
 
+/** Drops trailing slashes without a regex (a `/\/+$/` scan is quadratic on long slash runs). */
+export function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === '/') end--;
+  return url.slice(0, end);
+}
+
 export function createApiClient(options: ApiClientOptions): ApiClient {
   const doFetch = options.fetch ?? fetch;
-  const base = options.baseUrl.replace(/\/+$/, '');
+  const base = trimTrailingSlashes(options.baseUrl);
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
