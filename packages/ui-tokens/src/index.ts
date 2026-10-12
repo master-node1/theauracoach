@@ -59,8 +59,16 @@ export type ColorScheme = keyof typeof colors;
 
 /** Android Material containers used for the FAB and the navigation-bar indicator. */
 export const androidColors = {
-  light: { 'primary-container': '#A7EBD6', 'on-primary-container': '#00201A', 'nav-indicator': '#C3E9DD' },
-  dark: { 'primary-container': '#0F5244', 'on-primary-container': '#A7EBD6', 'nav-indicator': '#1F4A40' },
+  light: {
+    'primary-container': '#A7EBD6',
+    'on-primary-container': '#00201A',
+    'nav-indicator': '#C3E9DD',
+  },
+  dark: {
+    'primary-container': '#0F5244',
+    'on-primary-container': '#A7EBD6',
+    'nav-indicator': '#1F4A40',
+  },
 } as const;
 
 export const font = {
@@ -91,3 +99,38 @@ export function cssVariables(): string {
     `:root[data-theme="dark"]{${vars(colors.dark)}color-scheme:dark;}`,
   ].join('\n');
 }
+
+/** The five main tabs (docs/ux/information-architecture.md), with 24px stroke icon paths. */
+export const tabs = [
+  {
+    id: 'today',
+    label: 'Today',
+    icon: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4',
+  },
+  { id: 'train', label: 'Train', icon: 'M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12' },
+  {
+    id: 'eat',
+    label: 'Eat',
+    icon: 'M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7',
+  },
+  { id: 'coach', label: 'Coach', icon: 'M7.9 20A9 9 0 1 0 4 16.1L2 22Z' },
+  { id: 'progress', label: 'Progress', icon: 'M22 7l-8.5 8.5-5-5L2 17M16 7h6v6' },
+] as const;
+export type TabId = (typeof tabs)[number]['id'];
+
+/** Admin console sections (web only), in sidebar order. */
+export const adminSections = [
+  'Dashboard',
+  'Exercises',
+  'Foods',
+  'Recipes',
+  'Templates',
+  'Prompts',
+  'Policies',
+  'Review queue',
+  'Feedback',
+  'Users',
+  'Usage and cost',
+  'Audit log',
+  'Roles',
+] as const;

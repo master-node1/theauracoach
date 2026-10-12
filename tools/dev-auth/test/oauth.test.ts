@@ -99,18 +99,25 @@ describe('dev-auth OAuth flow', () => {
     expect(decodeJwt(body.access_token)['cognito:groups']).toEqual(['admin']);
   });
 
-  it('rotates refresh tokens and honours revoke', async () => {
+  it('refreshes like Cognito without rotation and honours revoke', async () => {
     const first = JSON.parse((await exchange(signIn())).body as string);
     const refresh = (token: string) =>
       oauth.token(
-        new URLSearchParams({ grant_type: 'refresh_token', client_id: CLIENT, refresh_token: token }),
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: CLIENT,
+          refresh_token: token,
+        }),
       );
     const second = await refresh(first.refresh_token);
     expect(second.status).toBe(200);
+    const body = JSON.parse(second.body as string);
+    expect(body.access_token).toEqual(expect.any(String));
+    expect(body.id_token).toEqual(expect.any(String));
+    expect(body.refresh_token).toBeUndefined();
+    expect((await refresh(first.refresh_token)).status).toBe(200);
+    oauth.revoke(new URLSearchParams({ token: first.refresh_token, client_id: CLIENT }));
     expect((await refresh(first.refresh_token)).status).toBe(400);
-    const next = JSON.parse(second.body as string);
-    oauth.revoke(new URLSearchParams({ token: next.refresh_token, client_id: CLIENT }));
-    expect((await refresh(next.refresh_token)).status).toBe(400);
   });
 
   it('gives the same email the same UUID subject', () => {

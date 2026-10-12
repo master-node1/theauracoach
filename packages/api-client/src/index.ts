@@ -4,6 +4,8 @@
  * React Native).
  */
 
+import type { Role } from '@aura/contracts';
+
 /** `Me` in docs/api/openapi.yaml, returned by profile-service. */
 export interface MeResponse {
   id: string;
@@ -13,7 +15,7 @@ export interface MeResponse {
   locale: string;
   onboardingComplete: boolean;
   status: 'ACTIVE' | 'PENDING_DELETION';
-  roles: string[];
+  roles: Role[];
 }
 
 /** RFC 9457 problem document, as every service returns on errors. */

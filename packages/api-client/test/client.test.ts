@@ -9,7 +9,7 @@ const me = {
   locale: 'en-IN',
   onboardingComplete: false,
   status: 'ACTIVE',
-  roles: ['user'],
+  roles: ['user' as const],
 };
 
 describe('api client', () => {
@@ -34,7 +34,12 @@ describe('api client', () => {
   });
 
   it('turns problem documents into ApiError', async () => {
-    const problem = { type: 'about:blank', title: 'Unauthenticated', status: 401, code: 'UNAUTHENTICATED' };
+    const problem = {
+      type: 'about:blank',
+      title: 'Unauthenticated',
+      status: 401,
+      code: 'UNAUTHENTICATED',
+    };
     const fetch = vi.fn(async () => new Response(JSON.stringify(problem), { status: 401 }));
     const error = await createApiClient({ baseUrl: 'http://gateway', fetch })
       .me()

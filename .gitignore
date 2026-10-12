@@ -155,3 +155,7 @@ dist
 .env
 .env.*
 !.env.example
+next-env.d.ts
+test-results
+playwright-report
+.expo

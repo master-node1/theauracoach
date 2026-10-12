@@ -1,0 +1,329 @@
+/* Layout and components. Colours, radii and fonts come from @aura/ui-tokens (see layout.tsx). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.4;
+}
+a {
+  color: var(--color-primary);
+}
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* App shell: rail at 1024px and wider, icon rail on tablets, bottom bar under 768px. */
+.shell {
+  min-height: 100vh;
+  display: flex;
+}
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 240px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 24px 16px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 20px;
+  font-size: 18px;
+  font-weight: 800;
+}
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 600;
+}
+.nav-link[aria-current='page'] {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.nav-link.muted {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+.rail-spacer {
+  flex: 1;
+}
+.account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+.account-email {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.link-button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+  min-height: 44px;
+}
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 32px clamp(16px, 3vw, 40px);
+}
+.content-inner {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.page-date {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+h1.page-title {
+  margin: 4px 0 0;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+}
+.card {
+  padding: 24px;
+  border-radius: var(--radius-card-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.card p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.card.hero {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.card.hero p {
+  color: var(--color-on-primary);
+  opacity: 0.9;
+}
+.card.warning {
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-soft);
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.button.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+@media (max-width: 1023px) {
+  .rail {
+    width: 80px;
+    padding: 24px 12px;
+    align-items: center;
+  }
+  .rail .label,
+  .brand .label,
+  .account-email {
+    display: none;
+  }
+  .nav-link {
+    justify-content: center;
+    padding: 0;
+    width: 56px;
+  }
+  .account {
+    flex-direction: column;
+    padding: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .shell {
+    flex-direction: column;
+  }
+  .rail {
+    position: fixed;
+    inset: auto 0 0 0;
+    top: auto;
+    height: calc(56px + env(safe-area-inset-bottom));
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 0 0 env(safe-area-inset-bottom);
+    border-right: 0;
+    border-top: 1px solid var(--color-border);
+    z-index: 10;
+  }
+  .rail .brand,
+  .rail .rail-spacer,
+  .rail .rail-extra {
+    display: none;
+  }
+  .nav-link {
+    flex-direction: column;
+    gap: 2px;
+    width: auto;
+    flex: 1;
+    min-height: 56px;
+    border-radius: 0;
+    font-size: 12px;
+  }
+  .nav-link[aria-current='page'] {
+    background: none;
+  }
+  .rail .label {
+    display: inline;
+  }
+  .content {
+    padding: 20px 16px calc(80px + env(safe-area-inset-bottom));
+  }
+  .mobile-header {
+    display: flex !important;
+  }
+}
+.mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Sign in */
+.welcome {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.welcome-card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+.welcome-card h1 {
+  margin: 8px 0 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+}
+.welcome-card p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.fine-print {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* Admin */
+.admin-shell {
+  min-height: 100vh;
+  display: flex;
+}
+.admin-sidebar {
+  width: 240px;
+  flex: none;
+  padding: 24px 12px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-sidebar .nav-link {
+  min-height: 40px;
+  font-size: 14px;
+}
+@media (max-width: 767px) {
+  .admin-shell {
+    flex-direction: column;
+  }
+  .admin-sidebar {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .admin-sidebar .nav-link {
+    white-space: nowrap;
+  }
+}

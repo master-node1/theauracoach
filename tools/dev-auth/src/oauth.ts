@@ -101,9 +101,13 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
     return null;
   }
 
-  async function issue(clientId: string, user: DevUser, nonce?: string) {
-    const refreshToken = randomBytes(32).toString('base64url');
-    refreshTokens.set(refreshToken, { clientId, user });
+  /** Code grant: all three tokens. Refresh grant (`withRefresh` false): no new refresh token. */
+  async function issue(clientId: string, user: DevUser, nonce?: string, withRefresh = true) {
+    let refreshToken: string | undefined;
+    if (withRefresh) {
+      refreshToken = randomBytes(32).toString('base64url');
+      refreshTokens.set(refreshToken, { clientId, user });
+    }
     return {
       access_token: await dev.mintAccessToken({
         sub: user.sub,
@@ -113,7 +117,7 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
         expiresIn: `${ttl}s`,
       }),
       id_token: await dev.mintIdToken({ ...user, clientId, ...(nonce ? { nonce } : {}) }),
-      refresh_token: refreshToken,
+      ...(refreshToken ? { refresh_token: refreshToken } : {}),
       token_type: 'Bearer',
       expires_in: ttl,
     };
@@ -147,7 +151,8 @@ label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=
       const problem = checkAuthorizeParams(form);
       if (problem) return { status: 400, body: problem };
       const email = (form.get('email') ?? '').trim().toLowerCase();
-      if (!/^[^@\s]+@[^@\s]+$/.test(email)) return { status: 400, body: 'a valid email is required' };
+      if (!/^[^@\s]+@[^@\s]+$/.test(email))
+        return { status: 400, body: 'a valid email is required' };
       const code = randomBytes(24).toString('base64url');
       const nonce = form.get('nonce');
       codes.set(code, {
@@ -184,13 +189,13 @@ label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=
         return json(200, await issue(clientId, pending.user, pending.nonce));
       }
       if (grant === 'refresh_token') {
-        const old = form.get('refresh_token') ?? '';
-        const entry = refreshTokens.get(old);
-        refreshTokens.delete(old);
+        // Like a Cognito app client without rotation: the refresh token stays valid until it is
+        // revoked, and the response carries new access and ID tokens only.
+        const entry = refreshTokens.get(form.get('refresh_token') ?? '');
         if (!entry || entry.clientId !== clientId) {
-          return oauthError('invalid_grant', 'refresh token is unknown or already used');
+          return oauthError('invalid_grant', 'refresh token is unknown or revoked');
         }
-        return json(200, await issue(clientId, entry.user));
+        return json(200, await issue(clientId, entry.user, undefined, false));
       }
       return oauthError('unsupported_grant_type', 'use authorization_code or refresh_token');
     },
