@@ -1,6 +1,6 @@
 # Design System — "Aura"
 
-Implemented once as tokens in `packages/ui-tokens` (JSON → CSS variables for web, TS constants for React Native). Components live in `packages/ui` with web (`react-dom`) and native (`react-native`) renderers sharing props and behaviour.
+Implemented once as tokens in `packages/ui-tokens` (source: [tokens.json](tokens.json); approved screens: [high-fidelity designs](hifi-designs.md)) (JSON → CSS variables for web, TS constants for React Native). Components live in `packages/ui` with web (`react-dom`) and native (`react-native`) renderers sharing props and behaviour.
 
 ## 1. Principles
 
