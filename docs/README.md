@@ -12,7 +12,7 @@ Status: **Phases 1–3 drafted for review.** No application code exists yet; Pha
 | Area | Documents |
 |---|---|
 | Requirements | [PRD](requirements/product-requirements.md) · [User stories](requirements/user-stories.md) · [Acceptance criteria](requirements/acceptance-criteria.md) |
-| UX | [Personas](ux/personas.md) · [User journeys & flows](ux/user-journeys.md) · [Information architecture](ux/information-architecture.md) · [Design system](ux/design-system.md) · [Wireframes](ux/wireframes.md) |
+| UX | [Personas](ux/personas.md) · [User journeys & flows](ux/user-journeys.md) · [Information architecture](ux/information-architecture.md) · [Design system](ux/design-system.md) · [Wireframes](ux/wireframes.md) · [High-fidelity designs](ux/hifi-designs.md) · [Tokens](ux/tokens.json) · [Component inventory](ux/component-inventory.md) |
 | Architecture | [HLD](architecture/HLD.md) · [Diagrams](architecture/architecture-diagrams.md) · [Security & privacy](architecture/security-architecture.md) · [Deployment](architecture/deployment-architecture.md) · [Service catalog](architecture/service-catalog.md) · [ADRs](architecture/ADR/) |
 | Module LLDs | [Authentication](modules/authentication/LLD.md) · [Users & privacy](modules/users/LLD.md) · [Onboarding](modules/onboarding/LLD.md) · [Workouts](modules/workouts/LLD.md) · [Nutrition](modules/nutrition/LLD.md) · [AI coach & gateway](modules/ai-coach/LLD.md) · [Progress & dashboard](modules/progress/LLD.md) · [Notifications](modules/notifications/LLD.md) · [Admin](modules/admin/LLD.md) · [Platform / cross-cutting](modules/platform/LLD.md) |
 | API | [OpenAPI 3.1](api/openapi.yaml) · [API guide](api/API-guide.md) |

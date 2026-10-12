@@ -1,6 +1,6 @@
 # Low-Fidelity Wireframes
 
-Mobile-first (360 × 800 dp). Desktop adaptations noted per screen. High-fidelity screens follow in Phase 2 as an interactive prototype built from the [design system](design-system.md).
+Mobile-first (360 × 800 dp). Desktop adaptations noted per screen. The approved high-fidelity designs that supersede these are in [hifi-designs.md](hifi-designs.md).
 
 ## W1 Welcome
 
