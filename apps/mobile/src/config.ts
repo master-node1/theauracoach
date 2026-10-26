@@ -13,4 +13,8 @@ export const appConfig = {
     clientId: extra.oidcClientId ?? 'aura-dev-client',
     scopes: ['openid', 'email', 'profile'],
   },
+  /** Flags for unfinished slices: on unless set to "false" or "0" (AppConfig arrives with TAC-4). */
+  features: {
+    settingsV1: !['false', '0'].includes(extra.featureSettingsV1 ?? ''),
+  },
 };

@@ -1,29 +1,45 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
+import { appConfig } from '../config';
+import { MeProvider } from '../preferences';
+import { useScheme } from '../theme';
 
 function RootStack() {
   const { status } = useAuth();
+  const scheme = useScheme();
   // Keep the native splash until the secure store has been read.
   if (status === 'loading') return null;
   const signedIn = status === 'signedIn';
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={signedIn}>
-        <Stack.Screen name="(tabs)" />
-      </Stack.Protected>
-      <Stack.Protected guard={!signedIn}>
-        <Stack.Screen name="sign-in" />
-      </Stack.Protected>
-    </Stack>
+    <>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Protected guard={appConfig.features.settingsV1}>
+            <Stack.Screen name="settings" />
+          </Stack.Protected>
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="sign-in" />
+        </Stack.Protected>
+      </Stack>
+    </>
   );
+}
+
+function SignedInData({ children }: { children: React.ReactNode }) {
+  const { status } = useAuth();
+  return <MeProvider enabled={status === 'signedIn'}>{children}</MeProvider>;
 }
 
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="auto" />
-      <RootStack />
+      <SignedInData>
+        <RootStack />
+      </SignedInData>
     </AuthProvider>
   );
 }

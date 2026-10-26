@@ -3,14 +3,26 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePalette } from '../theme';
 
-export function Screen({ title, children }: { title: string; children?: React.ReactNode }) {
+export function Screen({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  /** Shown at the right of the title, e.g. the avatar that opens Settings. */
+  action?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
   const p = usePalette();
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: p.bg }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text accessibilityRole="header" style={[styles.title, { color: p.text }]}>
-          {title}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text accessibilityRole="header" style={[styles.title, { color: p.text }]}>
+            {title}
+          </Text>
+          {action}
+        </View>
         {children}
       </ScrollView>
     </SafeAreaView>
@@ -49,6 +61,7 @@ export function Card({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { padding: 16, gap: 16 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginTop: 8 },
   card: { padding: 20, borderRadius: radius.cardLg, borderWidth: 1, gap: 6 },
   cardTitle: { fontSize: 17, fontWeight: '700' },
