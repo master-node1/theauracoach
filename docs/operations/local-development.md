@@ -32,6 +32,8 @@ curl -s localhost:8080/v1/me/notification-preferences -H "authorization: Bearer 
 
 `tools/smoke/compose-smoke.sh` runs exactly this check and is what CI runs against the stack.
 
+To see traces and metrics as well, start the stack with `pnpm stack:observability` and open Grafana at http://localhost:3300. Every service log line inside a request has a `traceId` you can paste into Tempo. See [monitoring](monitoring.md).
+
 dev-auth issues tokens shaped like Cognito access tokens (`token_use`, `client_id`, `cognito:groups`, plus the `email` claim our pre-token-generation trigger adds). Pass `"groups":["admin"]` to act as an admin. It also serves Cognito's hosted OAuth endpoints (`/oauth2/authorize` with a local sign-in form, `/oauth2/token` for the code and refresh grants, `/oauth2/revoke`, `/logout`) so the apps run the real sign-in flow. It refuses to start with `NODE_ENV=production`.
 
 ## Run the web app

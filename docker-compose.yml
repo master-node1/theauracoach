@@ -1,5 +1,6 @@
 # Local stack: docker compose up --build
 # Gateway http://localhost:8080 · dev-auth (token issuer) http://localhost:4100
+# With traces and metrics: pnpm stack:observability (Grafana http://localhost:3300, docs/operations/monitoring.md)
 # Every value here is for local development only. Nothing in this file is a real credential.
 name: auracoach
 
@@ -12,6 +13,9 @@ x-service-env: &service-env
   AUTH_ISSUER: http://localhost:4100
   AUTH_CLIENT_IDS: aura-dev-client
   INTERNAL_TOKEN_SECRET: local-dev-only-internal-secret-change-me
+  # Empty (telemetry off) unless set, e.g. by pnpm stack:observability.
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  OTEL_METRIC_EXPORT_INTERVAL: '15000'
 
 x-depends: &depends
   postgres: { condition: service_healthy }
@@ -43,6 +47,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  # Collector + Tempo (traces) + Prometheus (metrics) + Loki + Grafana in one container. Local only.
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.35.0
+    profiles: ['observability']
+    ports: ['3300:3000', '4318:4318']
 
   dev-auth:
     build: { context: ., dockerfile: tools/dev-auth/Dockerfile }

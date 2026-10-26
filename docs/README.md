@@ -18,7 +18,7 @@ Status: **Phases 1–3 drafted for review.** No application code exists yet; Pha
 | API | [OpenAPI 3.1](api/openapi.yaml) · [API guide](api/API-guide.md) |
 | Database | Per-service Prisma schemas in `services/<name>/prisma/schema.prisma` (e.g. [profile](../services/profile-service/prisma/schema.prisma)) · [ERD](database/ERD.md) · [Data dictionary](database/data-dictionary.md) |
 | Testing | [Test strategy](testing/test-strategy.md) · [Critical test cases](testing/test-cases.md) |
-| Operations | [Local development](operations/local-development.md) · `deployment.md`, `monitoring.md` and `troubleshooting.md` follow with the EKS work |
+| Operations | [Local development](operations/local-development.md) · [Monitoring](operations/monitoring.md) · `deployment.md` and `troubleshooting.md` follow with the hosting work |
 
 ## Validation of these drafts
 

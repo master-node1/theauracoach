@@ -1,5 +1,9 @@
 import { streamKey } from '@aura/contracts';
+import { context, SpanKind, SpanStatusCode } from '@opentelemetry/api';
+import { suppressTracing } from '@opentelemetry/core';
 import type { Redis } from 'ioredis';
+import { eventMetrics } from '../telemetry/metrics';
+import { contextFromTraceparent, tracer } from '../telemetry/trace-context';
 import type { SqlDatabase } from './sql';
 
 export interface OutboxRelayOptions {
@@ -15,11 +19,13 @@ interface OutboxRow {
   type: string;
   version: number;
   payload: unknown;
+  traceparent: string | null;
 }
 
 /**
  * Publishes committed outbox rows to Redis Streams. Safe to run in several worker replicas:
  * rows are claimed with FOR UPDATE SKIP LOCKED. Delivery is at least once; consumers dedupe.
+ * Polling is not traced; each publish is a producer span in the trace that wrote the event.
  */
 export class OutboxRelay {
   private timer: NodeJS.Timeout | null = null;
@@ -40,9 +46,13 @@ export class OutboxRelay {
 
   /** Publishes one batch. Returns how many events were published. */
   async runOnce(): Promise<number> {
+    return context.with(suppressTracing(context.active()), () => this.publishBatch());
+  }
+
+  private async publishBatch(): Promise<number> {
     return this.db.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<OutboxRow[]>(
-        `SELECT "id", "type", "version", "payload" FROM "OutboxEvent"
+        `SELECT "id", "type", "version", "payload", "traceparent" FROM "OutboxEvent"
          WHERE "publishedAt" IS NULL
          ORDER BY "createdAt"
          LIMIT $1
@@ -55,16 +65,12 @@ export class OutboxRelay {
           const payload =
             typeof row.payload === 'string' ? row.payload : JSON.stringify(row.payload);
           const minId = `${Date.now() - this.retentionMs}-0`;
-          await this.redis.xadd(
-            streamKey(row.type, row.version),
-            'MINID',
-            '~',
-            minId,
-            '*',
-            'event',
-            payload,
+          const stream = streamKey(row.type, row.version);
+          await this.traced(row, stream, () =>
+            this.redis.xadd(stream, 'MINID', '~', minId, '*', 'event', payload),
           );
           published.push(row.id);
+          eventMetrics.published.add(1, { 'aura.event.type': row.type });
         } catch (err) {
           this.options.logger?.error({ err, eventId: row.id }, 'Outbox publish failed');
           await tx.$executeRawUnsafe(
@@ -83,6 +89,35 @@ export class OutboxRelay {
       }
       return published.length;
     });
+  }
+
+  /** Runs the publish as a producer span under the event's trace. Untraced events stay untraced. */
+  private async traced<T>(row: OutboxRow, stream: string, fn: () => Promise<T>): Promise<T> {
+    if (!row.traceparent) return fn();
+    return tracer.startActiveSpan(
+      `send ${stream}`,
+      {
+        kind: SpanKind.PRODUCER,
+        attributes: {
+          'messaging.system': 'redis',
+          'messaging.operation.type': 'send',
+          'messaging.destination.name': stream,
+          'messaging.message.id': row.id,
+        },
+      },
+      contextFromTraceparent(row.traceparent),
+      async (span) => {
+        try {
+          return await fn();
+        } catch (err) {
+          span.recordException(err as Error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw err;
+        } finally {
+          span.end();
+        }
+      },
+    );
   }
 
   /** Deletes published rows older than the retention window. Run from a daily job. */

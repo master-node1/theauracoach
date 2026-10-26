@@ -16,6 +16,7 @@ import { HealthController, HealthRegistry } from './health/health';
 import { loggerModule } from './http/logging';
 import { ProblemDetailsFilter } from './http/problem-details.filter';
 import { InternalClient } from './internal-client/internal-client';
+import { shutdownTelemetry } from './telemetry/sdk';
 import { REDIS, SERVICE_KIT_CONFIG } from './tokens';
 
 export interface ServiceKitOptions {
@@ -83,5 +84,6 @@ export class ServiceKitModule implements OnApplicationShutdown {
 
   async onApplicationShutdown(): Promise<void> {
     await this.redis.quit().catch(() => undefined);
+    await shutdownTelemetry();
   }
 }

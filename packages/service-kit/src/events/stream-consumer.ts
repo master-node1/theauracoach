@@ -10,7 +10,11 @@ import {
   type EventKey,
   type ServiceName,
 } from '@aura/contracts';
+import { context, ROOT_CONTEXT, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
+import { suppressTracing } from '@opentelemetry/core';
 import type { Redis } from 'ioredis';
+import { eventMetrics } from '../telemetry/metrics';
+import { contextFromTraceparent, tracer } from '../telemetry/trace-context';
 import type { SqlDatabase, SqlExecutor } from './sql';
 
 export interface Subscription<K extends EventKey = EventKey> {
@@ -51,6 +55,7 @@ type StreamEntry = [id: string, fields: string[]];
  * Consumer-group reader for Redis Streams with exactly-once effects per service:
  * each event id is recorded in `ProcessedEvent` in the same transaction as the handler's writes,
  * and only then acknowledged. Failures stay pending and are retried; poison events go to the DLQ.
+ * Each event is handled in a consumer span that continues the producer's trace (envelope `traceparent`).
  */
 export class StreamConsumer {
   private running = false;
@@ -168,6 +173,40 @@ export class StreamConsumer {
       return 'dead-lettered';
     }
 
+    return tracer.startActiveSpan(
+      `process ${stream}`,
+      {
+        kind: SpanKind.CONSUMER,
+        attributes: {
+          'messaging.system': 'redis',
+          'messaging.operation.type': 'process',
+          'messaging.destination.name': stream,
+          'messaging.consumer.group.name': this.options.group,
+          'messaging.message.id': envelope.id,
+        },
+      },
+      contextFromTraceparent(envelope.traceparent),
+      async (span) => {
+        const outcome = await this.process(stream, id, envelope, data, sub);
+        span.setAttribute('aura.event.outcome', outcome);
+        if (outcome === 'failed') span.setStatus({ code: SpanStatusCode.ERROR });
+        span.end();
+        eventMetrics.consumed.add(1, {
+          'aura.event.type': envelope.type,
+          'aura.event.outcome': outcome,
+        });
+        return outcome;
+      },
+    );
+  }
+
+  private async process(
+    stream: string,
+    id: string,
+    envelope: EventEnvelope,
+    data: unknown,
+    sub: Subscription,
+  ): Promise<HandleOutcome> {
     try {
       const processed = await this.db.$transaction(async (tx) => {
         const inserted = await tx.$executeRawUnsafe(
@@ -182,6 +221,7 @@ export class StreamConsumer {
       await this.redis.xack(stream, this.options.group, id);
       return processed ? 'processed' : 'duplicate';
     } catch (err) {
+      trace.getActiveSpan()?.recordException(err as Error);
       this.options.logger?.warn(
         { err, stream, entryId: id, eventId: envelope.id },
         'Event handler failed',
@@ -209,11 +249,17 @@ export class StreamConsumer {
       fieldValue(fields, 'event') ?? '',
     );
     await this.redis.xack(stream, this.options.group, id);
+    eventMetrics.consumed.add(1, { 'aura.event.outcome': 'dead-lettered' });
     this.options.logger?.error({ stream, entryId: id, reason }, 'Event dead-lettered');
   }
 
   /** Runs read and reclaim loops until stop() is called. */
   async run(): Promise<void> {
+    // Polling is not traced (blocking reads every few seconds); handleEntry starts its own spans.
+    return context.with(suppressTracing(ROOT_CONTEXT), () => this.loop());
+  }
+
+  private async loop(): Promise<void> {
     this.running = true;
     await this.ensureGroups();
     let lastReclaim = 0;

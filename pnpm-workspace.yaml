@@ -10,3 +10,9 @@ onlyBuiltDependencies:
   - '@swc/core'
   - esbuild
   - prisma
+# protobufjs (from the OTLP exporters) only runs a version check on install.
+ignoredBuiltDependencies:
+  - protobufjs
+overrides:
+  # Keep one OpenTelemetry instrumentation line (0.223 / api 1.9) across Prisma and the contrib packages.
+  '@prisma/instrumentation>@opentelemetry/instrumentation': 0.223.0
