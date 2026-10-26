@@ -62,7 +62,7 @@ flowchart LR
 | Monorepo, `packages/contracts`, `packages/service-kit`, 7 service skeletons with their databases, nginx gateway, docker compose stack, first event (`UserRegistered` profile → notification), CI with change detection ([TAC-1](https://harisireddi7776.atlassian.net/browse/TAC-1)) | Done |
 | Web (Next.js) and mobile (Expo) shells, sign-in through the BFF and PKCE against dev-auth, `packages/ui-tokens` and `packages/api-client`, web Playwright smoke in CI ([TAC-2](https://harisireddi7776.atlassian.net/browse/TAC-2)) | Done |
 | Helm chart, Terraform `platform` and `service` stacks, image push and deploy (hosting revision to k3s on EC2 for beta: [TAC-4](https://harisireddi7776.atlassian.net/browse/TAC-4), on hold until closer to beta) | Not started |
-| OpenTelemetry tracing, metrics and log correlation in every service, local Grafana stack, [monitoring](../operations/monitoring.md) doc ([TAC-5](https://harisireddi7776.atlassian.net/browse/TAC-5)) | In review |
+| OpenTelemetry tracing, metrics and log correlation in every service, local Grafana stack, [monitoring](../operations/monitoring.md) doc ([TAC-5](https://harisireddi7776.atlassian.net/browse/TAC-5)) | Done |
 | EAS dev builds, remaining operations docs (deployment, troubleshooting) | Not started |
 
 ## Phase 5 — MVP vertical slices (≈ 8–10 sprints)
@@ -79,6 +79,13 @@ Each slice ships API + web + mobile + tests + docs, behind a feature flag, and i
 | 5.6 | Progress tracking and dashboard | Trends, PRs, plateau proposals, Today dashboard budgets | 5.3, 5.4 |
 | 5.7 | Notifications (+ integrations P2) | TC-NO-1..6, preferences, weekly summary | 5.6 |
 | 5.x | Admin console (incrementally per slice) | Content workflow, audit, roles | each slice |
+
+### Phase 5 progress
+
+| Increment | Status |
+|---|---|
+| 5.1a Profile, preferences and consents API (`ProfileChanged`, `ConsentChanged`, internal user context), Settings screen on web and mobile behind `settings_v1` ([TAC-6](https://harisireddi7776.atlassian.net/browse/TAC-6)) | In review |
+| 5.1b Data export and account deletion/restore across services (TC-PRV-1..3) | Not started |
 
 Risks: content creation is on the critical path (exercises, media, Indian dishes) → start content production during Phase 4 with the admin import tooling first.
 
