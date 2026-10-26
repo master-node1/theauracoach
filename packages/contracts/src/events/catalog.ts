@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import {
+  ACTIVITY_LEVELS,
+  CONSENT_PURPOSES,
+  DIET_TYPES,
+  EXPERIENCE_LEVELS,
+  TRAINING_LOCATIONS,
+} from '../api/me';
 
 /**
  * Event payload schemas by `Type@version` (platform LLD §4.3).
@@ -12,8 +19,61 @@ export const userRegisteredV1 = z.object({
 });
 export type UserRegisteredV1 = z.infer<typeof userRegisteredV1>;
 
+/**
+ * Profile fields other services keep a copy of (platform LLD §4.2). `changes` holds the new values
+ * of exactly the fields listed in `fields`; display name and units are not shared.
+ */
+export const PROFILE_SHARED_FIELDS = [
+  'timezone',
+  'locale',
+  'heightCm',
+  'activityLevel',
+  'experience',
+  'dietType',
+  'cuisines',
+  'allergens',
+  'trainingDays',
+  'sessionMinutes',
+  'location',
+  'equipment',
+] as const;
+export type ProfileSharedField = (typeof PROFILE_SHARED_FIELDS)[number];
+
+export const profileChangedV1 = z.object({
+  userId: z.uuid(),
+  fields: z.array(z.enum(PROFILE_SHARED_FIELDS)).min(1),
+  changes: z
+    .object({
+      timezone: z.string().min(1).max(64),
+      locale: z.string().min(2).max(16),
+      heightCm: z.number(),
+      activityLevel: z.enum(ACTIVITY_LEVELS),
+      experience: z.enum(EXPERIENCE_LEVELS),
+      dietType: z.enum(DIET_TYPES),
+      cuisines: z.array(z.string()),
+      allergens: z.array(z.string()),
+      trainingDays: z.array(z.number().int()),
+      sessionMinutes: z.number().int(),
+      location: z.enum(TRAINING_LOCATIONS),
+      equipment: z.array(z.string()),
+    })
+    .partial(),
+});
+export type ProfileChangedV1 = z.infer<typeof profileChangedV1>;
+
+/** A consent was recorded. Coach and notification keep a replica so they never call profile-service. */
+export const consentChangedV1 = z.object({
+  userId: z.uuid(),
+  purpose: z.enum(CONSENT_PURPOSES),
+  granted: z.boolean(),
+  policyVersion: z.string().min(1).max(20),
+});
+export type ConsentChangedV1 = z.infer<typeof consentChangedV1>;
+
 export const eventCatalog = {
   'UserRegistered@1': userRegisteredV1,
+  'ProfileChanged@1': profileChangedV1,
+  'ConsentChanged@1': consentChangedV1,
 } as const;
 
 export type EventKey = keyof typeof eventCatalog;

@@ -1,16 +1,20 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ProblemException, writeOutbox, type AuthenticatedUser } from '@aura/service-kit';
-import { Prisma, type User } from '../generated/prisma';
+import { Prisma, type Profile, type User, type UserPreference } from '../generated/prisma';
 import { PrismaService } from '../prisma.service';
 
 export type UserWithAccess = User & {
   roles: { roleId: string }[];
   onboarding: { status: string } | null;
+  profile: Profile | null;
+  preference: UserPreference | null;
 };
 
 const include = {
   roles: { select: { roleId: true } },
   onboarding: { select: { status: true } },
+  profile: true,
+  preference: true,
 } as const;
 
 /**
@@ -20,6 +24,19 @@ const include = {
 @Injectable()
 export class UserProvisioningService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** The caller's account, created on first use. Deleted accounts get 403 on every route. */
+  async activeUser(identity: AuthenticatedUser): Promise<UserWithAccess> {
+    const user = await this.ensureUser(identity);
+    if (user.status === 'DELETED') {
+      throw new ProblemException(
+        HttpStatus.FORBIDDEN,
+        'ACCOUNT_DELETED',
+        'This account has been deleted',
+      );
+    }
+    return user;
+  }
 
   async ensureUser(identity: AuthenticatedUser): Promise<UserWithAccess> {
     const existing = await this.prisma.user.findUnique({ where: { id: identity.userId }, include });

@@ -6,7 +6,7 @@ import {
   ServiceKitModule,
 } from '@aura/service-kit';
 import type { ServiceConfig } from './config';
-import { subscriptions } from './preferences/user-registered.subscription';
+import { subscriptions } from './subscriptions';
 import { PrismaService } from './prisma.service';
 
 /** The worker deployment: outbox relay, event consumers and scheduled jobs. */

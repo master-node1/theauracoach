@@ -13,5 +13,3 @@ export const userRegistered = subscribe<'UserRegistered@1', Prisma.TransactionCl
     });
   },
 );
-
-export const subscriptions = [userRegistered];
