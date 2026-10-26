@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError, createApiClient, trimTrailingSlashes } from '../src';
+import {
+  ApiError,
+  COMMON_TIME_ZONES,
+  consentState,
+  createApiClient,
+  timeZoneOptions,
+  trimTrailingSlashes,
+} from '../src';
 
 const me = {
   id: '0b6f5c1e-8f0a-4b8e-9c47-3d2a1e5f7a90',
@@ -10,6 +17,8 @@ const me = {
   onboardingComplete: false,
   status: 'ACTIVE',
   roles: ['user' as const],
+  profile: null,
+  preferences: { theme: 'system', coachTone: 'supportive' },
 };
 
 describe('api client', () => {
@@ -49,9 +58,41 @@ describe('api client', () => {
     expect((error as ApiError).code).toBe('UNAUTHENTICATED');
   });
 
+  it('sends settings changes as JSON with the right method', async () => {
+    const fetch = vi.fn(async () => new Response('{}', { status: 200 }));
+    const client = createApiClient({ baseUrl: 'http://gateway', fetch });
+    await client.updatePreferences({ theme: 'dark' });
+    await client.recordConsent({ purpose: 'AI_COACH', granted: false, policyVersion: '2026-10' });
+    const calls = fetch.mock.calls as unknown as [string, RequestInit][];
+    expect(calls.map(([url, init]) => [url, init.method, init.body])).toEqual([
+      ['http://gateway/v1/me/preferences', 'PATCH', '{"theme":"dark"}'],
+      [
+        'http://gateway/v1/me/consents',
+        'POST',
+        '{"purpose":"AI_COACH","granted":false,"policyVersion":"2026-10"}',
+      ],
+    ]);
+    expect(new Headers(calls[0]![1].headers).get('content-type')).toBe('application/json');
+  });
+
   it('trims trailing slashes', () => {
     expect(trimTrailingSlashes('http://gateway///')).toBe('http://gateway');
     expect(trimTrailingSlashes('/'.repeat(100_000))).toBe('');
     expect(trimTrailingSlashes('http://gateway')).toBe('http://gateway');
+  });
+});
+
+describe('settings helpers', () => {
+  it('defaults listed consents to off and applies the latest answers', () => {
+    expect(consentState([{ purpose: 'AI_COACH', granted: true }])).toMatchObject({
+      AI_COACH: true,
+      NOTIFICATIONS: false,
+      MARKETING: false,
+    });
+  });
+
+  it('keeps the current time zone selectable', () => {
+    expect(timeZoneOptions('Asia/Kolkata')).toEqual([...COMMON_TIME_ZONES]);
+    expect(timeZoneOptions('Asia/Tokyo')[0]).toBe('Asia/Tokyo');
   });
 });

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import { createApiClient, type ApiClient } from '@aura/api-client';
+import { cache } from 'react';
+import { createApiClient, type ApiClient, type MeResponse } from '@aura/api-client';
 import { config } from './config';
 import { SESSION_COOKIE } from './cookies';
 import { idTokenVerifier } from './oidc';
@@ -20,6 +21,15 @@ export function serverApi(session: Session): ApiClient {
     fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
   });
 }
+
+/** `/v1/me` for the current request, fetched once however many components ask; null on failure. */
+export const currentMe = cache(async (): Promise<MeResponse | null> => {
+  const session = await currentSession();
+  if (!session) return null;
+  return serverApi(session)
+    .me()
+    .catch(() => null);
+});
 
 export function authDeps(): AuthDeps {
   const cfg = config();

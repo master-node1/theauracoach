@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import type { MeResponse } from '@aura/api-client';
-import { currentSession, serverApi } from '@/lib/server-session';
+import { currentMe } from '@/lib/server-session';
 
 export const metadata: Metadata = { title: 'Today' };
 export const dynamic = 'force-dynamic';
@@ -12,13 +11,7 @@ function greeting(hour: number): string {
 }
 
 export default async function TodayPage() {
-  const session = await currentSession();
-  let me: MeResponse | null = null;
-  if (session) {
-    me = await serverApi(session)
-      .me()
-      .catch(() => null);
-  }
+  const me = await currentMe();
   const timeZone = me?.timezone ?? 'Asia/Kolkata';
   const now = new Date();
   const date = new Intl.DateTimeFormat('en-IN', {

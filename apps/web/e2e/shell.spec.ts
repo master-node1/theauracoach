@@ -63,7 +63,9 @@ test('shows the admin console to staff', async ({ page }) => {
 
 test('sign out clears the session', async ({ page, context }) => {
   await signIn(page, email('leaver'));
-  await page.getByRole('button', { name: 'Sign out' }).filter({ visible: true }).click();
+  // On phones sign out lives in Settings (W13); it is there on every screen size.
+  await page.goto('/settings');
+  await page.getByRole('main').getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/auth\/sign-in/);
   await page.goto('/');
   await expect(page).toHaveURL(/\/auth\/sign-in/);
