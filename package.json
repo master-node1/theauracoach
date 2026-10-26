@@ -15,7 +15,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "turbo run db:migrate",
-    "new-service": "node tools/scaffold/new-service.mjs"
+    "new-service": "node tools/scaffold/new-service.mjs",
+    "stack:observability": "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-lgtm:4318 docker compose --profile observability up --build -d"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

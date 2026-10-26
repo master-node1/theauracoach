@@ -9,6 +9,7 @@ import {
   type EventKey,
   type ServiceName,
 } from '@aura/contracts';
+import { currentTraceparent } from '../telemetry/trace-context';
 import type { SqlExecutor } from './sql';
 
 type TypeOf<K extends EventKey> = K extends `${infer T}@${string}` ? T : never;
@@ -16,6 +17,7 @@ type TypeOf<K extends EventKey> = K extends `${infer T}@${string}` ? T : never;
 /**
  * Writes an event to the outbox inside the caller's transaction, so the event exists if and only if
  * the state change it describes was committed (ADR-009). The relay publishes it afterwards.
+ * The envelope carries the active trace, so consumers continue the same trace.
  */
 export async function writeOutbox<K extends EventKey>(
   tx: SqlExecutor,
@@ -39,7 +41,7 @@ export async function writeOutbox<K extends EventKey>(
     occurredAt: (input.now ?? new Date()).toISOString(),
     producer: input.producer,
     userId: input.userId,
-    traceparent: input.traceparent ?? null,
+    traceparent: input.traceparent === undefined ? currentTraceparent() : input.traceparent,
     data,
   }) as EventEnvelope<EventData<K>>;
 

@@ -10,6 +10,13 @@ map $http_x_request_id $aura_request_id {
   default                     $request_id;
 }
 
+# JSON access log. traceparent (W3C) is passed to services unchanged, so a client's trace continues;
+# otherwise the service starts the trace. Either way the request id and trace id end up on the same line.
+log_format aura_json escape=json
+  '{"time":"$time_iso8601","requestId":"$aura_request_id","traceparent":"$http_traceparent",'
+  '"method":"$request_method","uri":"$uri","status":$status,"bytes":$body_bytes_sent,'
+  '"requestTimeS":$request_time,"upstream":"$upstream_addr","upstreamTimeS":"$upstream_response_time"}';
+
 upstream profile      { server ${PROFILE_UPSTREAM}; keepalive 16; }
 upstream workout      { server ${WORKOUT_UPSTREAM}; keepalive 16; }
 upstream nutrition    { server ${NUTRITION_UPSTREAM}; keepalive 16; }
@@ -21,6 +28,7 @@ upstream audit        { server ${AUDIT_UPSTREAM}; keepalive 16; }
 server {
   listen 8080;
   server_tokens off;
+  access_log /var/log/nginx/access.log aura_json;
   client_max_body_size 1m;
 
   proxy_http_version 1.1;

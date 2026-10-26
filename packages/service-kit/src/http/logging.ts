@@ -1,5 +1,6 @@
 import { LoggerModule } from 'nestjs-pino';
 import type { BaseConfig } from '../config/config';
+import { traceLogFields } from '../telemetry/trace-context';
 import { requestId } from './request-id';
 
 /** Paths never written to logs (platform LLD §2). */
@@ -19,6 +20,8 @@ export function loggerModule(config: Pick<BaseConfig, 'LOG_LEVEL' | 'SERVICE_NAM
     pinoHttp: {
       level: config.LOG_LEVEL,
       base: { service: config.SERVICE_NAME },
+      // Every line logged inside a request or event handler carries its trace (platform LLD §2).
+      mixin: traceLogFields,
       genReqId: requestId,
       redact: { paths: REDACT_PATHS, censor: '[redacted]' },
       autoLogging: { ignore: (req) => (req.url ?? '').startsWith('/health') },

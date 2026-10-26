@@ -257,6 +257,8 @@ export class WorkerModule {
 write(
   'src/main.http.ts',
   `
+// Telemetry first: it must load before http, express, ioredis and Prisma.
+import '@aura/service-kit/telemetry/register';
 import 'reflect-metadata';
 import { bootstrapHttp } from '@aura/service-kit';
 import { AppModule } from './app.module';
@@ -269,6 +271,8 @@ void bootstrapHttp(AppModule.register(config), config.PORT);
 write(
   'src/main.worker.ts',
   `
+// Telemetry first: it must load before http, express, ioredis and Prisma.
+import '@aura/service-kit/telemetry/register';
 import 'reflect-metadata';
 import { bootstrapWorker } from '@aura/service-kit';
 import { loadServiceConfig } from './config';
@@ -371,6 +375,8 @@ AUTH_ISSUER=http://localhost:4100
 AUTH_CLIENT_IDS=aura-dev-client
 INTERNAL_TOKEN_SECRET=local-dev-only-internal-secret-change-me
 INTERNAL_SERVICE_URLS=
+# Set to export traces and metrics, e.g. to the observability profile: http://localhost:4318
+OTEL_EXPORTER_OTLP_ENDPOINT=
 `,
 );
 write(
