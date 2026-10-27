@@ -11,6 +11,9 @@ export interface UserTokenVerifierOptions {
 
 export class InvalidTokenError extends Error {}
 
+const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -49,10 +52,12 @@ export class UserTokenVerifier {
       throw new InvalidTokenError('Subject is not a UUID');
     }
     const groups = payload['cognito:groups'];
+    const amr = payload.amr;
     return {
       userId: payload.sub.toLowerCase(),
       ...(typeof payload.email === 'string' ? { email: payload.email } : {}),
-      groups: Array.isArray(groups) ? groups.filter((g): g is string => typeof g === 'string') : [],
+      groups: strings(groups),
+      amr: strings(amr),
       clientId,
     };
   }

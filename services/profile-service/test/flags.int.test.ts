@@ -64,7 +64,9 @@ afterAll(async () => {
 });
 
 const server = () => app.getHttpServer();
-const token = (groups: string[] = []) => dev.mintAccessToken({ sub: randomUUID(), groups });
+/** Staff tokens carry MFA in `amr`, as admin routes require (TC-SEC-3). */
+const token = (groups: string[] = []) =>
+  dev.mintAccessToken({ sub: randomUUID(), groups, amr: ['pwd', 'mfa'] });
 
 describe('GET /v1/me/flags', () => {
   it('returns every flag, evaluated from the file with env defaults underneath', async () => {
@@ -97,7 +99,7 @@ describe('GET /v1/me/flags', () => {
 
 describe('/v1/admin/flags', () => {
   it('lets admins set and clear a rule, which the file and the apps see', async () => {
-    const admin = await token(['admin']);
+    const admin = await token(['owner']);
     const put = await request(server())
       .put('/v1/admin/flags/meal_plans_v1')
       .set('authorization', `Bearer ${admin}`)
@@ -132,14 +134,14 @@ describe('/v1/admin/flags', () => {
   it('refuses non-admins, unknown flags and bad rules', async () => {
     await request(server())
       .put('/v1/admin/flags/coach_v1')
-      .set('authorization', `Bearer ${await token(['trainer'])}`)
+      .set('authorization', `Bearer ${await token(['content_editor'])}`)
       .send({ enabled: false })
       .expect(403);
     await request(server())
       .get('/v1/admin/flags')
       .set('authorization', `Bearer ${await token()}`)
       .expect(403);
-    const admin = await token(['admin']);
+    const admin = await token(['owner']);
     await request(server())
       .put('/v1/admin/flags/not_a_flag')
       .set('authorization', `Bearer ${admin}`)

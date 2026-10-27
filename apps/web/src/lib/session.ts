@@ -1,4 +1,5 @@
-import { ROLES } from '@aura/contracts';
+import { hasMfa, permissionsFor } from '@aura/contracts';
+import { decodeJwt } from 'jose';
 import type { WebConfig } from './config';
 import {
   REFRESH_COOKIE,
@@ -20,16 +21,26 @@ export interface Session {
   sub: string;
   email: string;
   groups: string[];
+  /** The access token's `amr` shows MFA; the admin console needs it (TC-SEC-3). */
+  mfa: boolean;
 }
 
 /** Refresh when less than this many seconds of the access token remain (TAC-2). */
 export const REFRESH_LEEWAY_SECONDS = 60;
 
-const STAFF_ROLES = new Set<string>(ROLES.filter((r) => r !== 'user'));
-
-/** The admin console is for staff: any role other than `user` (contracts ROLES). */
+/** The admin console is for staff: anyone whose roles carry an admin permission (contracts). */
 export function isStaff(groups: readonly string[]): boolean {
-  return groups.some((g) => STAFF_ROLES.has(g));
+  return permissionsFor(groups).size > 0;
+}
+
+/** Reads `amr` from our own access token. Not verified here: the API verifies it on every call. */
+function accessTokenHasMfa(accessToken: string): boolean {
+  try {
+    const amr = decodeJwt(accessToken).amr;
+    return Array.isArray(amr) && hasMfa(amr.filter((m): m is string => typeof m === 'string'));
+  } catch {
+    return false;
+  }
 }
 
 export function sessionFromTokens(
@@ -43,6 +54,7 @@ export function sessionFromTokens(
     sub: claims.sub,
     email: claims.email ?? '',
     groups: claims['cognito:groups'] ?? [],
+    mfa: accessTokenHasMfa(tokens.access_token),
   };
 }
 
@@ -79,8 +91,8 @@ export async function readSession(
     config.sessionSecret,
   );
   if (!payload || typeof payload.accessToken !== 'string') return null;
-  const { accessToken, expiresAt, sub, email, groups } = payload;
-  return { accessToken, expiresAt, sub, email, groups: groups ?? [] };
+  const { accessToken, expiresAt, sub, email, groups, mfa } = payload;
+  return { accessToken, expiresAt, sub, email, groups: groups ?? [], mfa: mfa === true };
 }
 
 export async function readRefreshToken(
