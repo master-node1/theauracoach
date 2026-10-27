@@ -1,9 +1,12 @@
+import { useTranslations } from 'next-intl';
+
 /** A plain form POST, so sign out works without JavaScript and carries an Origin header. */
 export function SignOutButton() {
+  const t = useTranslations('common');
   return (
     <form action="/api/auth/logout" method="post">
       <button type="submit" className="link-button">
-        Sign out
+        {t('signOut')}
       </button>
     </form>
   );

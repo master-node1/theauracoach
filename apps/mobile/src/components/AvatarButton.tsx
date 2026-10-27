@@ -1,6 +1,7 @@
 import { size } from '@aura/ui-tokens';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import { useTranslations } from '../i18n';
 import { useMe } from '../preferences';
 import { usePalette } from '../theme';
 
@@ -8,11 +9,12 @@ import { usePalette } from '../theme';
 export function AvatarButton() {
   const p = usePalette();
   const { me } = useMe();
+  const t = useTranslations('common');
   const initial = ((me?.displayName || me?.email || '?')[0] ?? '?').toUpperCase();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Settings"
+      accessibilityLabel={t('settings')}
       onPress={() => router.push('/settings')}
       style={[styles.avatar, { backgroundColor: p['accent-soft'] }]}
       hitSlop={4}

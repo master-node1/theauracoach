@@ -1,12 +1,18 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { CURRENT_POLICY_VERSION } from '@aura/api-client';
 import { SignOutButton, SignOutEverywhereButton } from '@/components/SignOutButton';
 import { currentFlags, currentMe, currentSession, serverApi } from '@/lib/server-session';
 import { SettingsForm } from './SettingsForm';
 
-export const metadata: Metadata = { title: 'Settings' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('common');
+  return { title: t('settings') };
+}
 export const dynamic = 'force-dynamic';
+
+const APP_VERSION = '0.1';
 
 export default async function SettingsPage({
   searchParams,
@@ -17,6 +23,7 @@ export default async function SettingsPage({
   const { error } = query;
   const flags = await currentFlags();
   if (!flags.settings_v1) notFound();
+  const t = await getTranslations();
   const session = await currentSession();
   const me = await currentMe();
   const api = session ? serverApi(session) : null;
@@ -33,7 +40,7 @@ export default async function SettingsPage({
   return (
     <>
       <header>
-        <h1 className="page-title">Settings</h1>
+        <h1 className="page-title">{t('common.settings')}</h1>
       </header>
       {me && consents ? (
         <SettingsForm
@@ -44,8 +51,8 @@ export default async function SettingsPage({
         />
       ) : (
         <section className="card warning" role="alert">
-          <h2>We couldn&apos;t load your settings</h2>
-          <p>Check your connection and refresh the page.</p>
+          <h2>{t('settings.loadFailed')}</h2>
+          <p>{t('common.refreshHint')}</p>
         </section>
       )}
       {error === 'sign-out-all' ? (
@@ -54,7 +61,7 @@ export default async function SettingsPage({
         </section>
       ) : null}
       <section className="settings-group" aria-labelledby="about-heading">
-        <h2 id="about-heading">About</h2>
+        <h2 id="about-heading">{t('settings.about')}</h2>
         <div className="settings-list">
           <div className="settings-row">
             <SignOutButton />
@@ -64,9 +71,9 @@ export default async function SettingsPage({
           </div>
         </div>
         <p className="fine-print settings-footer">
-          AuraCoach 0.1 beta · Data stored in India (Mumbai)
+          {t('settings.footer', { version: APP_VERSION })}
           <br />
-          Fitness guidance only, not medical advice.
+          {t('settings.disclaimer')}
         </p>
       </section>
     </>

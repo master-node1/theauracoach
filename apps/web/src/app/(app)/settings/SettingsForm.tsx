@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   ApiError,
   COACH_TONE_OPTIONS,
@@ -13,7 +14,6 @@ import {
   type DataRequestResponse,
   type MeResponse,
   type PreferencesResponse,
-  type ProfileResponse,
   type UnitSystem,
 } from '@aura/api-client';
 import { DeleteAccount } from '@/components/privacy/DeleteAccount';
@@ -21,21 +21,11 @@ import { ExportData } from '@/components/privacy/ExportData';
 import { browserApi } from '@/lib/browser-api';
 import { applyTheme } from '@/lib/theme';
 
-type Status = { kind: 'saved' | 'error'; text: string } | null;
+type Status = 'saved' | 'invalidValue' | 'saveFailed' | null;
 
-function errorText(err: unknown): string {
-  if (err instanceof ApiError && err.status === 422) return 'Please check the value and try again.';
-  return 'Could not save. Check your connection and try again.';
+function errorStatus(err: unknown): Status {
+  return err instanceof ApiError && err.status === 422 ? 'invalidValue' : 'saveFailed';
 }
-
-const DIET_LABELS: Record<ProfileResponse['dietType'], string> = {
-  VEGETARIAN: 'Vegetarian',
-  EGGETARIAN: 'Eggetarian',
-  NON_VEGETARIAN: 'Non-vegetarian',
-  VEGAN: 'Vegan',
-  JAIN: 'Jain',
-  PESCATARIAN: 'Pescatarian',
-};
 
 const readable = (code: string) => code.replace(/_/g, ' ');
 
@@ -56,6 +46,7 @@ export function SettingsForm({
   privacy: { latestExport: DataRequestResponse | null; resumeDelete: boolean } | null;
 }) {
   const ids = useId();
+  const t = useTranslations();
   const [status, setStatus] = useState<Status>(null);
   const [savedName, setSavedName] = useState(me.displayName ?? '');
   const [name, setName] = useState(me.displayName ?? '');
@@ -69,10 +60,10 @@ export function SettingsForm({
     setStatus(null);
     try {
       await call();
-      setStatus({ kind: 'saved', text: 'Saved' });
+      setStatus('saved');
     } catch (err) {
       undo();
-      setStatus({ kind: 'error', text: errorText(err) });
+      setStatus(errorStatus(err));
     }
   }
 
@@ -138,29 +129,29 @@ export function SettingsForm({
 
   return (
     <>
-      <section className="settings-summary card" aria-label="Account">
+      <section className="settings-summary card" aria-label={t('settings.summary')}>
         <span className="avatar large" aria-hidden="true">
           {((savedName || me.email)[0] ?? '?').toUpperCase()}
         </span>
         <span>
-          <strong data-testid="settings-name">{savedName || 'Add your name'}</strong>
-          <span className="settings-muted">{me.email} · Free beta</span>
+          <strong data-testid="settings-name">{savedName || t('settings.addName')}</strong>
+          <span className="settings-muted">{t('settings.plan', { email: me.email })}</span>
         </span>
       </section>
 
       <p
-        className={`settings-status ${status?.kind ?? ''}`}
-        role={status?.kind === 'error' ? 'alert' : 'status'}
+        className={`settings-status ${status === 'saved' ? 'saved' : status ? 'error' : ''}`}
+        role={status && status !== 'saved' ? 'alert' : 'status'}
         aria-live="polite"
       >
-        {status?.text}
+        {status && t(`common.${status}`)}
       </p>
 
       <section className="settings-group" aria-labelledby={`${ids}-account`}>
-        <h2 id={`${ids}-account`}>Account</h2>
+        <h2 id={`${ids}-account`}>{t('settings.account')}</h2>
         <div className="settings-list">
           <form className="settings-row" onSubmit={saveName}>
-            <label htmlFor={`${ids}-name`}>Display name</label>
+            <label htmlFor={`${ids}-name`}>{t('settings.displayName')}</label>
             <span className="settings-control">
               <input
                 id={`${ids}-name`}
@@ -175,16 +166,16 @@ export function SettingsForm({
                 className="button small"
                 disabled={!name.trim() || name.trim() === savedName}
               >
-                Save
+                {t('common.save')}
               </button>
             </span>
           </form>
           <div className="settings-row">
-            <span>Email</span>
+            <span>{t('settings.email')}</span>
             <span className="settings-muted">{me.email}</span>
           </div>
           <div className="settings-row">
-            <label htmlFor={`${ids}-tz`}>Time zone</label>
+            <label htmlFor={`${ids}-tz`}>{t('settings.timeZone')}</label>
             <select
               id={`${ids}-tz`}
               className="input"
@@ -202,44 +193,44 @@ export function SettingsForm({
       </section>
 
       <section className="settings-group" aria-labelledby={`${ids}-app`}>
-        <h2 id={`${ids}-app`}>App</h2>
+        <h2 id={`${ids}-app`}>{t('settings.app')}</h2>
         <div className="settings-list">
           <fieldset className="settings-row">
-            <legend>Theme</legend>
+            <legend>{t('settings.theme')}</legend>
             <span className="segmented">
-              {THEME_OPTIONS.map((o) => (
-                <label key={o.value}>
+              {THEME_OPTIONS.map((theme) => (
+                <label key={theme}>
                   <input
                     type="radio"
                     name="theme"
-                    value={o.value}
-                    checked={prefs.theme === o.value}
-                    onChange={() => changePrefs({ theme: o.value })}
+                    value={theme}
+                    checked={prefs.theme === theme}
+                    onChange={() => changePrefs({ theme })}
                   />
-                  <span>{o.label}</span>
+                  <span>{t(`settings.themes.${theme}`)}</span>
                 </label>
               ))}
             </span>
           </fieldset>
           <fieldset className="settings-row">
-            <legend>Coach tone</legend>
+            <legend>{t('settings.coachTone')}</legend>
             <span className="segmented">
-              {COACH_TONE_OPTIONS.map((o) => (
-                <label key={o.value}>
+              {COACH_TONE_OPTIONS.map((coachTone) => (
+                <label key={coachTone}>
                   <input
                     type="radio"
                     name="coachTone"
-                    value={o.value}
-                    checked={prefs.coachTone === o.value}
-                    onChange={() => changePrefs({ coachTone: o.value })}
+                    value={coachTone}
+                    checked={prefs.coachTone === coachTone}
+                    onChange={() => changePrefs({ coachTone })}
                   />
-                  <span>{o.label}</span>
+                  <span>{t(`settings.coachTones.${coachTone}`)}</span>
                 </label>
               ))}
             </span>
           </fieldset>
           <div className="settings-row">
-            <label htmlFor={`${ids}-units`}>Units</label>
+            <label htmlFor={`${ids}-units`}>{t('settings.units')}</label>
             {units ? (
               <select
                 id={`${ids}-units`}
@@ -247,12 +238,12 @@ export function SettingsForm({
                 value={units}
                 onChange={(e) => changeUnits(e.target.value as UnitSystem)}
               >
-                <option value="METRIC">kg, cm</option>
-                <option value="IMPERIAL">lb, ft/in</option>
+                <option value="METRIC">{t('settings.unitSystems.METRIC')}</option>
+                <option value="IMPERIAL">{t('settings.unitSystems.IMPERIAL')}</option>
               </select>
             ) : (
               <span id={`${ids}-units`} className="settings-muted">
-                kg, cm · change after setup
+                {t('settings.unitsAfterSetup')}
               </span>
             )}
           </div>
@@ -261,18 +252,20 @@ export function SettingsForm({
 
       {profile && (
         <section className="settings-group" aria-labelledby={`${ids}-plan`}>
-          <h2 id={`${ids}-plan`}>Plan</h2>
+          <h2 id={`${ids}-plan`}>{t('settings.planSection')}</h2>
           <div className="settings-list">
             <div className="settings-row">
-              <span>Equipment</span>
+              <span>{t('settings.equipment')}</span>
               <span className="settings-muted">
-                {profile.equipment.map(readable).join(', ') || 'None'}
+                {profile.equipment.map(readable).join(', ') || t('common.none')}
               </span>
             </div>
             <div className="settings-row">
-              <span>Diet and allergies</span>
+              <span>{t('settings.dietAndAllergies')}</span>
               <span className="settings-muted">
-                {[DIET_LABELS[profile.dietType], ...profile.allergens.map(readable)].join(', ')}
+                {[t(`settings.diets.${profile.dietType}`), ...profile.allergens.map(readable)].join(
+                  ', ',
+                )}
               </span>
             </div>
           </div>
@@ -280,28 +273,30 @@ export function SettingsForm({
       )}
 
       <section className="settings-group" aria-labelledby={`${ids}-privacy`}>
-        <h2 id={`${ids}-privacy`}>Privacy</h2>
+        <h2 id={`${ids}-privacy`}>{t('settings.privacy')}</h2>
         <div className="settings-list">
           <div className="settings-row">
             <span>
-              Core service
-              <span className="settings-hint">Needed to run your account. Required.</span>
+              {t('settings.coreService')}
+              <span className="settings-hint">{t('settings.coreServiceHint')}</span>
             </span>
-            <span className="settings-muted">On</span>
+            <span className="settings-muted">{t('common.on')}</span>
           </div>
-          {SETTINGS_CONSENTS.map((c) => (
-            <div className="settings-row" key={c.purpose}>
-              <span id={`${ids}-${c.purpose}`}>
-                {c.label}
-                <span className="settings-hint">{c.description}</span>
+          {SETTINGS_CONSENTS.map((purpose) => (
+            <div className="settings-row" key={purpose}>
+              <span id={`${ids}-${purpose}`}>
+                {t(`settings.consents.${purpose}.label`)}
+                <span className="settings-hint">
+                  {t(`settings.consents.${purpose}.description`)}
+                </span>
               </span>
               <button
                 type="button"
                 role="switch"
                 className="switch"
-                aria-checked={consents[c.purpose]}
-                aria-labelledby={`${ids}-${c.purpose}`}
-                onClick={() => toggleConsent(c.purpose)}
+                aria-checked={consents[purpose]}
+                aria-labelledby={`${ids}-${purpose}`}
+                onClick={() => toggleConsent(purpose)}
               />
             </div>
           ))}
@@ -313,17 +308,17 @@ export function SettingsForm({
           ) : (
             <>
               <div className="settings-row">
-                <span>Export my data</span>
-                <span className="settings-muted">Coming soon</span>
+                <span>{t('settings.exportData')}</span>
+                <span className="settings-muted">{t('common.comingSoon')}</span>
               </div>
               <div className="settings-row">
-                <span className="danger-text">Delete account</span>
-                <span className="settings-muted">Coming soon</span>
+                <span className="danger-text">{t('settings.deleteAccount')}</span>
+                <span className="settings-muted">{t('common.comingSoon')}</span>
               </div>
             </>
           )}
         </div>
-        <p className="fine-print">Privacy policy version {policyVersion}</p>
+        <p className="fine-print">{t('settings.policyVersion', { version: policyVersion })}</p>
       </section>
     </>
   );

@@ -15,9 +15,11 @@
   "dependencies": {
     "@aura/api-client": "workspace:*",
     "@aura/contracts": "workspace:*",
+    "@aura/i18n": "workspace:*",
     "@aura/ui-tokens": "workspace:*",
     "jose": "5.10.0",
     "next": "16.4.3",
+    "next-intl": "4.14.9",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "zod": "4.6.6"

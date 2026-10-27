@@ -156,6 +156,13 @@ export const enIN = {
     body: 'The admin console is for AuraCoach staff. Ask an admin if you need a role.',
     back: 'Back to Today',
   },
+  mfaRequired: {
+    title: 'Two-step verification needed',
+    heading: 'Sign in with two-step verification',
+    body: 'The admin console needs a sign-in that used your authenticator app. Sign in again and enter the code from the app when asked.',
+    signInAgain: 'Sign in again',
+    back: 'Back to Today',
+  },
 } as const;
 
 type Widen<T> = { -readonly [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };

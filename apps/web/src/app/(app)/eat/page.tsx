@@ -1,14 +1,20 @@
 import type { Metadata } from 'next';
+import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
 
-export const metadata: Metadata = { title: 'Eat' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('nav');
+  return { title: t('eat') };
+}
 
 export default function EatPage() {
+  const t = useTranslations();
   return (
     <>
-      <h1 className="page-title">Eat</h1>
+      <h1 className="page-title">{t('nav.eat')}</h1>
       <section className="card">
-        <h2>Coming soon</h2>
-        <p>Log meals and see your calories, protein and fibre here.</p>
+        <h2>{t('common.comingSoon')}</h2>
+        <p>{t('eat.placeholder')}</p>
       </section>
     </>
   );

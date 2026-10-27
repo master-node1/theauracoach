@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { AppNav } from '@/components/AppNav';
 import { Logo } from '@/components/Logo';
 import { PendingDeletion } from '@/components/privacy/PendingDeletion';
@@ -38,6 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
     );
   }
+  const t = await getTranslations('common');
   return (
     <div className="shell">
       {me && <ThemeSync theme={me.preferences.theme} />}
@@ -52,7 +54,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="mobile-header">
             <Logo />
             {settings ? (
-              <Link href="/settings" className="avatar" aria-label="Settings">
+              <Link href="/settings" className="avatar" aria-label={t('settings')}>
                 {(name[0] ?? '?').toUpperCase()}
               </Link>
             ) : (

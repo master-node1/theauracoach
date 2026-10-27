@@ -29,21 +29,26 @@ import { Icon } from '../components/Icon';
 import { DeleteAccountRow } from '../components/privacy/DeleteAccountRow';
 import { ExportRow } from '../components/privacy/ExportRow';
 import { Card } from '../components/Screen';
+import { useAppLocale, useTranslations } from '../i18n';
 import { useFlags, useMe } from '../preferences';
 import { saveOptimistically, type SaveStatus } from '../settings/optimistic';
 import { usePalette } from '../theme';
 
 const BACK = 'm15 18-6-6 6-6';
+const APP_VERSION = '0.1';
+const UNIT_SYSTEMS: readonly UnitSystem[] = ['METRIC', 'IMPERIAL'];
 const channel = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
 
 /** Settings (W13): account, app and privacy. Each change saves on its own and rolls back on failure. */
 export default function SettingsScreen() {
   const p = usePalette();
+  const t = useTranslations();
   const api = useApi();
   const { signOut, signOutEverywhere } = useAuth();
   const { me, failed, setTheme, reload } = useMe();
   const flags = useFlags();
   const [status, setStatus] = useState<SaveStatus>(null);
+  const [consentsFailed, setConsentsFailed] = useState(false);
   const [name, setName] = useState('');
   const [savedName, setSavedName] = useState('');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
@@ -68,7 +73,7 @@ export default function SettingsScreen() {
     api
       .consents()
       .then((list) => setConsents(consentState(list)))
-      .catch(() => setStatus({ kind: 'error', text: 'Could not load your consents.' }));
+      .catch(() => setConsentsFailed(true));
   }, [api]);
 
   const save = async (apply: () => void, undo: () => void, call: () => Promise<unknown>) => {
@@ -133,6 +138,8 @@ export default function SettingsScreen() {
     );
   };
 
+  const failure =
+    status === 'saved' ? null : (status ?? (consentsFailed ? ('consents' as const) : null));
   const text = { color: p.text };
   const muted = { color: p['text-muted'] };
   const list = [styles.list, { backgroundColor: p.surface, borderColor: p.border }];
@@ -143,23 +150,19 @@ export default function SettingsScreen() {
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.back')}
           onPress={() => router.back()}
           style={styles.back}
         >
           <Icon path={BACK} color={p.text} size={22} />
         </Pressable>
         <Text accessibilityRole="header" style={[styles.title, text]}>
-          Settings
+          {t('common.settings')}
         </Text>
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         {failed && !me ? (
-          <Card
-            tone="warning"
-            title="We couldn't load your settings"
-            body="Check your connection and try again."
-          />
+          <Card tone="warning" title={t('settings.loadFailed')} body={t('common.retryHint')} />
         ) : null}
         {me ? (
           <View style={[styles.summary, { backgroundColor: p.surface, borderColor: p.border }]}>
@@ -169,29 +172,33 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <View style={styles.flex}>
-              <Text style={[styles.name, text]}>{savedName || 'Add your name'}</Text>
-              <Text style={[styles.small, muted]}>{me.email} · Free beta</Text>
+              <Text style={[styles.name, text]}>{savedName || t('settings.addName')}</Text>
+              <Text style={[styles.small, muted]}>{t('settings.plan', { email: me.email })}</Text>
             </View>
           </View>
         ) : null}
 
         <Text
           accessibilityLiveRegion="polite"
-          accessibilityRole={status?.kind === 'error' ? 'alert' : undefined}
-          style={[styles.status, { color: status?.kind === 'error' ? p.danger : p.primary }]}
+          accessibilityRole={failure ? 'alert' : undefined}
+          style={[styles.status, { color: failure ? p.danger : p.primary }]}
         >
-          {status?.text ?? ''}
+          {failure
+            ? t(failure === 'consents' ? 'settings.consentsFailed' : `common.${failure}`)
+            : status
+              ? t(`common.${status}`)
+              : ''}
         </Text>
 
-        <Section title="Account">
+        <Section title={t('settings.account')}>
           <View style={list}>
             <View style={[row, styles.firstRow, styles.column]}>
               <Text nativeID="display-name" style={[styles.label, text]}>
-                Display name
+                {t('settings.displayName')}
               </Text>
               <View style={styles.inline}>
                 <TextInput
-                  accessibilityLabel="Display name"
+                  accessibilityLabel={t('settings.displayName')}
                   accessibilityLabelledBy="display-name"
                   value={name}
                   onChangeText={setName}
@@ -211,22 +218,24 @@ export default function SettingsScreen() {
                   onPress={saveName}
                   style={[styles.saveButton, { backgroundColor: p.primary }]}
                 >
-                  <Text style={{ color: p['on-primary'], fontWeight: '700' }}>Save</Text>
+                  <Text style={{ color: p['on-primary'], fontWeight: '700' }}>
+                    {t('common.save')}
+                  </Text>
                 </Pressable>
               </View>
             </View>
             <View style={row}>
-              <Text style={[styles.label, text]}>Email</Text>
+              <Text style={[styles.label, text]}>{t('settings.email')}</Text>
               <Text style={[styles.small, muted]}>{me?.email}</Text>
             </View>
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: zonesOpen }}
-              accessibilityHint="Choose your time zone"
+              accessibilityHint={t('settings.timeZoneHint')}
               onPress={() => setZonesOpen((o) => !o)}
               style={row}
             >
-              <Text style={[styles.label, text]}>Time zone</Text>
+              <Text style={[styles.label, text]}>{t('settings.timeZone')}</Text>
               <Text style={[styles.small, muted]}>{timezone.replace(/_/g, ' ')}</Text>
             </Pressable>
             {zonesOpen &&
@@ -246,66 +255,76 @@ export default function SettingsScreen() {
           </View>
         </Section>
 
-        <Section title="App">
+        <Section title={t('settings.app')}>
           <View style={list}>
             <View style={[row, styles.firstRow]}>
-              <Text style={[styles.label, text]}>Theme</Text>
+              <Text style={[styles.label, text]}>{t('settings.theme')}</Text>
               <Segmented
-                label="Theme"
-                options={THEME_OPTIONS}
+                label={t('settings.theme')}
+                options={THEME_OPTIONS.map((value) => ({
+                  value,
+                  label: t(`settings.themes.${value}`),
+                }))}
                 value={prefs.theme}
                 onChange={(theme) => changePrefs({ theme })}
               />
             </View>
             <View style={row}>
-              <Text style={[styles.label, text]}>Coach tone</Text>
+              <Text style={[styles.label, text]}>{t('settings.coachTone')}</Text>
               <Segmented
-                label="Coach tone"
-                options={COACH_TONE_OPTIONS}
+                label={t('settings.coachTone')}
+                options={COACH_TONE_OPTIONS.map((value) => ({
+                  value,
+                  label: t(`settings.coachTones.${value}`),
+                }))}
                 value={prefs.coachTone}
                 onChange={(coachTone) => changePrefs({ coachTone })}
               />
             </View>
             <View style={row}>
-              <Text style={[styles.label, text]}>Units</Text>
+              <Text style={[styles.label, text]}>{t('settings.units')}</Text>
               {units ? (
                 <Segmented
-                  label="Units"
-                  options={[
-                    { value: 'METRIC', label: 'kg, cm' },
-                    { value: 'IMPERIAL', label: 'lb, ft' },
-                  ]}
+                  label={t('settings.units')}
+                  options={UNIT_SYSTEMS.map((value) => ({
+                    value,
+                    label: t(`settings.unitSystems.${value}`),
+                  }))}
                   value={units}
                   onChange={changeUnits}
                 />
               ) : (
-                <Text style={[styles.small, muted]}>kg, cm · change after setup</Text>
+                <Text style={[styles.small, muted]}>{t('settings.unitsAfterSetup')}</Text>
               )}
             </View>
           </View>
         </Section>
 
-        <Section title="Privacy">
+        <Section title={t('settings.privacy')}>
           <View style={list}>
             <View style={[row, styles.firstRow]}>
               <View style={styles.flex}>
-                <Text style={[styles.label, text]}>Core service</Text>
-                <Text style={[styles.small, muted]}>Needed to run your account. Required.</Text>
+                <Text style={[styles.label, text]}>{t('settings.coreService')}</Text>
+                <Text style={[styles.small, muted]}>{t('settings.coreServiceHint')}</Text>
               </View>
-              <Text style={[styles.small, muted]}>On</Text>
+              <Text style={[styles.small, muted]}>{t('common.on')}</Text>
             </View>
-            {SETTINGS_CONSENTS.map((c) => (
-              <View key={c.purpose} style={row}>
+            {SETTINGS_CONSENTS.map((purpose) => (
+              <View key={purpose} style={row}>
                 <View style={styles.flex}>
-                  <Text style={[styles.label, text]}>{c.label}</Text>
-                  <Text style={[styles.small, muted]}>{c.description}</Text>
+                  <Text style={[styles.label, text]}>
+                    {t(`settings.consents.${purpose}.label`)}
+                  </Text>
+                  <Text style={[styles.small, muted]}>
+                    {t(`settings.consents.${purpose}.description`)}
+                  </Text>
                 </View>
                 <Switch
-                  accessibilityLabel={c.label}
-                  accessibilityHint={c.description}
+                  accessibilityLabel={t(`settings.consents.${purpose}.label`)}
+                  accessibilityHint={t(`settings.consents.${purpose}.description`)}
                   disabled={!consents}
-                  value={consents?.[c.purpose] ?? false}
-                  onValueChange={(on) => toggleConsent(c.purpose, on)}
+                  value={consents?.[purpose] ?? false}
+                  onValueChange={(on) => toggleConsent(purpose, on)}
                   trackColor={{ true: p.primary, false: p.border }}
                   thumbColor="#FFFFFF"
                 />
@@ -319,25 +338,25 @@ export default function SettingsScreen() {
             ) : (
               <>
                 <View style={row}>
-                  <Text style={[styles.label, text]}>Export my data</Text>
-                  <Text style={[styles.small, muted]}>Coming soon</Text>
+                  <Text style={[styles.label, text]}>{t('settings.exportData')}</Text>
+                  <Text style={[styles.small, muted]}>{t('common.comingSoon')}</Text>
                 </View>
                 <View style={row}>
-                  <Text style={[styles.label, { color: p.danger }]}>Delete account</Text>
-                  <Text style={[styles.small, muted]}>Coming soon</Text>
+                  <Text style={[styles.label, { color: p.danger }]}>{t('settings.deleteAccount')}</Text>
+                  <Text style={[styles.small, muted]}>{t('common.comingSoon')}</Text>
                 </View>
               </>
             )}
           </View>
           <Text style={[styles.caption, muted]}>
-            Privacy policy version {CURRENT_POLICY_VERSION}
+            {t('settings.policyVersion', { version: CURRENT_POLICY_VERSION })}
           </Text>
         </Section>
 
-        <Section title="About">
+        <Section title={t('settings.about')}>
           <View style={list}>
             <Pressable accessibilityRole="button" onPress={signOut} style={[row, styles.firstRow]}>
-              <Text style={[styles.label, { color: p.primary }]}>Sign out</Text>
+              <Text style={[styles.label, { color: p.primary }]}>{t('common.signOut')}</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -358,8 +377,9 @@ export default function SettingsScreen() {
         </Section>
 
         <Text style={[styles.caption, styles.center, muted]}>
-          AuraCoach 0.1 beta · Data stored in India (Mumbai){'\n'}Fitness guidance only, not medical
-          advice.
+          {t('settings.footer', { version: APP_VERSION })}
+          {'\n'}
+          {t('settings.disclaimer')}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -368,10 +388,11 @@ export default function SettingsScreen() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const p = usePalette();
+  const locale = useAppLocale();
   return (
     <View style={styles.section}>
       <Text accessibilityRole="header" style={[styles.sectionTitle, { color: p['text-muted'] }]}>
-        {title.toUpperCase()}
+        {title.toLocaleUpperCase(locale)}
       </Text>
       {children}
     </View>
