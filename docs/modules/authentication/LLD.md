@@ -61,7 +61,7 @@ The AuraCoach user id **is** the Cognito `sub` (a UUID). profile-service creates
 - `@Permissions('exercise:publish')` checked by `PermissionsGuard` from the token's `cognito:groups` claim through the shared permission map (the caller needs every listed permission). An admin route without `@Permissions` is refused, so a forgotten decorator fails closed.
 - Every `/v1/admin/*` route (read from route metadata, not the URL): callers with no admin permission get `403 FORBIDDEN`; staff whose token `amr` has no MFA method (`mfa`, `otp`, `hwk`, `swk`) get `403 MFA_REQUIRED`; staff with MFA but without the route's permission get `403 FORBIDDEN` (TC-SEC-3).
 - Ownership in repositories; 404 for non-owned.
-- Permission catalogue (MVP): `exercise:*`, `food:*`, `recipe:*`, `template:*`, `prompt:*`, `policy:*`, `review:*`, `feedback:read`, `usage:read`, `audit:read`, `role:grant`, `user:support_read`.
+- Permission catalogue (MVP): `exercise:*`, `food:*`, `recipe:*`, `template:*`, `prompt:*`, `policy:*`, `review:*`, `feedback:read`, `usage:read`, `audit:read`, `role:grant`, `user:support_read`, `flag:write` (TAC-10, owner only).
 
 ### 4.1 Roles
 
