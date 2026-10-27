@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@aura/contracts": "workspace:*",
+    "@aws-sdk/client-appconfigdata": "3.1150.0",
     "@aws-sdk/client-s3": "3.1146.0",
     "@aws-sdk/s3-request-presigner": "3.1146.0",
     "@nestjs/common": "11.2.7",

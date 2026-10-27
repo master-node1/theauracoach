@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { CURRENT_POLICY_VERSION } from '@aura/api-client';
 import { SignOutButton } from '@/components/SignOutButton';
-import { featureEnabled } from '@/lib/features';
-import { currentMe, currentSession, serverApi } from '@/lib/server-session';
+import { currentFlags, currentMe, currentSession, serverApi } from '@/lib/server-session';
 import { SettingsForm } from './SettingsForm';
 
 export const metadata: Metadata = { title: 'Settings' };
@@ -14,14 +13,15 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  if (!featureEnabled('SETTINGS_V1')) notFound();
+  const flags = await currentFlags();
+  if (!flags.settings_v1) notFound();
   const session = await currentSession();
   const me = await currentMe();
   const api = session ? serverApi(session) : null;
   const consents = api ? await api.consents().catch(() => null) : null;
   // `?delete=confirm`: back from the fresh sign-in that deleting the account needs.
   const privacy =
-    api && featureEnabled('PRIVACY_V1')
+    api && flags.privacy_v1
       ? {
           latestExport: (await api.exports().catch(() => []))[0] ?? null,
           resumeDelete: (await searchParams).delete === 'confirm',

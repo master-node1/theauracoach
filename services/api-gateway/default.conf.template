@@ -67,7 +67,7 @@ server {
   }
 
   # profile-service
-  location ~ ^/v1/(me|onboarding|admin/roles|admin/users)(/|$) {
+  location ~ ^/v1/(me|onboarding|admin/roles|admin/users|admin/flags)(/|$) {
     limit_req zone=per_ip burst=40 nodelay;
     proxy_pass http://profile;
   }

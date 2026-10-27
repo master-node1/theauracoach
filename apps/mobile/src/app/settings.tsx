@@ -25,12 +25,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApi } from '../api';
 import { useAuth } from '../auth/AuthProvider';
-import { appConfig } from '../config';
 import { Icon } from '../components/Icon';
 import { DeleteAccountRow } from '../components/privacy/DeleteAccountRow';
 import { ExportRow } from '../components/privacy/ExportRow';
 import { Card } from '../components/Screen';
-import { useMe } from '../preferences';
+import { useFlags, useMe } from '../preferences';
 import { saveOptimistically, type SaveStatus } from '../settings/optimistic';
 import { usePalette } from '../theme';
 
@@ -43,6 +42,7 @@ export default function SettingsScreen() {
   const api = useApi();
   const { signOut } = useAuth();
   const { me, failed, setTheme, reload } = useMe();
+  const flags = useFlags();
   const [status, setStatus] = useState<SaveStatus>(null);
   const [name, setName] = useState('');
   const [savedName, setSavedName] = useState('');
@@ -311,7 +311,7 @@ export default function SettingsScreen() {
                 />
               </View>
             ))}
-            {appConfig.features.privacyV1 ? (
+            {flags.privacy_v1 ? (
               <>
                 <ExportRow style={row} />
                 <DeleteAccountRow style={row} />

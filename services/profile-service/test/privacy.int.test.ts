@@ -65,7 +65,7 @@ beforeAll(async () => {
     keySource: dev.keySource,
   });
   const ref = await Test.createTestingModule({
-    imports: [AppModule.register(config, verifier, { identityAdmin: identity })],
+    imports: [AppModule.register(config, verifier, undefined, { identityAdmin: identity })],
   }).compile();
   app = configureHttpApp(ref.createNestApplication());
   await app.init();

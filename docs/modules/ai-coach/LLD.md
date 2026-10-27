@@ -81,6 +81,16 @@ Feature defaults (admin-editable):
 
 Cheaper model tiers can be assigned per feature once the eval suite shows no quality loss; that is a product decision recorded in `AiModelConfig` audit history.
 
+**Beta starting point (cost, TAC-4).** Beta starts with per-feature model routing instead of `claude-opus-5-5` everywhere, as [ADR-005](../../architecture/ADR/ADR-005-ai-provider-gateway.md) allows:
+
+| Feature | Beta model | How it runs |
+|---|---|---|
+| coach_chat | `claude-sonnet-5-5` | Streaming, as above |
+| safety_classifier | `claude-haiku-5-5` | Structured output `{category, severity}` |
+| daily_summary, weekly_summary | `claude-sonnet-5-5` | Message Batches API from the worker (about 50% cheaper; results within 24 h are fine for summaries) |
+
+This brings estimated prod AI spend at closed-beta traffic from about $730 to about $280 a month ([ADR-007 consequences](../../architecture/ADR/ADR-007-hosting.md#consequences)). The routing is provisional: it is seeded as the `AiModelConfig` defaults and stays only if the coach eval suite (§10) shows no quality or safety regression against `claude-opus-5-5`; any feature that regresses goes back to the default model, and the change is recorded in `AiModelConfig` audit history.
+
 ## 3. Turn lifecycle
 
 1. **Guard** — `ConsentGuard(AI_COACH)`, rate limit, daily quota, global budget (Redis counters, refreshed from `UsageRecord`).

@@ -96,7 +96,7 @@ beforeAll(async () => {
   coachDb = new CoachDb({ datasources: { db: { url: cc.DATABASE_URL } } });
 
   profile = (await boot(
-    [ProfileApp.register(pc, verifier(), { identityAdmin: identity })],
+    [ProfileApp.register(pc, verifier(), undefined, { identityAdmin: identity })],
     true,
   )) as INestApplication;
   notification = (await boot([NotificationApp.register(nc, verifier())], true)) as INestApplication;

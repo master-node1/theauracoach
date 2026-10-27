@@ -5,15 +5,14 @@ import { Logo } from '@/components/Logo';
 import { PendingDeletion } from '@/components/privacy/PendingDeletion';
 import { SignOutButton } from '@/components/SignOutButton';
 import { ThemeSync } from '@/components/ThemeSync';
-import { featureEnabled } from '@/lib/features';
 import { isStaff } from '@/lib/session';
-import { currentMe, currentSession, serverApi } from '@/lib/server-session';
+import { currentFlags, currentMe, currentSession, serverApi } from '@/lib/server-session';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await currentSession();
   if (!session) redirect('/auth/sign-in');
-  const me = await currentMe();
-  const settings = featureEnabled('SETTINGS_V1');
+  const [me, flags] = await Promise.all([currentMe(), currentFlags()]);
+  const settings = flags.settings_v1;
   const name = me?.displayName ?? session.email;
   if (me?.status === 'PENDING_DELETION') {
     // Everything else answers 423 now, so show only what still works: restore, export, sign out.

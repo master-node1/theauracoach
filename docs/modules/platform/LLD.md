@@ -125,7 +125,14 @@ Never cached: coach messages, consent decisions beyond the replica, anything per
 
 ## 9. Rate limits and abuse
 
-See [security architecture §5](../../architecture/security-architecture.md#5-rate-limiting-and-abuse). The gateway applies coarse per-IP limits; services apply per-user limits on their own routes with shared Redis counters. Coach prompt-injection attempts (classifier category) are counted per user → temporary coach cooldown after 5 in 24 h.
+Limits are in [security architecture §5](../../architecture/security-architecture.md#5-rate-limiting-and-abuse). Two layers:
+
+1. **Gateway (first line).** nginx `limit_req` per client IP (`GATEWAY_RATE_PER_SECOND`, 20 r/s with a burst of 40, 20 on `/v1/coach`), answering `429 RATE_LIMITED` with `Retry-After: 1`. `/health` is not limited.
+2. **Services.** `RateLimitGuard` in service-kit, a global guard that runs after `AuthGuard`. Every public route is charged to `rl:api:ip:{ip}` (`RATE_LIMIT_IP_PER_MINUTE`, 1000) and, when signed in, `rl:api:user:{userId}` (`RATE_LIMIT_USER_PER_MINUTE`, 300). Routes add their own buckets with `@RateLimit(...)`; the presets are `RATE_LIMITS.search` (60/min), `coachPerMinute` (10/min), `coachPerDay` (30/day) and `uploadsPerDay` (20/day). Every service uses the same Redis, so a bucket name is one counter across all services.
+
+The limiter is a sliding-window log: one sorted set per bucket, scored by Redis server time. A Lua script checks every bucket of the request first and charges them only if all have room, so a refused request counts against nothing and one limit cannot use up another. Over a limit the service answers `429 RATE_LIMITED` (problem details) with `Retry-After` set to the seconds until the oldest counted request leaves the window. Health checks (`@SkipRateLimit()`) and `/internal/v1` routes are never limited. If Redis is unreachable the guard lets the request through and logs a warning; the gateway limit still applies. `RATE_LIMIT_ENABLED=false` turns the service layer off (load tests only).
+
+Coach prompt-injection attempts (classifier category) are counted per user → temporary coach cooldown after 5 in 24 h.
 
 ## 10. Dependency injection and test boundaries
 
@@ -134,3 +141,26 @@ See [security architecture §5](../../architecture/security-architecture.md#5-ra
 - Infrastructure adapters (Prisma repositories, Redis Streams bus, OFF client, Expo, SES, S3) covered by integration tests against Testcontainers / LocalStack / WireMock.
 - Controllers covered by API tests via Supertest against the full Nest app with Testcontainers Postgres + Redis.
 - Cross-service contracts: consumer-driven contract tests for internal APIs (Pact) and schema tests for every event a service publishes or consumes.
+
+## 11. Feature flags
+
+Every Phase 5 slice ships behind a flag. The catalogue is typed in `packages/contracts/src/flags.ts` (`settings_v1`, `privacy_v1`, `onboarding_v1`, `workouts_v1`, `nutrition_v1`, `coach_v1`, `coach_enabled`, `progress_v1`, `notifications_v1`, `meal_plans_v1`, `barcode_v1`), each with a default.
+
+**Flag document.** One JSON document holds a rule per flag: `{"flags": {"coach_v1": {"enabled": true, "rolloutPercent": 10, "users": {"<userId>": true}}}}`. Flags without a rule use their default. `users` overrides win; otherwise `enabled: false` is off, and `enabled: true` with `rolloutPercent` is on for users whose bucket (FNV-1a of `flagKey:userId`, mod 10 000) is below the percentage, so the same users stay in as the percentage grows. Without a user id a partial rollout is off. Unknown flag keys fail validation and the last good document stays in use.
+
+**Sources** (`FLAGS_SOURCE`):
+
+| Source | Where | Writes |
+|---|---|---|
+| `env` (default) | No document; catalogue defaults with `FEATURE_<KEY>` variables | — |
+| `file` | `FLAGS_FILE`, re-read every `FLAGS_POLL_SECONDS`. Local compose uses `infra/local/flags/flags.json` every 5 s | `PUT`/`DELETE /v1/admin/flags/{key}` (profile-service) |
+| `appconfig` | AWS AppConfig Data: freeform JSON profile `APPCONFIG_APPLICATION`/`APPCONFIG_ENVIRONMENT`/`APPCONFIG_PROFILE`, polled every 45 s through a configuration session with the pod's IAM role | AppConfig deployments only (Terraform, TAC-36, or the console); the admin API answers `409 FLAGS_READ_ONLY` |
+
+In every source `FEATURE_<KEY>` env values are the defaults under the document, so the old env flags keep working. Reads that fail keep the last good document.
+
+**In services** inject the `FeatureFlags` port (`isEnabled(key, userId)`, `evaluate(userId)`), or mark a route `@RequireFlag('coach_v1')` so it answers 404 while the flag is off for the caller. Tests bind `StaticFeatureFlags`. Evaluation is in memory.
+
+**In the apps** `GET /v1/me/flags` (profile-service) returns every flag evaluated for the caller. The web app reads it once per request (`currentFlags()`), the mobile app after sign-in (`useFlags()`), both through `loadFlags` in `packages/api-client`, falling back to `FEATURE_<KEY>` (web) or `EXPO_PUBLIC_FEATURE_<KEY>` (mobile) defaults when the call fails.
+
+**Kill switch.** `coach_enabled=false` turns the coach off everywhere within one poll interval (AI coach LLD: budget exhausted).
+

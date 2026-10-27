@@ -51,7 +51,7 @@ Redis sliding-window limiter; responses `429` with `Retry-After`. WAF managed ru
 
 ## 6. Secrets and environments
 
-- AWS Secrets Manager per environment, synced into Kubernetes by External Secrets Operator; one DB user and one Redis ACL user per service; IRSA role per service; rotated (DB 90 days).
+- AWS Secrets Manager per environment, synced into Kubernetes by External Secrets Operator; one DB user and one Redis ACL user per service; rotated (DB 90 days). AWS identity for pods depends on the hosting stage ([ADR-007](ADR/ADR-007-hosting.md)): in Stage 1 (k3s) the node instance role, scoped to the environment's secrets, buckets and SES identity, with NetworkPolicy limiting which pods may reach the metadata endpoint; in Stage 2 (EKS) an IRSA role per service.
 - GitHub Actions uses OIDC role assumption; no static AWS keys. Secret scanning (GitHub push protection + gitleaks in CI).
 - `.env.example` documents names only. Production data never copied to lower environments; staging uses synthetic data.
 

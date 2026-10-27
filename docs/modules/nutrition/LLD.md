@@ -11,8 +11,9 @@ services/nutrition-service/src/
   controllers/ foods.controller.ts logs.controller.ts targets.controller.ts meal-plans.controller.ts recipes.controller.ts
   application/ food-search.service.ts logging.service.ts targets.service.ts meal-plan.service.ts barcode.service.ts grocery.service.ts
   infrastructure/ nutrition.repository.ts off.client.ts search.repository.ts
-packages/domain/nutrition/
-  targets.ts normalise-serving.ts compute-nutrients.ts meal-plan.ts adapt-targets.ts composite-recipe.ts
+packages/domain/src/nutrition/            (@aura/domain/nutrition, TAC-12)
+  targets.ts assessment.ts normalise-serving.ts composite-recipe.ts meal-plan.ts adapt-targets.ts
+  decimal.ts diet.ts rationale.ts errors.ts types.ts
 ```
 
 nutrition-service keeps `UserNutritionProfile` (from `ProfileChanged` / `OnboardingCompleted`) and `WeightFact` (from `MeasurementAdded`), so targets, meal plans and adaptation never call another service. Adaptation proposals are emitted as `TargetChangeProposed`; coach-service turns them into user-facing `Recommendation` cards and calls back `/internal/v1/proposals/apply` on accept.
@@ -107,3 +108,45 @@ Alternatives (C9): `suggestAlternatives(slot, remaining macros, context: eating_
 - Unit: BMR/TDEE golden values; floors; protein with high BMI; unit conversion for every unit type; raw/cooked branches; composite recipe maths; allergen derivation; meal-plan never violates hard filters (property tests over random recipe sets).
 - Integration: log → summary consistency (sum of entries equals summary within 0.5 kcal); concurrent logs on the same day (row lock); OFF timeout fallback.
 - Data QA: nightly job flags foods whose macros energy (4/4/9 + fibre 2) deviates > 15% from stated energy.
+
+## 9. Engine package (`@aura/domain/nutrition`)
+
+Pure functions with no I/O; ESLint forbids `node:*`, Nest, Prisma and other `@aura/*` imports in `packages/domain/src`. Services load data, call the engine, and persist what it returns.
+
+| Function | Section | Notes |
+|---|---|---|
+| `calculateTargets` | §2 | Fat is 25% of energy (min 0.6 g/kg of reference weight). If carbs fall below 130 g, carbs are set to 130 g and energy becomes the macro sum (`CARB_MIN_APPLIED`), which only ever raises energy. Water is 35 ml/kg, +500 ml on training days. |
+| `assess` | onboarding | BMI with Asia-Pacific cut-offs, BMR, TDEE, rate band (fat loss 0.25–1%, gain 0.1–0.5%), cap above the band max, target date range (earliest at band max, latest at band min). |
+| `normaliseServing` | §3 | `g`, `kg`, `ml` (needs density) and household units; a RAW food has at most one `cookedForm`. Unknown unit → `UNIT_NOT_SUPPORTED`, missing raw/cooked data → `STATE_NOT_SUPPORTED` (both 422). |
+| `compositeRecipe` | §4 | Allergens, diet flags and fasting suitability are derived from ingredients only. Oil grams are reported from ingredients flagged `OIL`. |
+| `generateMealPlan`, `groceryList`, `suggestAlternatives` | §6 | Deterministic: greedy fill by slot energy share (breakfast 25%, lunch 35%, snack 10%, dinner 30%), then best-improvement local search over recipe and serving (0.5–3 in 0.5 steps). Relaxation ladder per day: variety, then weekday prep time. A final pass re-checks hard filters. |
+| `adaptTargets` | §2 Adaptation | Plateau is evaluated first (fat loss only); otherwise the last two weekly trend rates must both miss the goal rate by > 0.25%/week. Step is 150 kcal if the mean gap is > 0.5%/week, else 100. The EWMA trend lags real change by about 9 days, so the first weeks after a start under-read the rate. |
+
+Decimal maths: all nutrient and gram values are `decimal.js` values; round only for display or when storing a target (`round()`).
+
+ICMR-NIN 2020 micros used (adults): iron 19 mg men / 29 mg women (19 mg women ≥ 50, 27 mg pregnant); calcium 1000 mg (1200 mg at ≥ 50); B12 2.5 µg; vitamin D 15 µg; sodium upper limit 2000 mg. To be confirmed by the reviewing nutritionist (TAC-44).
+
+### Rationale and notice codes
+
+| Code | Meaning |
+|---|---|
+| `BMR_MIFFLIN_ST_JEOR`, `TDEE_ACTIVITY_FACTOR` | Basis of every energy figure |
+| `GOAL_DEFICIT`, `DEFICIT_CLAMPED`, `RATE_CAPPED` | Fat-loss deficit; clamp to 250–750 kcal; requested rate above 1%/week capped |
+| `GOAL_SURPLUS`, `GOAL_SURPLUS_BEGINNER` | +250 / +350 kcal |
+| `GOAL_MAINTENANCE`, `ENDURANCE_VOLUME_BONUS` | Maintenance; +5% for ≥ 5 endurance sessions/week |
+| `FLOOR_APPLIED` | Energy raised to max(BMR, 1200 F / 1500 M); also used when an adaptation stops at the floor |
+| `PREGNANCY_MAINTENANCE` | No deficit or surplus during pregnancy |
+| `PROTEIN_ADJUSTED_WEIGHT` | BMI ≥ 30: protein from weight at BMI 27 |
+| `FAT_MIN_APPLIED`, `CARB_MIN_APPLIED`, `LOW_CARB_CHOSEN`, `FIBRE_MIN_APPLIED` | Macro minimums |
+| `MICROS_ICMR_NIN_2020` | Micronutrient source |
+| `BMI_ASIA_PACIFIC_CUTOFFS` | BMI category basis |
+| `STATE_AS_CATALOGUED`, `RAW_EQUIVALENT_USED`, `COOKED_FORM_USED`, `YIELD_CONVERSION` | Serving normalisation branch (yield conversion lowers confidence one level) |
+| `YIELD_ESTIMATED`, `LOW_CONFIDENCE_INGREDIENT`, `RESTAURANT_FAT_NOTE` | Composite recipe confidence and notes |
+| `RELAXED_VARIETY`, `RELAXED_PREP_TIME` | Meal-plan relaxations used |
+| `UNSATISFIABLE_SLOT`, `DAY_TARGET_NOT_MET` | Meal-plan issues (partial plan returned) |
+| `INSUFFICIENT_DATA`, `LOW_ADHERENCE`, `ON_TRACK` | Adaptation made no change |
+| `TREND_ABOVE_GOAL_RATE`, `TREND_BELOW_GOAL_RATE` | Weight trend above (lose slower / gain faster) or below the goal rate |
+| `FLOOR_REACHED` | A reduction was blocked by the floor |
+| `PLATEAU` | 3-week plateau; user chooses −100 kcal or +2,000 steps/day |
+
+Notices: `ESTIMATE` (show "≈"), `PROFESSIONAL_ADVICE_PREGNANCY`, `BMI_POPULATION_CAVEAT`.

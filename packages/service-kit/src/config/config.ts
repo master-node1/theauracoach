@@ -11,6 +11,8 @@ const csv = z
   )
   .pipe(z.array(z.string()).min(1));
 
+const bool = z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1');
+
 /** Environment every service needs. Values come from ConfigMaps and External Secrets, never from code. */
 export const baseEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -29,6 +31,23 @@ export const baseEnvSchema = z.object({
   INTERNAL_TOKEN_SECRET: z.string().min(32),
   /** Base URLs of other services this one may call, as `name=url` pairs. */
   INTERNAL_SERVICE_URLS: z.string().default(''),
+
+  /**
+   * Where feature flags come from (platform LLD §11): `env` (FEATURE_<KEY> variables only),
+   * `file` (a JSON flag document at FLAGS_FILE, local and dev) or `appconfig` (AWS AppConfig).
+   */
+  FLAGS_SOURCE: z.enum(['env', 'file', 'appconfig']).default('env'),
+  FLAGS_FILE: z.string().min(1).optional(),
+  /** How often the flag document is re-read. AppConfig allows 15 s at the least. */
+  FLAGS_POLL_SECONDS: z.coerce.number().int().min(1).max(3600).default(45),
+  APPCONFIG_APPLICATION: z.string().min(1).optional(),
+  APPCONFIG_ENVIRONMENT: z.string().min(1).optional(),
+  APPCONFIG_PROFILE: z.string().min(1).optional(),
+
+  /** Per-user and per-IP API limits (security architecture §5). Off only in load tests. */
+  RATE_LIMIT_ENABLED: bool.default(true),
+  RATE_LIMIT_USER_PER_MINUTE: z.coerce.number().int().min(1).default(300),
+  RATE_LIMIT_IP_PER_MINUTE: z.coerce.number().int().min(1).default(1000),
 });
 
 export type BaseConfig = z.infer<typeof baseEnvSchema>;

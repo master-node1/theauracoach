@@ -4,7 +4,7 @@ Contract: [openapi.yaml](openapi.yaml) (OpenAPI 3.1, lints clean with `redocly l
 
 ## Routing
 
-The public API is one contract served by several services. The nginx `api-gateway` validates nothing itself; it routes by path prefix (`/v1/me`, `/v1/onboarding`, `/v1/admin/roles` → profile; `/v1/exercises`, `/v1/workout-*` → workout; `/v1/foods`, `/v1/nutrition`, `/v1/meal-plans`, `/v1/recipes` → nutrition; `/v1/dashboard`, `/v1/progress` → progress; `/v1/coach`, `/v1/recommendations`, `/v1/admin/usage` → coach; `/v1/me/notification-preferences`, `/v1/me/devices`, `/v1/notifications` → notification; `/v1/admin/audit` → audit; `/v1/admin/{contentType}/…` → the service that owns that content type). More specific prefixes win, so `/v1/me/devices` reaches notification while the rest of `/v1/me` reaches profile. The full table is in the [service catalog](../architecture/service-catalog.md). `/internal/v1` is never routed by the gateway. Each service validates the Cognito token itself.
+The public API is one contract served by several services. The nginx `api-gateway` validates nothing itself; it routes by path prefix (`/v1/me`, `/v1/onboarding`, `/v1/admin/roles`, `/v1/admin/flags` → profile; `/v1/exercises`, `/v1/workout-*` → workout; `/v1/foods`, `/v1/nutrition`, `/v1/meal-plans`, `/v1/recipes` → nutrition; `/v1/dashboard`, `/v1/progress` → progress; `/v1/coach`, `/v1/recommendations`, `/v1/admin/usage` → coach; `/v1/me/notification-preferences`, `/v1/me/devices`, `/v1/notifications` → notification; `/v1/admin/audit` → audit; `/v1/admin/{contentType}/…` → the service that owns that content type). More specific prefixes win, so `/v1/me/devices` reaches notification while the rest of `/v1/me` reaches profile. The full table is in the [service catalog](../architecture/service-catalog.md). `/internal/v1` is never routed by the gateway. Each service validates the Cognito token itself.
 
 ## Conventions
 
@@ -22,7 +22,7 @@ The public API is one contract served by several services. The nginx `api-gatewa
 | Idempotency | `clientId` on offline writes; `Idempotency-Key` header on non-idempotent POSTs (onboarding, meal-plan generation); keys kept 24 h |
 | Concurrency | Proposals carry `basisVersion`; stale accept → `409 RECOMMENDATION_STALE`. Content admin uses `If-Match` with ETag |
 | Caching | Library endpoints return `ETag` + `Cache-Control: public, max-age=300`; user data `private, no-store` |
-| Rate limits | `429` with `Retry-After`; headers `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` |
+| Rate limits | `429 RATE_LIMITED` problem with `Retry-After` (seconds); limits in [security architecture §5](../architecture/security-architecture.md#5-rate-limiting-and-abuse), mechanism in [platform LLD §9](../modules/platform/LLD.md#9-rate-limits-and-abuse). `RateLimit-*` headers are not sent yet |
 | Tracing | Accepts `traceparent`; returns `X-Request-Id` (also in problem bodies) |
 
 ## Errors

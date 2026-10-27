@@ -4,6 +4,8 @@ import {
   COMMON_TIME_ZONES,
   consentState,
   createApiClient,
+  envFlagDefaults,
+  loadFlags,
   timeZoneOptions,
   trimTrailingSlashes,
 } from '../src';
@@ -80,6 +82,30 @@ describe('api client', () => {
     expect(trimTrailingSlashes('http://gateway///')).toBe('http://gateway');
     expect(trimTrailingSlashes('/'.repeat(100_000))).toBe('');
     expect(trimTrailingSlashes('http://gateway')).toBe('http://gateway');
+  });
+});
+
+describe('loadFlags', () => {
+  it('reads /v1/me/flags on top of the fallback', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ flags: { settings_v1: false } }), {
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const client = createApiClient({ baseUrl: 'http://gw', fetch: fetchMock });
+    const flags = await loadFlags(client, envFlagDefaults({ FEATURE_COACH_V1: 'false' }));
+    expect(fetchMock).toHaveBeenCalledWith('http://gw/v1/me/flags', expect.anything());
+    expect(flags).toMatchObject({ settings_v1: false, coach_v1: false, nutrition_v1: true });
+  });
+
+  it('falls back when the call fails', async () => {
+    const client = createApiClient({
+      baseUrl: 'http://gw',
+      fetch: async () => new Response(null, { status: 503 }),
+    });
+    const fallback = envFlagDefaults({ FEATURE_SETTINGS_V1: 'false' });
+    await expect(loadFlags(client, fallback)).resolves.toEqual(fallback);
   });
 });
 

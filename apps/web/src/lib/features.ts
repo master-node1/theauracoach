@@ -1,11 +1,10 @@
+import { envFlagDefaults, type FlagValues } from '@aura/api-client';
+
 /**
- * Feature flags for unfinished slices. Read from the environment until AWS AppConfig is wired up
- * with the hosting work (TAC-4); every flag is on unless set to "false" or "0".
+ * Flag values to use when `GET /v1/me/flags` cannot answer (signed out, API down): the catalogue
+ * defaults with `FEATURE_<KEY>` environment overrides, e.g. `FEATURE_SETTINGS_V1=false`.
+ * Signed-in pages read the evaluated flags with `currentFlags()` (server-session.ts).
  */
-export function featureEnabled(
-  name: 'SETTINGS_V1' | 'PRIVACY_V1',
-  env: Record<string, string | undefined> = process.env,
-): boolean {
-  const value = env[`FEATURE_${name}`];
-  return value !== 'false' && value !== '0';
+export function flagDefaults(env: Record<string, string | undefined> = process.env): FlagValues {
+  return envFlagDefaults(env);
 }
