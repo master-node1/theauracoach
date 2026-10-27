@@ -7,6 +7,7 @@ import {
 } from '@aura/service-kit';
 import type { ServiceConfig } from './config';
 import { PrismaService } from './prisma.service';
+import { subscriptions } from './subscriptions';
 
 /** The worker deployment: outbox relay, event consumers and scheduled jobs. */
 @Module({})
@@ -18,7 +19,7 @@ export class WorkerModule {
       providers: [
         PrismaService,
         { provide: EVENT_DATABASE, useExisting: PrismaService },
-        { provide: EVENT_SUBSCRIPTIONS, useValue: [] },
+        { provide: EVENT_SUBSCRIPTIONS, useValue: subscriptions },
         EventWorker,
       ],
     };

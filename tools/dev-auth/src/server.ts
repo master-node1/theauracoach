@@ -1,13 +1,21 @@
 #!/usr/bin/env node
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { createDevIssuer, createOAuthHandlers, type OAuthResult } from './index';
+import {
+  createDevIssuer,
+  createOAuthHandlers,
+  GroupStore,
+  handleGroupAdmin,
+  type OAuthResult,
+} from './index';
 
 /**
  * Local Cognito stand-in for docker compose.
  *   GET  /.well-known/jwks.json
  *   POST /token  {"sub":"…","email":"…","groups":["admin"]}  -> {"access_token":"…"}
- *   GET  /oauth2/authorize, POST /oauth2/token, POST /oauth2/revoke, GET /logout
- *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints)
+ *   GET  /oauth2/authorize, POST /oauth2/mfa, POST /oauth2/token, POST /oauth2/revoke, GET /logout
+ *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints; staff get an MFA step)
+ *   GET|PUT|DELETE /admin/users/{sub}/groups[/{group}]  (header x-dev-auth-admin-key)
+ *        Cognito AdminAddUserToGroup / AdminRemoveUserFromGroup, used by profile-service role grants
  * Keys and sessions live in memory and are lost on restart.
  */
 function readBody(req: IncomingMessage): Promise<string> {
@@ -31,8 +39,12 @@ async function main() {
   const port = Number(process.env.PORT ?? 4100);
   const issuer = process.env.DEV_AUTH_ISSUER ?? `http://localhost:${port}`;
   const dev = await createDevIssuer(issuer);
+  const groups = new GroupStore();
+  const adminKey = process.env.DEV_AUTH_ADMIN_KEY ?? 'dev-auth-admin-key-local-only';
   const oauth = createOAuthHandlers(dev, {
     accessTokenTtlSeconds: Number(process.env.DEV_AUTH_ACCESS_TOKEN_TTL ?? 900),
+    groups,
+    ...(process.env.DEV_AUTH_MFA_CODE ? { mfaCode: process.env.DEV_AUTH_MFA_CODE } : {}),
   });
   createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', issuer);
@@ -59,6 +71,20 @@ async function main() {
       }
       if (url.pathname === '/oauth2/authorize' && req.method === 'POST') {
         send(res, oauth.authorizeSubmit(new URLSearchParams(await readBody(req))));
+        return;
+      }
+      if (url.pathname === '/oauth2/mfa' && req.method === 'POST') {
+        send(res, oauth.mfaSubmit(new URLSearchParams(await readBody(req))));
+        return;
+      }
+      const key = req.headers['x-dev-auth-admin-key'];
+      const admin = handleGroupAdmin(groups, adminKey, {
+        method: req.method ?? 'GET',
+        path: url.pathname,
+        key: typeof key === 'string' ? key : undefined,
+      });
+      if (admin) {
+        send(res, admin);
         return;
       }
       if (url.pathname === '/oauth2/token' && req.method === 'POST') {

@@ -18,6 +18,8 @@ export interface AuthenticatedUser {
   userId: string;
   email?: string;
   groups: string[];
+  /** Authentication methods from the token's `amr` claim; admin routes need MFA in it. */
+  amr: string[];
   clientId: string;
 }
 

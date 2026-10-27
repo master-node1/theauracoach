@@ -9,6 +9,8 @@ export interface ProblemDetails {
   instance?: string;
   requestId?: string;
   errors?: { path: string; message: string }[];
+  /** RFC 9457 extension members, e.g. `purpose` on CONSENT_REQUIRED. */
+  [extension: string]: unknown;
 }
 
 const PROBLEM_BASE = 'https://docs.auracoach.app/problems/';
@@ -21,6 +23,8 @@ export class ProblemException extends HttpException {
     title: string,
     readonly detail?: string,
     readonly errors?: { path: string; message: string }[],
+    /** Extra members for the problem document. Ids and codes only, never user text. */
+    readonly extensions?: Record<string, string>,
   ) {
     super(title, status);
   }

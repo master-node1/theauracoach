@@ -1,7 +1,16 @@
 import { createHash } from 'node:crypto';
 import { decodeJwt, jwtVerify } from 'jose';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createDevIssuer, createOAuthHandlers, devUserId, type DevIssuer } from '../src';
+import {
+  createDevIssuer,
+  createOAuthHandlers,
+  DEV_MFA_CODE,
+  devUserId,
+  GroupStore,
+  handleGroupAdmin,
+  type DevIssuer,
+  type OAuthResult,
+} from '../src';
 
 const CLIENT = 'aura-dev-client';
 const REDIRECT = 'http://localhost:3100/api/auth/callback';
@@ -24,20 +33,40 @@ function authorizeParams(extra: Record<string, string> = {}) {
 describe('dev-auth OAuth flow', () => {
   let dev: DevIssuer;
   let oauth: ReturnType<typeof createOAuthHandlers>;
+  let groups: GroupStore;
 
   beforeEach(async () => {
     dev = await createDevIssuer('http://localhost:4100');
-    oauth = createOAuthHandlers(dev);
+    groups = new GroupStore();
+    oauth = createOAuthHandlers(dev, { groups });
   });
 
-  function signIn(email = 'Priya@Example.com', staff = false) {
-    const form = authorizeParams({ email, ...(staff ? { staff: 'admin' } : {}) });
-    const res = oauth.authorizeSubmit(form);
+  function ticketFrom(res: OAuthResult): string {
+    expect(res.status).toBe(200);
+    return /name="ticket" value="([^"]+)"/.exec(res.body as string)![1]!;
+  }
+
+  function codeFrom(res: OAuthResult): string {
     expect(res.status).toBe(302);
     const location = new URL(res.headers?.location as string);
     expect(location.origin + location.pathname).toBe(REDIRECT);
     expect(location.searchParams.get('state')).toBe('state-123');
     return location.searchParams.get('code') as string;
+  }
+
+  /** Staff sign-in: `mfa` true enters the code, false skips the step. */
+  function signIn(email = 'Priya@Example.com', staff = false, mfa = true) {
+    const form = authorizeParams({ email, ...(staff ? { staff: 'owner' } : {}) });
+    const res = oauth.authorizeSubmit(form);
+    if (res.status === 200) {
+      const ticket = ticketFrom(res);
+      return codeFrom(
+        oauth.mfaSubmit(
+          new URLSearchParams(mfa ? { ticket, code: DEV_MFA_CODE } : { ticket, skip: '1' }),
+        ),
+      );
+    }
+    return codeFrom(res);
   }
 
   function exchange(code: string, verifier = VERIFIER) {
@@ -94,9 +123,47 @@ describe('dev-auth OAuth flow', () => {
     expect(JSON.parse(res.body as string).error).toBe('invalid_grant');
   });
 
-  it('puts staff in the admin group', async () => {
+  it('makes the staff checkbox an owner and marks MFA in amr after the code step', async () => {
     const body = JSON.parse((await exchange(signIn('asha@example.com', true))).body as string);
-    expect(decodeJwt(body.access_token)['cognito:groups']).toEqual(['admin']);
+    const claims = decodeJwt(body.access_token);
+    expect(claims['cognito:groups']).toEqual(['owner']);
+    expect(claims.amr).toEqual(['pwd', 'mfa']);
+  });
+
+  it('gives users without groups no MFA step and amr pwd only', async () => {
+    const body = JSON.parse((await exchange(signIn())).body as string);
+    expect(decodeJwt(body.access_token).amr).toEqual(['pwd']);
+  });
+
+  it('leaves MFA out of amr when staff skip the step, and rejects a wrong code', async () => {
+    const skipped = JSON.parse((await exchange(signIn('ravi@example.com', true, false))).body as string);
+    expect(decodeJwt(skipped.access_token).amr).toEqual(['pwd']);
+
+    const ticket = ticketFrom(oauth.authorizeSubmit(authorizeParams({ email: 'ravi@example.com' })));
+    const wrong = oauth.mfaSubmit(new URLSearchParams({ ticket, code: '000000' }));
+    expect(wrong.status).toBe(200);
+    expect(wrong.body).toContain('That code is not right');
+    codeFrom(oauth.mfaSubmit(new URLSearchParams({ ticket, code: DEV_MFA_CODE })));
+    // A ticket works once.
+    expect(oauth.mfaSubmit(new URLSearchParams({ ticket, code: DEV_MFA_CODE })).status).toBe(400);
+  });
+
+  it('reads groups at every refresh, so a revoked role drops out', async () => {
+    const sub = devUserId('meera@example.com');
+    groups.add(sub, 'content_editor');
+    const first = JSON.parse((await exchange(signIn('meera@example.com'))).body as string);
+    expect(decodeJwt(first.access_token)['cognito:groups']).toEqual(['content_editor']);
+    groups.remove(sub, 'content_editor');
+    const refreshed = await oauth.token(
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: CLIENT,
+        refresh_token: first.refresh_token,
+      }),
+    );
+    const claims = decodeJwt(JSON.parse(refreshed.body as string).access_token);
+    expect(claims['cognito:groups']).toEqual([]);
+    expect(claims.amr).toEqual(['pwd', 'mfa']);
   });
 
   it('refreshes like Cognito without rotation and honours revoke', async () => {
@@ -134,5 +201,25 @@ describe('dev-auth OAuth flow', () => {
     expect(oauth.logout(new URLSearchParams({ logout_uri: 'https://evil.example' })).status).toBe(
       400,
     );
+  });
+});
+
+describe('dev-auth group admin', () => {
+  const sub = devUserId('dev@example.com');
+  const key = 'k'.repeat(24);
+  const call = (store: GroupStore, method: string, path: string, given: string | undefined = key) =>
+    handleGroupAdmin(store, key, { method, path, key: given });
+
+  it('adds, lists and removes groups with the admin key only', () => {
+    const store = new GroupStore();
+    expect(call(store, 'PUT', `/admin/users/${sub}/groups/support`, 'wrong')?.status).toBe(401);
+    expect(call(store, 'PUT', `/admin/users/${sub}/groups/support`)?.status).toBe(204);
+    expect(JSON.parse(call(store, 'GET', `/admin/users/${sub}/groups`)!.body!)).toEqual({
+      groups: ['support'],
+    });
+    expect(call(store, 'DELETE', `/admin/users/${sub}/groups/support`)?.status).toBe(204);
+    expect(store.list(sub)).toEqual([]);
+    expect(call(store, 'PUT', `/admin/users/${sub}/groups/Not-Valid`)?.status).toBe(400);
+    expect(call(store, 'GET', '/somewhere-else')).toBeNull();
   });
 });
