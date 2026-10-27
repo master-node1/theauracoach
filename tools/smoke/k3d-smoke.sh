@@ -105,14 +105,22 @@ probe() { # label expected
   local name="probe-$1"
   kubectl -n "$EDGE_NS" run "$name" --image=curlimages/curl:8.11.1 --restart=Never \
     --labels="app.kubernetes.io/name=$1" --command -- \
-    curl -sS -m 5 -o /dev/null -w '%{http_code}' "http://$SERVICE.$SVC_NS.svc.cluster.local:3000/health/ready" >/dev/null
-  kubectl -n "$EDGE_NS" wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$name" --timeout 60s >/dev/null 2>&1 ||
+    curl -sS -m 5 --retry 6 --retry-delay 3 --retry-all-errors -o /dev/null -w '%{http_code}' \
+    "http://$SERVICE.$SVC_NS.svc.cluster.local:3000/health/ready" >/dev/null
+  # Retries: the network policy controller adds a new pod's IP to its allow sets a moment after the
+  # pod starts, so the first attempt can be refused even when the policy allows it.
+  kubectl -n "$EDGE_NS" wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$name" --timeout 90s >/dev/null 2>&1 ||
     kubectl -n "$EDGE_NS" wait --for=jsonpath='{.status.phase}'=Failed "pod/$name" --timeout 30s >/dev/null 2>&1 || true
   local phase code
   phase=$(kubectl -n "$EDGE_NS" get "pod/$name" -o jsonpath='{.status.phase}')
   code=$(kubectl -n "$EDGE_NS" logs "pod/$name" 2>/dev/null || true)
   echo "$1 -> phase=$phase http=$code"
-  if [[ "$2" == allow && ( "$phase" != Succeeded || "$code" != 200 ) ]]; then echo "expected $1 to reach $SERVICE"; exit 1; fi
+  if [[ "$2" == allow && ( "$phase" != Succeeded || "$code" != 200 ) ]]; then
+    echo "expected $1 to reach $SERVICE"
+    kubectl -n "$SVC_NS" get endpoints,networkpolicy -o wide
+    kubectl -n "$SVC_NS" get networkpolicy "$SERVICE-ingress" -o yaml
+    exit 1
+  fi
   if [[ "$2" == deny && "$phase" == Succeeded ]]; then echo "expected $1 to be blocked by NetworkPolicy"; exit 1; fi
 }
 
