@@ -34,7 +34,8 @@ flowchart LR
 |---|---|
 | Journeys, IA, design system, low-fi wireframes | Done |
 | High-fidelity designs for the 14 primary screens on mobile and web, light and dark ([TAC-3](https://harisireddi7776.atlassian.net/browse/TAC-3), [hifi-designs.md](../ux/hifi-designs.md)), tokens JSON, component inventory | Approved 2026-10-12 |
-| User tests with 5–6 target users, content style guide | Not started |
+| Content style guide ([TAC-15](https://harisireddi7776.atlassian.net/browse/TAC-15), [content-style-guide.md](../ux/content-style-guide.md)), i18n-ready strings for web and mobile | Done |
+| User tests with 5–6 target users | Not started |
 
 ## Phase 3 — HLD and LLD (in parallel with Phase 2, 1 sprint)
 

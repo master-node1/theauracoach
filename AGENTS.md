@@ -9,7 +9,8 @@ These apply to every change in this repository. The design they come from is in 
 - Report results as Build / Tests / Lint: PASS, FAIL or NOT RUN, with the command used.
 
 ## Architecture
-- Apps live in `apps/web` (Next.js, web and admin) and `apps/mobile` (Expo). They reach the API only through the gateway: the web app through its BFF (`/api/auth/*`, `/api/v1/*`), mobile directly with a bearer token. Share code with them through `packages/api-client` and `packages/ui-tokens`.
+- Apps live in `apps/web` (Next.js, web and admin) and `apps/mobile` (Expo). They reach the API only through the gateway: the web app through its BFF (`/api/auth/*`, `/api/v1/*`), mobile directly with a bearer token. Share code with them through `packages/api-client`, `packages/ui-tokens` and `packages/i18n`.
+- User-facing text comes from the `packages/i18n` catalogue and follows the [content style guide](docs/ux/content-style-guide.md); ESLint (`aura/no-hardcoded-ui-strings`) fails on hard-coded JSX text.
 - Services live in `services/<name>-service` and never import each other's code (ESLint enforces it). They talk only through `/internal/v1` HTTP via `InternalClient` or through events ([ADR-009](docs/architecture/ADR/ADR-009-service-communication.md)).
 - Each service owns its database. No cross-database queries or foreign keys; copy what you need through events.
 - State changes that others care about write an event to the outbox in the same transaction (`writeOutbox`). Event payloads are defined in `packages/contracts` and versioned.
