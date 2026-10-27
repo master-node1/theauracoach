@@ -74,7 +74,9 @@ fi
 echo "rendered $(find "$OUT" -name '*.yaml' | wc -l) files"
 
 echo "== kubeconform (Kubernetes $K8S_VERSION, strict)"
-kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" \
+# The Kubernetes schema set has none for CustomResourceDefinition itself; the add-ons ship their CRDs
+# as their upstream releases define them, and our own custom resources are validated against them.
+kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" -skip CustomResourceDefinition \
   -schema-location default \
   -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
   "$OUT"
