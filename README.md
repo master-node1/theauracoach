@@ -14,7 +14,7 @@ AI personal trainer and nutrition coaching platform for web, Android and iOS.
 | Data | PostgreSQL 16 with one database per service (Prisma), Redis 7 + BullMQ, S3 |
 | Identity | Amazon Cognito |
 | AI | Provider-independent gateway; Anthropic Claude by default |
-| Infra | AWS ap-south-1, EKS + Helm, Terraform, GitHub Actions with per-service builds |
+| Infra | AWS ap-south-1, k3s on EC2 for beta then EKS (same Helm chart), Terraform, GitHub Actions with per-service builds |
 
 Reasoning for each choice is in the [ADRs](docs/architecture/ADR/); what each service owns is in the [service catalog](docs/architecture/service-catalog.md).
 

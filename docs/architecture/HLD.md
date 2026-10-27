@@ -26,7 +26,7 @@ AuraCoach is a set of **NestJS microservices in one monorepo** (same layout as t
 | Push / email | Expo Push (APNs/FCM), Amazon SES | Simple, cheap | OneSignal |
 | Observability | OpenTelemetry → Grafana Cloud (Tempo, Loki, Prometheus), Sentry for client crashes | Tracing across API/worker/AI | Datadog (cost) |
 | IaC / CI | Terraform, GitHub Actions, Docker | Matches owner's existing setup | CDK |
-| Hosting | AWS `ap-south-1`, EKS + one generic Helm chart via Terraform `helm_release` | Data residency for India; same platform and chart pattern as the-aura-lab | ECS Fargate, Lambda (ADR-007) |
+| Hosting | AWS `ap-south-1`, staged: k3s on one EC2 Graviton node per account for beta, EKS for growth; one generic Helm chart via Terraform `helm_release` in both | Data residency for India; beta infra within the PRD cost target; same chart and pipeline pattern as the-aura-lab | EKS from day one, ECS Fargate, Docker Compose VM, Lambda (ADR-007) |
 
 ## 3. System context
 
@@ -104,7 +104,7 @@ progress-service keeps per-user daily facts built from `WorkoutCompleted`, `Sess
 | Service → its DB | Own database user per service (Secrets Manager, rotated), private subnets, TLS |
 | Service → event bus | Redis ACL user per service: publish to own streams, read only subscribed streams |
 | coach-service → AI provider | Pseudonymous ids only, minimised context, no photos without consent, outbound allow-list (only coach-service may egress to the provider) |
-| Service → S3 | IRSA roles scoped to the service's prefix; pre-signed PUT with type and size limits; malware scan on upload |
+| Service → S3 | Per-service S3 prefix in the role policy (IRSA role per service on EKS; node role plus NetworkPolicy on k3s, see ADR-007); pre-signed PUT with type and size limits; malware scan on upload |
 | Admin → services | Role claims, MFA required, IP allow-list optional |
 
 ## 8. Authentication and authorisation
@@ -140,9 +140,10 @@ progress-service keeps per-user daily facts built from `WorkoutCompleted`, `Sess
 
 ## 12. Cost management
 
-- EKS: one control plane per environment, Graviton managed nodes with Karpenter (prod baseline 3 × `m7g.large`), dev on one small node, staging scaled down out of hours; one shared RDS `db.t4g.medium` Multi-AZ with a database per service; ElastiCache `cache.t4g.small` with a replica.
+- Hosting is staged ([ADR-007](ADR/ADR-007-hosting.md)). Stage 1 (beta): prod on one k3s node (`t4g.xlarge`), RDS `db.t4g.small` single-AZ with PITR and a database per service, ElastiCache `cache.t4g.micro`, CloudFront + WAF straight to the node (no ALB, no NAT), DNS Firewall for egress; dev and staging share one `t4g.large` k3s node stopped out of hours. Stage 2 (growth): EKS with Karpenter, RDS Multi-AZ, ElastiCache with a replica, when a move trigger in the ADR is met.
 - AI: per-user daily message quota (default 30), per-feature effort settings, prompt caching of static system prompt and tool definitions, conversation summarisation beyond 20 turns, hard monthly budget with kill switch to fallback FAQ mode.
-- Estimated beta infra ≈ USD 700–900/month excluding AI (higher than a single-service deployment because of EKS and per-service replicas).
+- AI routing for beta: Sonnet 5.5 for coach chat, Haiku 5.5 for the safety classifier, Batch API for summaries, pending evals ([AI coach LLD §2](../modules/ai-coach/LLD.md)).
+- Estimated beta cost ≈ USD 275/month infrastructure (all environments and shared tools) + ≈ USD 335/month AI; Stage 2 infrastructure ≈ USD 1,250/month.
 
 ## 13. ADR index
 
@@ -154,6 +155,6 @@ progress-service keeps per-user daily facts built from `WorkoutCompleted`, `Sess
 | [004](ADR/ADR-004-deterministic-engines-ai-proposes.md) | Deterministic engines; AI explains and proposes |
 | [005](ADR/ADR-005-ai-provider-gateway.md) | Provider-independent AI gateway |
 | [006](ADR/ADR-006-authentication.md) | Cognito for identity |
-| [007](ADR/ADR-007-hosting.md) | AWS ap-south-1 on EKS with Helm |
+| [007](ADR/ADR-007-hosting.md) | Staged hosting on AWS ap-south-1: k3s on EC2 for beta, EKS for growth |
 | [008](ADR/ADR-008-nutrition-data.md) | Curated nutrition data with provenance |
 | [009](ADR/ADR-009-service-communication.md) | Internal REST plus outbox events on Redis Streams |
