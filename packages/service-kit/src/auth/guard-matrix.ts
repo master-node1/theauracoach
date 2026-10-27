@@ -18,7 +18,9 @@ export interface GuardMatrixRow {
 }
 
 function metadata<T>(key: string, handler: object, controller: Type<unknown>): T | undefined {
-  return (Reflect.getMetadata(key, handler) as T | undefined) ?? Reflect.getMetadata(key, controller);
+  return (
+    (Reflect.getMetadata(key, handler) as T | undefined) ?? Reflect.getMetadata(key, controller)
+  );
 }
 
 /** Every route of a Nest app with its guard metadata (auth LLD §6: guard matrix from route metadata). */

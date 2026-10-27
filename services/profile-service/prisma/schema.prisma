@@ -164,7 +164,7 @@ model UserPreference {
 }
 
 model Role {
-  id          String     @id @db.VarChar(40) // a role from packages/contracts ROLES, e.g. "content_admin"
+  id          String     @id @db.VarChar(40) // a role from packages/contracts GRANTABLE_ROLES, e.g. "content_editor"; seeded by migration
   description String
   users       UserRole[]
 }

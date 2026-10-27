@@ -16,12 +16,12 @@ Target: OWASP ASVS 4.0 Level 2, OWASP Mobile Top 10, OWASP Top 10 for LLM Applic
 
 - Cognito: access token 15 min, refresh token 30 days with rotation, revocation on password change and "log out all devices".
 - Mobile tokens in `expo-secure-store` (Keychain / Keystore). Web tokens never reach JS: Next.js BFF sets `HttpOnly; Secure; SameSite=Lax` cookies and forwards bearer tokens server-side; CSRF protected by SameSite plus double-submit token on state-changing BFF routes.
-- Admin: MFA (TOTP) mandatory, session 8 h max, step-up for destructive actions.
+- Admin: MFA (TOTP) mandatory through a staff user pool with MFA required; every `/v1/admin/*` route checks `amr` (`403 MFA_REQUIRED`, [auth LLD §4.3](../modules/authentication/LLD.md)); session 8 h max, step-up for destructive actions.
 - Passwords handled by Cognito (no hashes in our DB). Password policy: min 10 chars, breached-password check.
 
 ## 3. Authorisation
 
-- Guards: `JwtAuthGuard` (or `InternalServiceGuard` on internal routes) → `PermissionsGuard` (permission strings from Cognito groups) → `ConsentGuard` (e.g. coach requires `ai_coach` consent) → service-level ownership.
+- Guards (global, from service-kit): `AuthGuard` (user token, or service token on `@InternalOnly` routes) → `AdminMfaGuard` (MFA on `/v1/admin/*`) → `PermissionsGuard` (permission strings from Cognito groups) → `ConsentGuard` (e.g. coach requires `AI_COACH` consent, from a local replica) → service-level ownership. A guard-matrix test in every service checks each route's decorators.
 - Ownership enforced in repositories (`where: { id, userId }`), 404 on miss (no existence oracle). Prisma client extension throws if a query on an owned model lacks `userId` (except admin routes with `user:support_read`, which are audited).
 - Coach tools derive `userId` from the request context only; tool schemas have no `userId` field.
 - Service-to-service: every `/internal/v1/*` route requires a service JWT (`iss` = calling service, `aud` = this service, 5 min expiry, signed with a per-environment key from Secrets Manager) checked by `InternalServiceGuard`, plus an allow-list of callers per route. When acting for a user the token carries `sub_user`; the callee applies the same ownership checks as for public calls. Internal routes are never exposed by the api-gateway, and NetworkPolicies block undeclared callers.

@@ -7,7 +7,7 @@ import {
   DEV_MFA_CODE,
   devUserId,
   GroupStore,
-  handleGroupAdmin,
+  handleGroupTarget,
   type DevIssuer,
   type OAuthResult,
 } from '../src';
@@ -136,10 +136,14 @@ describe('dev-auth OAuth flow', () => {
   });
 
   it('leaves MFA out of amr when staff skip the step, and rejects a wrong code', async () => {
-    const skipped = JSON.parse((await exchange(signIn('ravi@example.com', true, false))).body as string);
+    const skipped = JSON.parse(
+      (await exchange(signIn('ravi@example.com', true, false))).body as string,
+    );
     expect(decodeJwt(skipped.access_token).amr).toEqual(['pwd']);
 
-    const ticket = ticketFrom(oauth.authorizeSubmit(authorizeParams({ email: 'ravi@example.com' })));
+    const ticket = ticketFrom(
+      oauth.authorizeSubmit(authorizeParams({ email: 'ravi@example.com' })),
+    );
     const wrong = oauth.mfaSubmit(new URLSearchParams({ ticket, code: '000000' }));
     expect(wrong.status).toBe(200);
     expect(wrong.body).toContain('That code is not right');
@@ -204,22 +208,24 @@ describe('dev-auth OAuth flow', () => {
   });
 });
 
-describe('dev-auth group admin', () => {
+describe('dev-auth group admin (cognito-idp shaped)', () => {
   const sub = devUserId('dev@example.com');
-  const key = 'k'.repeat(24);
-  const call = (store: GroupStore, method: string, path: string, given: string | undefined = key) =>
-    handleGroupAdmin(store, key, { method, path, key: given });
+  const call = (store: GroupStore, action: string, body: object) =>
+    handleGroupTarget(store, `AWSCognitoIdentityProviderService.${action}`, body);
 
-  it('adds, lists and removes groups with the admin key only', () => {
+  it('adds, lists and removes groups by sub', () => {
     const store = new GroupStore();
-    expect(call(store, 'PUT', `/admin/users/${sub}/groups/support`, 'wrong')?.status).toBe(401);
-    expect(call(store, 'PUT', `/admin/users/${sub}/groups/support`)?.status).toBe(204);
-    expect(JSON.parse(call(store, 'GET', `/admin/users/${sub}/groups`)!.body!)).toEqual({
-      groups: ['support'],
+    expect(
+      call(store, 'AdminAddUserToGroup', { Username: sub, GroupName: 'support' })?.status,
+    ).toBe(200);
+    expect(JSON.parse(call(store, 'AdminListGroupsForUser', { Username: sub })!.body!)).toEqual({
+      Groups: [{ GroupName: 'support' }],
     });
-    expect(call(store, 'DELETE', `/admin/users/${sub}/groups/support`)?.status).toBe(204);
+    call(store, 'AdminRemoveUserFromGroup', { Username: sub, GroupName: 'support' });
     expect(store.list(sub)).toEqual([]);
-    expect(call(store, 'PUT', `/admin/users/${sub}/groups/Not-Valid`)?.status).toBe(400);
-    expect(call(store, 'GET', '/somewhere-else')).toBeNull();
+    expect(
+      call(store, 'AdminAddUserToGroup', { Username: sub, GroupName: 'Not-Valid' })?.status,
+    ).toBe(400);
+    expect(handleGroupTarget(store, 'AWSCognitoIdentityProviderService.SignUp', {})).toBeNull();
   });
 });

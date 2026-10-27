@@ -4,7 +4,7 @@ import {
   createDevIssuer,
   createOAuthHandlers,
   GroupStore,
-  handleGroupAdmin,
+  handleGroupTarget,
   type OAuthResult,
 } from './index';
 
@@ -14,8 +14,8 @@ import {
  *   POST /token  {"sub":"…","email":"…","groups":["admin"]}  -> {"access_token":"…"}
  *   GET  /oauth2/authorize, POST /oauth2/mfa, POST /oauth2/token, POST /oauth2/revoke, GET /logout
  *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints; staff get an MFA step)
- *   GET|PUT|DELETE /admin/users/{sub}/groups[/{group}]  (header x-dev-auth-admin-key)
- *        Cognito AdminAddUserToGroup / AdminRemoveUserFromGroup, used by profile-service role grants
+ *   POST /  X-Amz-Target: AWSCognitoIdentityProviderService.AdminAddUserToGroup (also
+ *        AdminRemoveUserFromGroup, AdminListGroupsForUser): profile-service role grants
  * Keys and sessions live in memory and are lost on restart.
  */
 function readBody(req: IncomingMessage): Promise<string> {
@@ -40,7 +40,6 @@ async function main() {
   const issuer = process.env.DEV_AUTH_ISSUER ?? `http://localhost:${port}`;
   const dev = await createDevIssuer(issuer);
   const groups = new GroupStore();
-  const adminKey = process.env.DEV_AUTH_ADMIN_KEY ?? 'dev-auth-admin-key-local-only';
   const oauth = createOAuthHandlers(dev, {
     accessTokenTtlSeconds: Number(process.env.DEV_AUTH_ACCESS_TOKEN_TTL ?? 900),
     groups,
@@ -77,14 +76,15 @@ async function main() {
         send(res, oauth.mfaSubmit(new URLSearchParams(await readBody(req))));
         return;
       }
-      const key = req.headers['x-dev-auth-admin-key'];
-      const admin = handleGroupAdmin(groups, adminKey, {
-        method: req.method ?? 'GET',
-        path: url.pathname,
-        key: typeof key === 'string' ? key : undefined,
-      });
-      if (admin) {
-        send(res, admin);
+      if (url.pathname === '/' && req.method === 'POST') {
+        const target = req.headers['x-amz-target'];
+        const raw = await readBody(req);
+        const result = handleGroupTarget(
+          groups,
+          typeof target === 'string' ? target : undefined,
+          raw ? JSON.parse(raw) : {},
+        );
+        send(res, result ?? { status: 400, body: '{"__type":"UnknownOperationException"}' });
         return;
       }
       if (url.pathname === '/oauth2/token' && req.method === 'POST') {

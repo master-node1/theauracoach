@@ -210,7 +210,7 @@ ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
         `<h1>Dev sign-in</h1><p>Local stand-in for Cognito. No password; never runs in production.</p>
 <form method="post" action="/oauth2/authorize">${hidden}
 <label for="email">Email</label><input id="email" name="email" type="email" required value="priya@example.com">
-<label class="check"><input type="checkbox" name="staff" value="owner"> Staff: make me an owner (admin console)</label>
+<label class="check"><input type="checkbox" name="staff" value="owner"> Staff (admin console): sign in as an owner</label>
 <button type="submit">Continue</button></form>`,
       );
     },

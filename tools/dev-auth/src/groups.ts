@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto';
 import type { OAuthResult } from './oauth';
 
 /**
@@ -27,41 +26,41 @@ export class GroupStore {
 /** Group names follow Cognito's rules closely enough for local use. */
 export const GROUP_NAME = /^[a-z][a-z0-9_]{1,39}$/;
 
-const ADMIN_PATH = /^\/admin\/users\/([0-9a-f-]{36})\/groups(?:\/([^/]+))?$/;
+const TARGET_PREFIX = 'AWSCognitoIdentityProviderService.';
 
-function keyMatches(given: string | undefined, expected: string): boolean {
-  if (given === undefined) return false;
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
+const cognitoJson = (status: number, body: unknown): OAuthResult => ({
+  status,
+  headers: { 'content-type': 'application/x-amz-json-1.1' },
+  body: JSON.stringify(body),
+});
 
 /**
- * `GET /admin/users/{sub}/groups`, `PUT|DELETE /admin/users/{sub}/groups/{group}`: Cognito's
- * AdminListGroupsForUser, AdminAddUserToGroup and AdminRemoveUserFromGroup for local use.
- * Callers send the shared key in `x-dev-auth-admin-key`. Returns null for other paths.
+ * Cognito's AdminAddUserToGroup, AdminRemoveUserFromGroup and AdminListGroupsForUser, spoken as
+ * the `cognito-idp` JSON API (POST / with X-Amz-Target), so profile-service uses the same AWS SDK
+ * client against dev-auth and Cognito. `Username` is the user's sub. Requests are not signed-checked:
+ * dev-auth is local only. Returns null for any other target.
  */
-export function handleGroupAdmin(
+export function handleGroupTarget(
   store: GroupStore,
-  adminKey: string,
-  req: { method: string; path: string; key: string | undefined },
+  target: string | undefined,
+  body: { Username?: unknown; GroupName?: unknown },
 ): OAuthResult | null {
-  const match = ADMIN_PATH.exec(req.path);
-  if (!match) return null;
-  if (!keyMatches(req.key, adminKey)) return { status: 401 };
-  const sub = match[1]!.toLowerCase();
-  const group = match[2];
-  if (req.method === 'GET' && !group) {
-    return {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groups: store.list(sub) }),
-    };
+  const action = target?.startsWith(TARGET_PREFIX) ? target.slice(TARGET_PREFIX.length) : '';
+  if (
+    !['AdminAddUserToGroup', 'AdminRemoveUserFromGroup', 'AdminListGroupsForUser'].includes(action)
+  ) {
+    return null;
   }
-  if (group && GROUP_NAME.test(group) && (req.method === 'PUT' || req.method === 'DELETE')) {
-    if (req.method === 'PUT') store.add(sub, group);
-    else store.remove(sub, group);
-    return { status: 204 };
+  const sub = typeof body.Username === 'string' ? body.Username.toLowerCase() : '';
+  if (!sub) return cognitoJson(400, { __type: 'InvalidParameterException', message: 'Username' });
+  if (action === 'AdminListGroupsForUser') {
+    return cognitoJson(200, { Groups: store.list(sub).map((GroupName) => ({ GroupName })) });
   }
-  return { status: 400 };
+  const group = typeof body.GroupName === 'string' ? body.GroupName : '';
+  if (!GROUP_NAME.test(group)) {
+    return cognitoJson(400, { __type: 'InvalidParameterException', message: 'GroupName' });
+  }
+  if (action === 'AdminAddUserToGroup') store.add(sub, group);
+  else store.remove(sub, group);
+  return cognitoJson(200, {});
 }

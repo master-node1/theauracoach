@@ -13,7 +13,6 @@ import {
   FEATURE_FLAGS,
   flagRuleUpdateSchema,
   isFlagKey,
-  permissionsFor,
   type FlagDocument,
   type FlagKey,
   type FlagRule,
@@ -23,6 +22,7 @@ import {
   CurrentUser,
   FeatureFlags,
   FlagsReadOnlyError,
+  Permissions,
   ProblemException,
   ZodValidationPipe,
   type AuthenticatedUser,
@@ -49,8 +49,8 @@ export class FlagsController {
   }
 
   @Get('admin/flags')
-  list(@CurrentUser() identity: AuthenticatedUser): AdminFlagsResponse {
-    requireFlagAdmin(identity);
+  @Permissions('flag:write')
+  list(): AdminFlagsResponse {
     return {
       writable: this.flags.writable,
       catalogue: FEATURE_FLAGS,
@@ -63,21 +63,21 @@ export class FlagsController {
    * is an AppConfig deployment (Terraform or the console), so this answers 409 FLAGS_READ_ONLY.
    */
   @Put('admin/flags/:key')
+  @Permissions('flag:write')
   async put(
     @CurrentUser() identity: AuthenticatedUser,
     @Param('key') key: string,
     @Body(new ZodValidationPipe(flagRuleUpdateSchema)) rule: FlagRule,
   ): Promise<FlagRule> {
-    requireFlagAdmin(identity);
     await this.write(identity, flagKey(key), rule);
     return rule;
   }
 
   /** Removes a flag's rule, so the default applies again. */
   @Delete('admin/flags/:key')
+  @Permissions('flag:write')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@CurrentUser() identity: AuthenticatedUser, @Param('key') key: string) {
-    requireFlagAdmin(identity);
     await this.write(identity, flagKey(key), null);
   }
 
@@ -96,12 +96,6 @@ export class FlagsController {
     }
     // Flag changes join the audit trail with the admin audit work (TAC-32); until then, the log.
     this.logger.log({ actor: identity.userId, flag: key, removed: rule === null }, 'Flag changed');
-  }
-}
-
-function requireFlagAdmin(identity: AuthenticatedUser): void {
-  if (!permissionsFor(identity.groups).has('flag:write')) {
-    throw new ProblemException(HttpStatus.FORBIDDEN, 'FORBIDDEN', 'Not allowed');
   }
 }
 

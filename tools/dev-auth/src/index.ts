@@ -85,4 +85,4 @@ export async function createDevIssuer(issuer = 'http://localhost:4100'): Promise
 }
 
 export { createOAuthHandlers, devUserId, DEV_MFA_CODE, type OAuthResult } from './oauth';
-export { GroupStore, GROUP_NAME, handleGroupAdmin } from './groups';
+export { GroupStore, GROUP_NAME, handleGroupTarget } from './groups';

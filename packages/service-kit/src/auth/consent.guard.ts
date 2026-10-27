@@ -1,10 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  HttpStatus,
-  Injectable,
-  SetMetadata,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, HttpStatus, Injectable, SetMetadata } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import type { ConsentPurpose } from '@aura/contracts';
 import { ProblemException } from '../http/problem';
@@ -36,10 +30,10 @@ export class ConsentGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const purpose = this.reflector.getAllAndOverride<ConsentPurpose | undefined>(
-      REQUIRED_CONSENT,
-      [context.getHandler(), context.getClass()],
-    );
+    const purpose = this.reflector.getAllAndOverride<ConsentPurpose | undefined>(REQUIRED_CONSENT, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     if (!purpose) return true;
     const user = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>().user;
     if (!user) {
