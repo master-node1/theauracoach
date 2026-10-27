@@ -19,6 +19,8 @@ export interface AuthenticatedUser {
   email?: string;
   groups: string[];
   clientId: string;
+  /** When the user last signed in with their credentials (epoch seconds, `auth_time`); refreshes keep it. */
+  authTime?: number;
 }
 
 export interface ServiceCaller {

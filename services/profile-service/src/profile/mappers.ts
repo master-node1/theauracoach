@@ -47,6 +47,10 @@ export function toMe(user: UserWithAccess): MeResponse {
     locale: user.locale,
     onboardingComplete: user.onboarding?.status === 'READY',
     status: user.status === 'PENDING_DELETION' ? 'PENDING_DELETION' : 'ACTIVE',
+    deletionDueAt:
+      user.status === 'PENDING_DELETION' && user.deletionDueAt
+        ? user.deletionDueAt.toISOString()
+        : null,
     roles: ['user', ...user.roles.map((r) => r.roleId).filter((r) => r !== 'user')],
     profile: user.profile ? toProfile(user.profile) : null,
     preferences: toPreferences(user.preference),

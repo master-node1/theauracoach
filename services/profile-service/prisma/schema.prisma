@@ -194,16 +194,35 @@ model Consent {
 }
 
 model DataRequest {
-  id          String    @id @default(uuid()) @db.Uuid
-  userId      String    @db.Uuid
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  kind        String    @db.VarChar(10) // export | delete
-  status      String    @db.VarChar(20) // queued | running | ready | failed | done
+  id          String            @id @default(uuid()) @db.Uuid
+  userId      String            @db.Uuid
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        String            @db.VarChar(10) // export | delete
+  status      String            @db.VarChar(20) // queued | running | ready | failed | done | expired | cancelled
   artifactKey String? // S3 key of export, expires after 7 days
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime          @default(now())
   completedAt DateTime?
+  /// Export: when the file is removed. Deletion: when it becomes final (end of the grace period).
+  dueAt       DateTime?
+  /// Deletion: when the missing-acknowledgement alert was raised, so it is raised once.
+  alertedAt   DateTime?
+  parts       DataRequestPart[]
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([kind, status, dueAt])
+}
+
+/// One participant service's part of an export or deletion, tracked to completion (catalog §6.3).
+model DataRequestPart {
+  requestId String      @db.Uuid
+  request   DataRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  service   String      @db.VarChar(40)
+  /// Export: the part's object key. Deletion: null.
+  key       String?
+  rows      Int?
+  doneAt    DateTime?
+
+  @@id([requestId, service])
 }
 
 model FitnessGoal {
@@ -282,16 +301,16 @@ model Subscription {
 
 /// Saga state for POST /v1/onboarding/complete (service catalog §6.1)
 model Onboarding {
-  id                String          @id @default(uuid()) @db.Uuid
-  userId            String          @unique @db.Uuid
-  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status            OnboardingState @default(NOT_STARTED)
-  questionnaireVer  String
-  planId            String?         @db.Uuid
-  targetId          String?         @db.Uuid
-  completedAt       DateTime?
-  readyAt           DateTime?
-  updatedAt         DateTime        @updatedAt
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @unique @db.Uuid
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           OnboardingState @default(NOT_STARTED)
+  questionnaireVer String
+  planId           String?         @db.Uuid
+  targetId         String?         @db.Uuid
+  completedAt      DateTime?
+  readyAt          DateTime?
+  updatedAt        DateTime        @updatedAt
 }
 
 model OutboxEvent {

@@ -27,6 +27,8 @@ interface DevUser {
   sub: string;
   email: string;
   groups: string[];
+  /** When this user signed in with the form (epoch seconds); refreshes keep it, like Cognito. */
+  authTime: number;
 }
 
 const CODE_TTL_MS = 5 * 60_000;
@@ -35,8 +37,9 @@ const CODE_TTL_MS = 5 * 60_000;
  * The same person always gets the same id, so signing in again with an email finds the same
  * profile. Shaped as a UUID because services reject any other subject.
  */
-export function devUserId(email: string): string {
-  const h = createHash('sha256').update(`aura-dev:${email.trim().toLowerCase()}`).digest('hex');
+export function devUserId(email: string, generation = 0): string {
+  const seed = `aura-dev:${email.trim().toLowerCase()}${generation > 0 ? `#${generation}` : ''}`;
+  const h = createHash('sha256').update(seed).digest('hex');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
@@ -90,6 +93,14 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
   const now = options.now ?? Date.now;
   const codes = new Map<string, PendingCode>();
   const refreshTokens = new Map<string, { clientId: string; user: DevUser }>();
+  /** Users removed with deleteUser. Signing up again with the same email gets a new id, as in Cognito. */
+  const deleted = new Set<string>();
+
+  function idFor(email: string): string {
+    let generation = 0;
+    while (deleted.has(devUserId(email, generation))) generation++;
+    return devUserId(email, generation);
+  }
 
   function checkAuthorizeParams(p: URLSearchParams): string | null {
     if (p.get('response_type') !== 'code') return 'response_type must be code';
@@ -115,8 +126,15 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
         groups: user.groups,
         clientId,
         expiresIn: `${ttl}s`,
+        authTime: user.authTime,
       }),
-      id_token: await dev.mintIdToken({ ...user, clientId, ...(nonce ? { nonce } : {}) }),
+      id_token: await dev.mintIdToken({
+        sub: user.sub,
+        email: user.email,
+        groups: user.groups,
+        clientId,
+        ...(nonce ? { nonce } : {}),
+      }),
       ...(refreshToken ? { refresh_token: refreshToken } : {}),
       token_type: 'Bearer',
       expires_in: ttl,
@@ -160,7 +178,12 @@ label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=
         redirectUri: form.get('redirect_uri') as string,
         codeChallenge: form.get('code_challenge') as string,
         ...(nonce ? { nonce } : {}),
-        user: { sub: devUserId(email), email, groups: form.get('staff') ? ['admin'] : [] },
+        user: {
+          sub: idFor(email),
+          email,
+          groups: form.get('staff') ? ['admin'] : [],
+          authTime: Math.floor(now() / 1000),
+        },
         expiresAt: now() + CODE_TTL_MS,
       });
       const target = new URL(form.get('redirect_uri') as string);
@@ -205,6 +228,18 @@ label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=
       const entry = refreshTokens.get(form.get('token') ?? '');
       if (entry && entry.clientId === form.get('client_id')) {
         refreshTokens.delete(form.get('token') as string);
+      }
+      return json(200, {});
+    },
+
+    /**
+     * Like Cognito `AdminDeleteUser`: the user's refresh tokens stop working and the email can sign
+     * up again as a new user. Always 200 (deleting an unknown user is not an error here).
+     */
+    deleteUser(sub: string): OAuthResult {
+      deleted.add(sub);
+      for (const [token, entry] of refreshTokens) {
+        if (entry.user.sub === sub) refreshTokens.delete(token);
       }
       return json(200, {});
     },

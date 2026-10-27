@@ -49,11 +49,13 @@ export class UserTokenVerifier {
       throw new InvalidTokenError('Subject is not a UUID');
     }
     const groups = payload['cognito:groups'];
+    const authTime = payload.auth_time;
     return {
       userId: payload.sub.toLowerCase(),
       ...(typeof payload.email === 'string' ? { email: payload.email } : {}),
       groups: Array.isArray(groups) ? groups.filter((g): g is string => typeof g === 'string') : [],
       clientId,
+      ...(typeof authTime === 'number' && Number.isFinite(authTime) ? { authTime } : {}),
     };
   }
 }

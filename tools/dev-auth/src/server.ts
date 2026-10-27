@@ -8,6 +8,7 @@ import { createDevIssuer, createOAuthHandlers, type OAuthResult } from './index'
  *   POST /token  {"sub":"…","email":"…","groups":["admin"]}  -> {"access_token":"…"}
  *   GET  /oauth2/authorize, POST /oauth2/token, POST /oauth2/revoke, GET /logout
  *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints)
+ *   POST /admin/delete-user  {"sub":"…"}  (Cognito AdminDeleteUser stand-in for account deletion)
  * Keys and sessions live in memory and are lost on restart.
  */
 function readBody(req: IncomingMessage): Promise<string> {
@@ -67,6 +68,12 @@ async function main() {
       }
       if (url.pathname === '/oauth2/revoke' && req.method === 'POST') {
         send(res, oauth.revoke(new URLSearchParams(await readBody(req))));
+        return;
+      }
+      if (url.pathname === '/admin/delete-user' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { sub?: unknown };
+        if (typeof body.sub !== 'string') throw new Error('sub is required');
+        send(res, oauth.deleteUser(body.sub));
         return;
       }
       if (url.pathname === '/oauth2/token' && req.method === 'OPTIONS') {

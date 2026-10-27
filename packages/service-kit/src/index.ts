@@ -23,3 +23,7 @@ export * from './events/stream-consumer';
 export * from './events/event-worker';
 export * from './service-kit.module';
 export * from './bootstrap';
+export * from './privacy/object-storage';
+export * from './privacy/user-data';
+export * from './privacy/account-state';
+export * from './privacy/participant';

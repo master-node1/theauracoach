@@ -82,3 +82,4 @@ export function testEnv(input: {
     INTERNAL_SERVICE_URLS: input.serviceUrls ?? '',
   };
 }
+export * from './participant-contract';
