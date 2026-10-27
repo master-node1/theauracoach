@@ -6,7 +6,7 @@ import { createTestDatabase, requireEnv, type TestDatabase } from '@aura/testing
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../src/generated/prisma';
-import { subscriptions } from '../src/preferences/user-registered.subscription';
+import { subscriptions } from '../src/subscriptions';
 
 let db: TestDatabase;
 let prisma: PrismaClient;

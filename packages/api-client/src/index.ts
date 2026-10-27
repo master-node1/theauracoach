@@ -4,19 +4,36 @@
  * React Native).
  */
 
-import type { Role } from '@aura/contracts';
+import type {
+  ConsentInput,
+  ConsentResponse,
+  MeResponse as MeContract,
+  PreferencesResponse,
+  PreferencesUpdate,
+  ProfileUpdate,
+  ProfileUpdateResponse,
+  Role,
+} from '@aura/contracts';
+
+export type {
+  CoachTone,
+  ConsentInput,
+  ConsentPurpose,
+  ConsentResponse,
+  PreferencesResponse,
+  PreferencesUpdate,
+  ProfileResponse,
+  ProfileUpdate,
+  ProfileUpdateResponse,
+  Theme,
+  UnitSystem,
+} from '@aura/contracts';
 
 /** `Me` in docs/api/openapi.yaml, returned by profile-service. */
-export interface MeResponse {
-  id: string;
-  email: string;
-  displayName: string | null;
-  timezone: string;
-  locale: string;
-  onboardingComplete: boolean;
-  status: 'ACTIVE' | 'PENDING_DELETION';
-  roles: Role[];
-}
+export type MeResponse = Omit<MeContract, 'roles'> & { roles: Role[] };
+
+/** The privacy policy version the apps show and record consents against. */
+export const CURRENT_POLICY_VERSION = '2026-10';
 
 /** RFC 9457 problem document, as every service returns on errors. */
 export interface Problem {
@@ -52,6 +69,11 @@ export interface ApiClientOptions {
 export interface ApiClient {
   request<T>(path: string, init?: RequestInit): Promise<T>;
   me(): Promise<MeResponse>;
+  updateProfile(update: ProfileUpdate): Promise<ProfileUpdateResponse>;
+  preferences(): Promise<PreferencesResponse>;
+  updatePreferences(update: PreferencesUpdate): Promise<PreferencesResponse>;
+  consents(): Promise<ConsentResponse[]>;
+  recordConsent(input: ConsentInput): Promise<ConsentResponse>;
 }
 
 /** Drops trailing slashes without a regex (a `/\/+$/` scan is quadratic on long slash runs). */
@@ -84,8 +106,21 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     return (await res.json()) as T;
   }
 
+  const send = <T>(method: 'PATCH' | 'POST', path: string, body: unknown) =>
+    request<T>(path, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
   return {
     request,
     me: () => request<MeResponse>('/v1/me'),
+    updateProfile: (update) => send('PATCH', '/v1/me/profile', update),
+    preferences: () => request<PreferencesResponse>('/v1/me/preferences'),
+    updatePreferences: (update) => send('PATCH', '/v1/me/preferences', update),
+    consents: () => request<ConsentResponse[]>('/v1/me/consents'),
+    recordConsent: (input) => send('POST', '/v1/me/consents', input),
   };
 }
+export * from './settings';

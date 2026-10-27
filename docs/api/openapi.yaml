@@ -107,7 +107,12 @@ paths:
     patch:
       tags: [me]
       operationId: updateProfile
-      summary: Update profile fields; plan-affecting changes create proposals
+      summary: Update account and profile fields
+      description: |
+        Account fields (displayName, timezone, locale) can change at any time. Profile fields need
+        the profile that onboarding creates; before that they return 409 PROFILE_NOT_CREATED.
+        Changes other services keep a copy of publish one ProfileChanged event; workouts and
+        nutrition answer with proposals later, so `proposals` is empty in this response.
       requestBody:
         required: true
         content:
@@ -122,10 +127,14 @@ paths:
                 type: object
                 required: [profile, proposals]
                 properties:
-                  profile: { $ref: '#/components/schemas/Profile' }
+                  profile:
+                    oneOf:
+                      - $ref: '#/components/schemas/Profile'
+                      - type: 'null'
                   proposals:
                     type: array
                     items: { $ref: '#/components/schemas/Recommendation' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /v1/me/preferences:
@@ -190,7 +199,7 @@ paths:
     get:
       tags: [me]
       operationId: listConsents
-      summary: Latest consent state per purpose
+      summary: Latest consent state per purpose (purposes never answered are omitted)
       responses:
         '200':
           description: Consents
@@ -204,6 +213,10 @@ paths:
       tags: [me]
       operationId: recordConsent
       summary: Record consent
+      description: |
+        Appends a row (consents are never updated) and publishes ConsentChanged. CORE_SERVICE
+        cannot be withdrawn here; withdrawing it means deleting the account (409
+        CORE_CONSENT_REQUIRED).
       requestBody:
         required: true
         content:
@@ -216,12 +229,15 @@ paths:
                 purpose: { $ref: '#/components/schemas/ConsentPurpose' }
                 granted: { type: boolean }
                 policyVersion: { type: string, maxLength: 20 }
+                channel: { type: string, enum: [ios, android, web], default: web }
       responses:
         '201':
           description: Recorded
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Consent' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
         '401': { $ref: '#/components/responses/Unauthenticated' }
   /v1/me/exports:
@@ -1418,7 +1434,7 @@ components:
 
     Me:
       type: object
-      required: [id, email, onboardingComplete, roles]
+      required: [id, email, onboardingComplete, roles, profile, preferences]
       properties:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
@@ -1428,7 +1444,12 @@ components:
         onboardingComplete: { type: boolean }
         status: { type: string, enum: [ACTIVE, PENDING_DELETION] }
         roles: { type: array, items: { type: string } }
-        profile: { $ref: '#/components/schemas/Profile' }
+        profile:
+          description: Null until onboarding creates the profile.
+          oneOf:
+            - $ref: '#/components/schemas/Profile'
+            - type: 'null'
+        preferences: { $ref: '#/components/schemas/Preferences' }
 
     Profile:
       type: object
@@ -1452,8 +1473,12 @@ components:
     ProfileUpdate:
       type: object
       additionalProperties: false
+      description: Goal changes arrive with the onboarding and goals slice (5.2).
+      minProperties: 1
       properties:
-        displayName: { type: string, maxLength: 60 }
+        displayName: { type: string, minLength: 1, maxLength: 60 }
+        timezone: { type: string, maxLength: 64, description: 'IANA time zone, e.g. Asia/Kolkata' }
+        locale: { type: string, pattern: '^[a-z]{2}-[A-Z]{2}$' }
         heightCm: { type: number, minimum: 100, maximum: 250 }
         activityLevel: { type: string, enum: [SEDENTARY, LIGHT, MODERATE, ACTIVE, VERY_ACTIVE] }
         experience: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
@@ -1461,11 +1486,14 @@ components:
         dietType: { $ref: '#/components/schemas/DietType' }
         cuisines: { type: array, maxItems: 10, items: { type: string } }
         allergens: { type: array, maxItems: 20, items: { type: string } }
-        trainingDays: { type: array, maxItems: 7, items: { type: integer, minimum: 0, maximum: 6 } }
+        trainingDays:
+          type: array
+          maxItems: 7
+          uniqueItems: true
+          items: { type: integer, minimum: 0, maximum: 6 }
         sessionMinutes: { type: integer, minimum: 15, maximum: 120 }
         location: { type: string, enum: [GYM, HOME, OUTDOOR] }
         equipment: { type: array, maxItems: 30, items: { type: string } }
-        goal: { $ref: '#/components/schemas/GoalInput' }
 
     Preferences:
       type: object

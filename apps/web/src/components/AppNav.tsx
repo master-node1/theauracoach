@@ -12,7 +12,17 @@ export function hrefFor(id: string): string {
   return id === 'today' ? '/' : `/${id}`;
 }
 
-export function AppNav({ email, staff }: { email: string; staff: boolean }) {
+export function AppNav({
+  email,
+  name,
+  staff,
+  settings,
+}: {
+  email: string;
+  name: string;
+  staff: boolean;
+  settings: boolean;
+}) {
   const pathname = usePathname();
   return (
     <nav aria-label="Main" className="rail">
@@ -44,12 +54,31 @@ export function AppNav({ email, staff }: { email: string; staff: boolean }) {
         </Link>
       )}
       <div className="account rail-extra">
-        <span className="avatar" aria-hidden="true">
-          {(email[0] ?? '?').toUpperCase()}
-        </span>
-        <span className="account-email" data-testid="account-email">
-          {email}
-        </span>
+        {settings ? (
+          <Link
+            href="/settings"
+            className="account-link"
+            title="Settings"
+            aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
+          >
+            <span className="avatar" aria-hidden="true">
+              {(name[0] ?? '?').toUpperCase()}
+            </span>
+            <span className="account-email" data-testid="account-email">
+              {email}
+            </span>
+            <span className="visually-hidden">Settings</span>
+          </Link>
+        ) : (
+          <>
+            <span className="avatar" aria-hidden="true">
+              {(name[0] ?? '?').toUpperCase()}
+            </span>
+            <span className="account-email" data-testid="account-email">
+              {email}
+            </span>
+          </>
+        )}
         <SignOutButton />
       </div>
     </nav>

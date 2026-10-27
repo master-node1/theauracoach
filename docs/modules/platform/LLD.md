@@ -63,8 +63,8 @@ Logging: `pino` JSON with `service`, `requestId`, `traceId`, `route`, `status`, 
 | Event | Producer | Consumers | Key data |
 |---|---|---|---|
 | UserRegistered | profile | notification, audit | userId, timezone, locale |
-| ProfileChanged | profile | workout, nutrition, coach | changed fields: sex, birthYear, heightCm, activity, experience, dietType, allergens, cuisines, equipment, trainingDays, sessionMinutes, location, intensityCap, conditionCodes, goal |
-| ConsentChanged | profile | coach, notification, audit | purpose, granted |
+| ProfileChanged | profile | workout, nutrition, coach, notification (time zone), audit (field names) | `fields` + `changes` (new values). v1: timezone, locale, heightCm, activityLevel, experience, dietType, cuisines, allergens, trainingDays, sessionMinutes, location, equipment. Onboarding-owned fields (sex, birthYear, intensityCap, conditionCodes, goal) are added as optional fields with slice 5.2 |
+| ConsentChanged | profile | coach, notification, audit | purpose, granted, policyVersion |
 | OnboardingCompleted | profile | workout, nutrition | onboardingId, snapshot needed for plan and targets |
 | ExportRequested / ExportPartReady | profile / each service | each service / profile | requestId |
 | AccountDeletionRequested / AccountDeleted / UserDataPurged | profile / profile / each service | notification / all / profile | userId |

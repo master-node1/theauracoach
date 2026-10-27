@@ -56,6 +56,8 @@ pnpm --filter @aura/web test     # BFF unit tests, using dev-auth's real OAuth h
 pnpm --filter @aura/web build && pnpm --filter @aura/web e2e   # Playwright against the running stack
 ```
 
+Settings (`/settings`, from the avatar) is behind the `settings_v1` flag, on by default. Set `FEATURE_SETTINGS_V1=false` (web) or `EXPO_PUBLIC_FEATURE_SETTINGS_V1=false` (mobile) to hide it. Flags move to AWS AppConfig with the hosting work.
+
 Set `DEV_AUTH_ACCESS_TOKEN_TTL=30` before `docker compose up` to make every request go through the refresh path, as CI does.
 
 ## Run the mobile app
