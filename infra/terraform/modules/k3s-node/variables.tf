@@ -42,7 +42,7 @@ variable "root_volume_gb" {
 variable "k3s_version" {
   description = "Pinned k3s release, upgraded later by system-upgrade-controller."
   type        = string
-  default     = "v1.31.6+k3s1"
+  default     = "v1.36.5+k3s1" # matches infra/k3s/addons.yaml
 }
 
 variable "ecr_credential_provider_version" {
@@ -71,9 +71,15 @@ variable "etcd_snapshot_retention_days" {
   type        = number
 }
 
-variable "secret_name_prefixes" {
-  description = "Secrets Manager name prefixes the node may read, e.g. [\"auracoach/prod/\"]."
+variable "secret_environments" {
+  description = "App environments on this node; each gets a role reading only auracoach/<env>/*."
   type        = list(string)
+}
+
+variable "server_manifests" {
+  description = "Files written to /var/lib/rancher/k3s/server/manifests before k3s starts (e.g. traefik-config.yaml from infra/k3s), by file name."
+  type        = map(string)
+  default     = {}
 }
 
 variable "ecr_repository_arns" {

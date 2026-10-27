@@ -91,7 +91,6 @@ data "aws_iam_policy_document" "plan_secrets" {
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       "arn:${local.arn}:secretsmanager:${local.region}:${local.account}:secret:auracoach/*/redis-*",
-      "arn:${local.arn}:secretsmanager:${local.region}:${local.account}:secret:auracoach/*/web/oidc-*",
       "arn:${local.arn}:secretsmanager:${local.region}:${local.account}:secret:auracoach/*/edge/origin-verify-*",
     ]
   }

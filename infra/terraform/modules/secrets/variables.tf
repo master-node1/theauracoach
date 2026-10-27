@@ -14,6 +14,17 @@ variable "services" {
   type        = list(string)
 }
 
+variable "in_cluster_datastores" {
+  description = "Create auracoach/<env>/datastores for the in-cluster Postgres and Redis (non-prod)."
+  type        = bool
+  default     = false
+}
+
+variable "cluster_label" {
+  description = "prod or nonprod; the platform secret is auracoach/<cluster_label>/platform."
+  type        = string
+}
+
 variable "kms_key_arn" {
   description = "KMS key for secret encryption."
   type        = string

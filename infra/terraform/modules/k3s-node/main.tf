@@ -110,16 +110,11 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 # Shared by every pod that may reach the metadata endpoint (NetworkPolicy
 # decides which), so each statement is scoped to this environment's resources.
 data "aws_iam_policy_document" "node" {
+  # Secrets are read only through the per-environment roles below.
   statement {
-    sid       = "ReadOwnSecrets"
-    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-    resources = [for p in var.secret_name_prefixes : "arn:${local.arn}:secretsmanager:${local.region}:${var.account_id}:secret:${p}*"]
-  }
-
-  statement {
-    sid       = "ListSecretsForExternalSecrets"
-    actions   = ["secretsmanager:ListSecrets"]
-    resources = ["*"]
+    sid       = "AssumeSecretsRoles"
+    actions   = ["sts:AssumeRole"]
+    resources = concat([for r in aws_iam_role.secrets : r.arn], [aws_iam_role.platform_secrets.arn])
   }
 
   statement {
@@ -231,6 +226,62 @@ data "aws_iam_policy_document" "node" {
   }
 }
 
+# ---------- External Secrets roles ----------
+# Each environment's SecretStore assumes its own role from the node role and can
+# read only auracoach/<env>/*, so dev cannot read staging on the shared node
+# (infra/helm, deployment.md §3). The platform role reads auracoach/<cluster>/platform.
+
+data "aws_iam_policy_document" "assume_from_node" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.node.arn]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "secrets" {
+  for_each = toset(concat(var.secret_environments, ["platform"]))
+  statement {
+    actions = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+    resources = [each.key == "platform"
+      ? "arn:${local.arn}:secretsmanager:${local.region}:${var.account_id}:secret:auracoach/${var.environment_label}/platform-*"
+      : "arn:${local.arn}:secretsmanager:${local.region}:${var.account_id}:secret:auracoach/${each.key}/*"
+    ]
+  }
+  statement {
+    actions   = ["kms:Decrypt"]
+    resources = [var.kms_key_arn]
+  }
+}
+
+resource "aws_iam_role" "secrets" {
+  for_each           = toset(var.secret_environments)
+  name               = "${var.name_prefix}-secrets-${each.key}"
+  assume_role_policy = data.aws_iam_policy_document.assume_from_node.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy" "secrets" {
+  for_each = aws_iam_role.secrets
+  name     = "read-${each.key}-secrets"
+  role     = each.value.id
+  policy   = data.aws_iam_policy_document.secrets[each.key].json
+}
+
+resource "aws_iam_role" "platform_secrets" {
+  name               = "${var.name_prefix}-secrets-platform"
+  assume_role_policy = data.aws_iam_policy_document.assume_from_node.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy" "platform_secrets" {
+  name   = "read-platform-secret"
+  role   = aws_iam_role.platform_secrets.id
+  policy = data.aws_iam_policy_document.secrets["platform"].json
+}
+
 resource "aws_iam_role_policy" "node" {
   name   = "node-workloads"
   role   = aws_iam_role.node.id
@@ -265,6 +316,7 @@ resource "aws_instance" "node" {
     ecr_credential_provider_version = var.ecr_credential_provider_version
     etcd_snapshot_bucket            = var.etcd_snapshot_bucket_name
     etcd_snapshot_retention         = var.etcd_snapshot_retention_days * 4
+    server_manifests                = var.server_manifests
   })
 
   metadata_options {

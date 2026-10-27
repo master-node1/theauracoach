@@ -58,6 +58,14 @@ kube-apiserver-arg:
   - "audit-log-maxsize=100"
 CONFIG
 
+# Manifests k3s applies itself, e.g. the bundled Traefik's HelmChartConfig.
+install -d -m 0700 /var/lib/rancher/k3s/server/manifests
+%{ for name, content in server_manifests ~}
+cat >/var/lib/rancher/k3s/server/manifests/${name} <<'MANIFEST'
+${content}
+MANIFEST
+%{ endfor ~}
+
 curl -fsSL https://get.k3s.io -o /tmp/k3s-install.sh
 INSTALL_K3S_VERSION="${k3s_version}" INSTALL_K3S_EXEC="server" sh /tmp/k3s-install.sh
 rm -f /tmp/k3s-install.sh

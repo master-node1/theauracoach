@@ -11,6 +11,10 @@ locals {
   deployables  = concat(local.services, ["api-gateway", "web"])
   web_hostname = "app.${var.domain_name}"
   api_hostname = "api.${var.domain_name}"
+
+  # Bundled Traefik config from infra/k3s (TAC-35), applied by k3s at first boot.
+  traefik_config   = "${path.module}/../../../k3s/traefik-config.yaml"
+  server_manifests = fileexists(local.traefik_config) ? { "traefik-config.yaml" = file(local.traefik_config) } : {}
 }
 
 module "kms" {
@@ -52,10 +56,11 @@ module "ecr" {
 }
 
 module "secrets" {
-  source       = "../../modules/secrets"
-  environments = local.environments
-  services     = local.deployables
-  kms_key_arn  = module.kms.key_arn
+  source        = "../../modules/secrets"
+  environments  = local.environments
+  services      = local.deployables
+  cluster_label = local.account_label
+  kms_key_arn   = module.kms.key_arn
 }
 
 module "ses" {
@@ -70,7 +75,6 @@ module "ses" {
 module "cognito" {
   source                     = "../../modules/cognito"
   name_prefix                = local.name_prefix
-  secret_prefix              = local.secret_prefix
   kms_key_arn                = module.kms.key_arn
   hosted_ui_domain_prefix    = local.name_prefix
   web_app_urls               = ["https://${local.web_hostname}"]
@@ -105,7 +109,8 @@ module "k3s_node" {
   etcd_snapshot_bucket_name    = module.storage.bucket_names["backups"]
   etcd_snapshot_bucket_arn     = module.storage.bucket_arns["backups"]
   etcd_snapshot_retention_days = 14
-  secret_name_prefixes         = [local.secret_prefix]
+  secret_environments          = local.environments
+  server_manifests             = local.server_manifests
   ecr_repository_arns          = module.ecr.repository_arns
   app_bucket_arns              = [module.storage.bucket_arns["user_private"], module.storage.bucket_arns["content_media"]]
   ses_identity_arn             = module.ses.identity_arn

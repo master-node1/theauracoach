@@ -302,20 +302,3 @@ resource "aws_cognito_user_pool_client" "mobile" {
   }
   depends_on = [aws_cognito_identity_provider.google, aws_cognito_identity_provider.apple]
 }
-
-# The BFF reads its client secret from Secrets Manager like every other secret.
-resource "aws_secretsmanager_secret" "web_client" {
-  #checkov:skip=CKV2_AWS_57:Cognito client secret; rotated by recreating the client (runbook)
-  name        = "${var.secret_prefix}web/oidc"
-  description = "Cognito web BFF client id and secret"
-  kms_key_id  = var.kms_key_arn
-  tags        = var.tags
-}
-
-resource "aws_secretsmanager_secret_version" "web_client" {
-  secret_id = aws_secretsmanager_secret.web_client.id
-  secret_string = jsonencode({
-    OIDC_CLIENT_ID     = aws_cognito_user_pool_client.web.id
-    OIDC_CLIENT_SECRET = aws_cognito_user_pool_client.web.client_secret
-  })
-}

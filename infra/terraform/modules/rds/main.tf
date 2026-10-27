@@ -1,7 +1,7 @@
 # Prod PostgreSQL (ADR-007 Stage 1): RDS PostgreSQL 16 single-AZ in the
 # isolated subnets, PITR 14 days, weekly snapshot copy to the DR region.
 # The master password is managed by RDS in Secrets Manager; per-service
-# databases and users are created by scripts/bootstrap-databases.sh.
+# databases and users are created by scripts/bootstrap-secrets.sh.
 
 data "aws_partition" "current" {}
 

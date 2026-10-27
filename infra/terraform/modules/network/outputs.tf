@@ -13,6 +13,11 @@ output "public_subnet_id" {
   value       = aws_subnet.public.id
 }
 
+output "isolated_subnet_cidrs" {
+  description = "CIDRs of the isolated subnets (NetworkPolicy egress to RDS and ElastiCache)."
+  value       = aws_subnet.isolated[*].cidr_block
+}
+
 output "isolated_subnet_ids" {
   description = "Isolated subnets (no internet route) for RDS and ElastiCache."
   value       = aws_subnet.isolated[*].id

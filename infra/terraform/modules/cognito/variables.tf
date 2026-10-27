@@ -3,13 +3,8 @@ variable "name_prefix" {
   type        = string
 }
 
-variable "secret_prefix" {
-  description = "Secrets Manager prefix, e.g. auracoach/prod/."
-  type        = string
-}
-
 variable "kms_key_arn" {
-  description = "KMS key for the Lambda environment, logs and the client secret."
+  description = "KMS key for the trigger's log group."
   type        = string
 }
 

@@ -9,7 +9,7 @@ output "node_public_ip" {
 }
 
 output "rds_endpoint" {
-  description = "PostgreSQL host for scripts/bootstrap-databases.sh."
+  description = "PostgreSQL host for scripts/bootstrap-secrets.sh."
   value       = module.rds.endpoint
 }
 
@@ -33,6 +33,7 @@ output "oidc" {
   value = {
     issuer            = module.cognito.issuer
     identity_endpoint = module.cognito.identity_endpoint
+    jwks_url          = module.cognito.jwks_url
     hosted_ui_url     = module.cognito.hosted_ui_url
     web_client_id     = module.cognito.web_client_id
     mobile_client_id  = module.cognito.mobile_client_id
@@ -63,5 +64,18 @@ output "github_roles" {
   value = {
     plan   = module.github_oidc.plan_role_arn
     deploy = module.github_oidc.deploy_role_arn
+  }
+}
+
+output "helm_inputs" {
+  description = "Deploy inputs for infra/helm (deployment.md §2): registry, secrets roles, origin host, data-store CIDRs."
+  value = {
+    image_registry            = split("/", values(module.ecr.repository_urls)[0])[0]
+    origin_host               = "origin.${var.domain_name}"
+    secrets_role_arns         = module.k3s_node.secrets_role_arns
+    platform_secrets_role_arn = module.k3s_node.platform_secrets_role_arn
+    hosted_zone_id            = var.route53_zone_id
+    datastore_cidrs           = module.network.isolated_subnet_cidrs
+    web_app_url               = "https://${local.web_hostname}"
   }
 }

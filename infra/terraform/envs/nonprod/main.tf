@@ -15,6 +15,10 @@ locals {
     web = "app.${e}.${var.domain_name}"
     api = "api.${e}.${var.domain_name}"
   } }
+
+  # Bundled Traefik config from infra/k3s (TAC-35), applied by k3s at first boot.
+  traefik_config   = "${path.module}/../../../k3s/traefik-config.yaml"
+  server_manifests = fileexists(local.traefik_config) ? { "traefik-config.yaml" = file(local.traefik_config) } : {}
 }
 
 module "kms" {
@@ -56,10 +60,12 @@ module "ecr" {
 }
 
 module "secrets" {
-  source       = "../../modules/secrets"
-  environments = local.environments
-  services     = local.deployables
-  kms_key_arn  = module.kms.key_arn
+  source                = "../../modules/secrets"
+  environments          = local.environments
+  services              = local.deployables
+  cluster_label         = local.account_label
+  in_cluster_datastores = true
+  kms_key_arn           = module.kms.key_arn
 }
 
 module "ses" {
@@ -76,7 +82,6 @@ module "cognito" {
   source                     = "../../modules/cognito"
   for_each                   = local.hosts
   name_prefix                = "auracoach-${each.key}"
-  secret_prefix              = "auracoach/${each.key}/"
   kms_key_arn                = module.kms.key_arn
   hosted_ui_domain_prefix    = "auracoach-${each.key}"
   web_app_urls               = each.key == "dev" ? ["https://${each.value.web}", "http://localhost:3100"] : ["https://${each.value.web}"]
@@ -114,7 +119,8 @@ module "k3s_node" {
   etcd_snapshot_bucket_name    = module.storage.bucket_names["backups"]
   etcd_snapshot_bucket_arn     = module.storage.bucket_arns["backups"]
   etcd_snapshot_retention_days = 3
-  secret_name_prefixes         = concat([for e in local.environments : "auracoach/${e}/"], ["auracoach/nonprod/"])
+  secret_environments          = local.environments
+  server_manifests             = local.server_manifests
   ecr_repository_arns          = module.ecr.repository_arns
   app_bucket_arns              = [module.storage.bucket_arns["user_private"], module.storage.bucket_arns["content_media"]]
   ses_identity_arn             = module.ses.identity_arn

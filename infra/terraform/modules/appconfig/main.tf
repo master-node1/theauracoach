@@ -1,9 +1,10 @@
-# AWS AppConfig feature flags (TAC-10): one application per account, one
-# AppConfig environment per app environment, and a hosted feature-flag profile.
+# AWS AppConfig feature flags (TAC-10): application "auracoach" in each account,
+# one AppConfig environment per app environment, and a hosted freeform profile
+# "flags" (the names infra/helm values expect).
 # Flag definitions are deployed by the release pipeline, not Terraform.
 
 resource "aws_appconfig_application" "this" {
-  name        = var.name_prefix
+  name        = "auracoach"
   description = "AuraCoach feature flags"
   tags        = var.tags
 }
@@ -18,10 +19,10 @@ resource "aws_appconfig_environment" "this" {
 
 resource "aws_appconfig_configuration_profile" "flags" {
   application_id     = aws_appconfig_application.this.id
-  name               = "feature-flags"
-  description        = "Feature flags read by services and the web BFF"
+  name               = "flags"
+  description        = "Feature flags read by services and the web BFF (platform LLD §11)"
   location_uri       = "hosted"
-  type               = "AWS.AppConfig.FeatureFlags"
+  type               = "AWS.Freeform"
   kms_key_identifier = var.kms_key_arn
   tags               = var.tags
 }

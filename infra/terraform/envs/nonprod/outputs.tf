@@ -18,6 +18,7 @@ output "oidc" {
   value = { for e, c in module.cognito : e => {
     issuer            = c.issuer
     identity_endpoint = c.identity_endpoint
+    jwks_url          = c.jwks_url
     hosted_ui_url     = c.hosted_ui_url
     web_client_id     = c.web_client_id
     mobile_client_id  = c.mobile_client_id
@@ -48,5 +49,17 @@ output "github_roles" {
   value = {
     plan   = module.github_oidc.plan_role_arn
     deploy = module.github_oidc.deploy_role_arn
+  }
+}
+
+output "helm_inputs" {
+  description = "Deploy inputs for infra/helm (deployment.md §2): registry, secrets roles, origin host, data-store CIDRs."
+  value = {
+    image_registry            = split("/", values(module.ecr.repository_urls)[0])[0]
+    origin_host               = "origin.${var.domain_name}"
+    secrets_role_arns         = module.k3s_node.secrets_role_arns
+    platform_secrets_role_arn = module.k3s_node.platform_secrets_role_arn
+    hosted_zone_id            = var.route53_zone_id
+    web_app_urls              = { for e, h in local.hosts : e => "https://${h.web}" }
   }
 }
