@@ -14,18 +14,29 @@ async function inbox(request: APIRequestContext, address: string, kind: 'signUp'
   return code as string;
 }
 
+/**
+ * The forms' buttons stay disabled until React has hydrated; typing before that would be reset
+ * by hydration, so wait for the button first.
+ */
+async function ready(page: Page, button: string) {
+  await expect(page.getByRole('button', { name: button, exact: true })).toBeEnabled();
+}
+
 async function signUp(page: Page, address: string) {
   await page.goto('/auth/sign-in');
   await page.getByRole('link', { name: 'Create an account' }).click();
+  await ready(page, 'Create account');
   await page.getByLabel('Email').fill(address);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/auth\/verify$/);
   await expect(page.getByText(`We sent a 6-digit code to ${address}`)).toBeVisible();
+  await ready(page, 'Verify email');
 }
 
 async function signInWithPassword(page: Page, address: string, password: string) {
   await page.goto('/auth/sign-in');
+  await ready(page, 'Sign in');
   await page.getByLabel('Email').fill(address);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -52,6 +63,7 @@ test('signs up with email, enters the code and lands in the app', async ({ page,
 
 test('explains a weak password and a taken email', async ({ page }) => {
   await page.goto('/auth/sign-up');
+  await ready(page, 'Create account');
   await page.getByLabel('Email').fill(email('weak'));
   await page.getByLabel('Password').fill('short');
   await expect(page.getByText(/Use at least 10 characters/)).toBeVisible();
@@ -61,6 +73,7 @@ test('explains a weak password and a taken email', async ({ page }) => {
   const taken = email('taken');
   await signUp(page, taken);
   await page.goto('/auth/sign-up');
+  await ready(page, 'Create account');
   await page.getByLabel('Email').fill(taken);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
@@ -77,9 +90,11 @@ test('resets a forgotten password; the old one stops working', async ({ page, re
 
   await page.goto('/auth/sign-in');
   await page.getByRole('link', { name: 'Forgot password?' }).click();
+  await ready(page, 'Send reset code');
   await page.getByLabel('Email').fill(address);
   await page.getByRole('button', { name: 'Send reset code' }).click();
   await expect(page).toHaveURL(/\/auth\/reset$/);
+  await ready(page, 'Set new password');
   await expect(page.getByLabel('Email')).toHaveValue(address);
   await page.getByLabel('Code').fill(await inbox(request, address, 'reset'));
   await page.getByLabel('New password').fill('Brand-New-Pass-9');

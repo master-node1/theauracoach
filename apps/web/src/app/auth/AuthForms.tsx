@@ -2,7 +2,7 @@
 
 import { identityErrorMessage, passwordHint } from '@aura/api-client';
 import Link from 'next/link';
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 
 /**
  * The email forms (TAC-8). Each posts JSON to its BFF route and follows the `redirect` it
@@ -27,6 +27,10 @@ async function post(path: string, body: unknown): Promise<Result> {
 }
 
 function useSubmit(path: string) {
+  // Busy until hydrated: a click before React takes over would submit the form natively and
+  // reload the page with the typed values gone.
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function submit(body: unknown, onDone?: () => void): Promise<string | null> {
@@ -46,7 +50,7 @@ function useSubmit(path: string) {
     }
     return null;
   }
-  return { busy, error, setError, submit };
+  return { busy, disabled: busy || !ready, error, setError, submit };
 }
 
 function Field(props: {
@@ -94,7 +98,7 @@ function ErrorText({ code, children }: { code: string | null; children?: ReactNo
 export function SignInForm({ returnTo }: { returnTo: string }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { busy, error, submit } = useSubmit('sign-in');
+  const { busy, disabled, error, submit } = useSubmit('sign-in');
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     void submit({ email, password, returnTo });
@@ -112,7 +116,7 @@ export function SignInForm({ returnTo }: { returnTo: string }) {
       <ErrorText code={error}>
         {error === 'UserNotConfirmed' ? <Link href="/auth/verify">Enter your code</Link> : null}
       </ErrorText>
-      <button className="button primary" type="submit" disabled={busy}>
+      <button className="button primary" type="submit" disabled={disabled}>
         {busy ? 'Signing in…' : 'Sign in'}
       </button>
     </form>
@@ -122,7 +126,7 @@ export function SignInForm({ returnTo }: { returnTo: string }) {
 export function SignUpForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { busy, error, setError, submit } = useSubmit('sign-up');
+  const { busy, disabled, error, setError, submit } = useSubmit('sign-up');
   const hint = password ? passwordHint(password) : null;
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -146,7 +150,7 @@ export function SignUpForm() {
       <ErrorText code={error}>
         {error === 'UsernameExists' ? <Link href="/auth/sign-in">Sign in</Link> : null}
       </ErrorText>
-      <button className="button primary" type="submit" disabled={busy}>
+      <button className="button primary" type="submit" disabled={disabled}>
         {busy ? 'Creating account…' : 'Create account'}
       </button>
     </form>
@@ -185,10 +189,15 @@ export function VerifyForm({ initialEmail }: { initialEmail: string }) {
           We sent a new code. The old one no longer works.
         </p>
       ) : null}
-      <button className="button primary" type="submit" disabled={verify.busy}>
+      <button className="button primary" type="submit" disabled={verify.disabled}>
         {verify.busy ? 'Checking…' : 'Verify email'}
       </button>
-      <button className="button" type="button" onClick={onResend} disabled={resend.busy || !email}>
+      <button
+        className="button"
+        type="button"
+        onClick={onResend}
+        disabled={resend.disabled || !email}
+      >
         Send a new code
       </button>
     </form>
@@ -197,7 +206,7 @@ export function VerifyForm({ initialEmail }: { initialEmail: string }) {
 
 export function ForgotForm() {
   const [email, setEmail] = useState('');
-  const { busy, error, submit } = useSubmit('forgot');
+  const { busy, disabled, error, submit } = useSubmit('forgot');
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     void submit({ email });
@@ -206,7 +215,7 @@ export function ForgotForm() {
     <form className="auth-form" onSubmit={onSubmit} noValidate>
       <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
       <ErrorText code={error} />
-      <button className="button primary" type="submit" disabled={busy}>
+      <button className="button primary" type="submit" disabled={disabled}>
         {busy ? 'Sending…' : 'Send reset code'}
       </button>
     </form>
@@ -217,7 +226,7 @@ export function ResetForm({ initialEmail }: { initialEmail: string }) {
   const [email, setEmail] = useState(initialEmail);
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
-  const { busy, error, setError, submit } = useSubmit('reset');
+  const { busy, disabled, error, setError, submit } = useSubmit('reset');
   const hint = password ? passwordHint(password) : null;
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -250,7 +259,7 @@ export function ResetForm({ initialEmail }: { initialEmail: string }) {
       <ErrorText code={error}>
         {error === 'ExpiredCode' ? <Link href="/auth/forgot">Send a new code</Link> : null}
       </ErrorText>
-      <button className="button primary" type="submit" disabled={busy}>
+      <button className="button primary" type="submit" disabled={disabled}>
         {busy ? 'Saving…' : 'Set new password'}
       </button>
     </form>
