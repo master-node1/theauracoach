@@ -6,6 +6,8 @@
     "/v1/me/exports/123": "profile",
     "/v1/onboarding/complete": "profile",
     "/v1/admin/roles": "profile",
+    "/v1/me/flags": "profile",
+    "/v1/admin/flags/coach_enabled": "profile",
     "/v1/me/notification-preferences": "notification",
     "/v1/me/devices": "notification",
     "/v1/notifications/1/read": "notification",

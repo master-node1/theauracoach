@@ -10,9 +10,9 @@ flowchart TB
     mob[Expo app<br/>iOS / Android]
     web[Next.js web<br/>user + admin + BFF]
   end
-  subgraph aws["AWS ap-south-1 · EKS"]
+  subgraph aws["AWS ap-south-1 · k3s on EC2 (beta) / EKS (growth)"]
     cf[CloudFront + WAF]
-    alb[ALB]
+    alb[Ingress<br/>Traefik on k3s · ALB on EKS]
     gw[api-gateway<br/>nginx]
     prof[profile-service]
     wo[workout-service]

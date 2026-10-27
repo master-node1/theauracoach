@@ -20,7 +20,10 @@ const config: ExpoConfig = {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL,
     oidcDomainUrl: process.env.EXPO_PUBLIC_OIDC_DOMAIN_URL,
     oidcClientId: process.env.EXPO_PUBLIC_OIDC_CLIENT_ID,
-    featureSettingsV1: process.env.EXPO_PUBLIC_FEATURE_SETTINGS_V1,
+    /** EXPO_PUBLIC_FEATURE_<KEY> values: flag defaults when `GET /v1/me/flags` cannot answer. */
+    featureFlags: Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => k.startsWith('EXPO_PUBLIC_FEATURE_')),
+    ),
   },
 };
 

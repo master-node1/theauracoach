@@ -6,7 +6,7 @@ AuraCoach runs as **microservices in one repository**, following the same layout
 
 ```text
 services/
-  api-gateway/            nginx: TLS termination behind ALB, routing, request ids, rate limits
+  api-gateway/            nginx: behind the cluster ingress (Traefik on k3s, ALB on EKS), routing, request ids, rate limits
   profile-service/        users, profile, consents, screening, goals, assessment, onboarding saga, roles, privacy requests
   workout-service/        exercise library, templates, plans, sessions, sets, PRs, progression engine
   nutrition-service/      foods, recipes, targets, logs, meal plans, grocery lists, barcode lookup
@@ -24,7 +24,7 @@ packages/
   api-client/             generated typed client for web and mobile
   ui/  ui-tokens/         design system
 infra/
-  terraform/              network, EKS, RDS, Redis, S3, Cognito, per-service tfvars
+  terraform/              network, k3s node (Stage 1) or EKS (Stage 2), RDS, Redis, S3, Cognito, per-service tfvars
   helm/aura-service/      one generic chart used by every service
 docs/
 ```
@@ -36,7 +36,7 @@ Each `services/<name>/` has `src/`, `prisma/` (own schema and migrations), `test
 | Service | Owns (data) | Public API (via gateway) | Internal API | Publishes | Consumes | Background jobs |
 |---|---|---|---|---|---|---|
 | **api-gateway** | — | all `/v1/*` routes | — | — | — | — |
-| **profile-service** | User, Profile, UserPreference, Consent, FitnessGoal, SafetyScreening, HealthCondition, FitnessAssessment, Onboarding, Role/UserRole, DataRequest, Subscription (P2) | `/v1/me*`, `/v1/onboarding/*`, `/v1/admin/roles`, `/v1/admin/users/*` | `GET /internal/v1/users/{id}/context` | UserRegistered, ProfileChanged, ConsentChanged, OnboardingCompleted, ExportRequested, AccountDeletionRequested, AccountDeleted | ExportPartReady | privacy.export-collect, privacy.purge |
+| **profile-service** | User, Profile, UserPreference, Consent, FitnessGoal, SafetyScreening, HealthCondition, FitnessAssessment, Onboarding, Role/UserRole, DataRequest, Subscription (P2) | `/v1/me*`, `/v1/onboarding/*`, `/v1/admin/roles`, `/v1/admin/users/*`, `/v1/admin/flags*` | `GET /internal/v1/users/{id}/context` | UserRegistered, ProfileChanged, ConsentChanged, OnboardingCompleted, ExportRequested, AccountDeletionRequested, AccountDeleted | ExportPartReady | privacy.export-collect, privacy.purge |
 | **workout-service** | Exercise library, Equipment, UserEquipment, templates, WorkoutPlan, weeks, sessions, sets, PRs, UserTrainingProfile (replica) | `/v1/exercises*`, `/v1/workout-plans*`, `/v1/workout-sessions*`, `/v1/admin/exercises*`, `/v1/admin/templates*` | `POST /internal/v1/plans` (onboarding), `GET /internal/v1/users/{id}/week`, `POST /internal/v1/proposals/{validate,apply}` | PlanCreated, PlanWeekReady, PlanAdjustmentProposed, WorkoutCompleted, SessionMissed, PersonalRecordSet, ContentPublished | ProfileChanged, OnboardingCompleted, CheckInSaved, ExportRequested, AccountDeleted | plans.weekly-adapt, sessions.mark-missed |
 | **nutrition-service** | Foods, nutrients, units, recipes, NutritionTarget, MealPlan, MealEntry, WaterEntry, DailyNutritionSummary, UserNutritionProfile (replica) | `/v1/foods*`, `/v1/nutrition/*`, `/v1/meal-plans*`, `/v1/recipes/*`, `/v1/admin/foods*`, `/v1/admin/recipes*` | `POST /internal/v1/targets` (onboarding), `GET /internal/v1/users/{id}/day/{date}`, `GET /internal/v1/foods/search`, `POST /internal/v1/proposals/{validate,apply}` | TargetsSet, TargetChangeProposed, MealLogged, MealDeleted, WaterLogged, ContentPublished | ProfileChanged, OnboardingCompleted, MeasurementAdded, ExportRequested, AccountDeleted | nutrition.adapt-targets, foods.data-qa, composites.recompute |
 | **progress-service** | BodyMeasurement, DailyCheckIn, DeviceIntegration, read models: WorkoutDayFact, NutritionDayFact | `/v1/progress/*`, `/v1/dashboard/today` | `GET /internal/v1/users/{id}/progress-summary` | MeasurementAdded, CheckInSaved, PlateauDetected | WorkoutCompleted, SessionMissed, PersonalRecordSet, MealLogged, MealDeleted, TargetsSet, PlanWeekReady, ExportRequested, AccountDeleted | progress.plateau-scan, integrations.sync (P2) |

@@ -2,15 +2,14 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { CURRENT_POLICY_VERSION } from '@aura/api-client';
 import { SignOutButton } from '@/components/SignOutButton';
-import { featureEnabled } from '@/lib/features';
-import { currentMe, currentSession, serverApi } from '@/lib/server-session';
+import { currentFlags, currentMe, currentSession, serverApi } from '@/lib/server-session';
 import { SettingsForm } from './SettingsForm';
 
 export const metadata: Metadata = { title: 'Settings' };
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
-  if (!featureEnabled('SETTINGS_V1')) notFound();
+  if (!(await currentFlags()).settings_v1) notFound();
   const session = await currentSession();
   const me = await currentMe();
   const consents = session

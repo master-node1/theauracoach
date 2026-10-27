@@ -2,15 +2,14 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { useAuth } from '../../auth/AuthProvider';
 import { AvatarButton } from '../../components/AvatarButton';
 import { Card, Screen } from '../../components/Screen';
-import { appConfig } from '../../config';
-import { useMe } from '../../preferences';
+import { useFlags, useMe } from '../../preferences';
 import { usePalette } from '../../theme';
 
 export default function TodayScreen() {
   const p = usePalette();
   const { signOut } = useAuth();
   const { me, failed } = useMe();
-  const settings = appConfig.features.settingsV1;
+  const settings = useFlags().settings_v1;
 
   return (
     <Screen title="Today" action={settings ? <AvatarButton /> : undefined}>

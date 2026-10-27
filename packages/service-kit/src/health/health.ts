@@ -1,5 +1,6 @@
 import { Controller, Get, HttpCode, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Public } from '../auth/decorators';
+import { SkipRateLimit } from '../rate-limit/rate-limit';
 
 export type HealthCheck = () => Promise<void>;
 
@@ -31,6 +32,7 @@ export class HealthRegistry {
 }
 
 @Public()
+@SkipRateLimit()
 @Controller('health')
 export class HealthController {
   constructor(private readonly registry: HealthRegistry) {}
