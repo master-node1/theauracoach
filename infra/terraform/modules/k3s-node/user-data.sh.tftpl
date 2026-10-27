@@ -1,0 +1,70 @@
+#!/bin/bash
+# k3s server bootstrap (ADR-007 Stage 1). Runs once at first boot.
+# Cluster add-ons (cert-manager, External Secrets, system-upgrade-controller,
+# Traefik config) are Helm releases installed from infra/k3s by the deploy
+# pipeline, not here.
+set -euo pipefail
+
+# Kernel settings Kubernetes expects.
+cat >/etc/sysctl.d/90-k3s.conf <<'SYSCTL'
+vm.panic_on_oom=0
+vm.overcommit_memory=1
+kernel.panic=10
+kernel.panic_on_oops=1
+SYSCTL
+sysctl --system >/dev/null
+
+# Pull images from ECR with the instance role instead of static registry credentials.
+install -d -m 0755 /var/lib/rancher/credentialprovider/bin
+curl -fsSLo /var/lib/rancher/credentialprovider/bin/ecr-credential-provider \
+  "https://artifacts.k8s.io/binaries/cloud-provider-aws/${ecr_credential_provider_version}/linux/arm64/ecr-credential-provider-linux-arm64"
+chmod 0755 /var/lib/rancher/credentialprovider/bin/ecr-credential-provider
+cat >/var/lib/rancher/credentialprovider/config.yaml <<'CREDS'
+apiVersion: kubelet.config.k8s.io/v1
+kind: CredentialProviderConfig
+providers:
+  - name: ecr-credential-provider
+    matchImages:
+      - "*.dkr.ecr.*.amazonaws.com"
+    defaultCacheDuration: "12h"
+    apiVersion: credentialprovider.kubelet.k8s.io/v1
+CREDS
+
+install -d -m 0755 /etc/rancher/k3s
+cat >/etc/rancher/k3s/config.yaml <<'CONFIG'
+cluster-init: true
+secrets-encryption: true
+write-kubeconfig-mode: "0600"
+node-name: ${node_name}
+node-label:
+  - "auracoach.io/environment=${environment}"
+# The API is reached only through an SSM port forward to localhost:6443.
+tls-san:
+  - "127.0.0.1"
+  - "localhost"
+etcd-snapshot-schedule-cron: "0 */6 * * *"
+etcd-snapshot-retention: ${etcd_snapshot_retention}
+etcd-s3: true
+etcd-s3-bucket: "${etcd_snapshot_bucket}"
+etcd-s3-region: "${region}"
+etcd-s3-folder: "k3s-etcd/${node_name}"
+kubelet-arg:
+  - "image-credential-provider-config=/var/lib/rancher/credentialprovider/config.yaml"
+  - "image-credential-provider-bin-dir=/var/lib/rancher/credentialprovider/bin"
+kube-apiserver-arg:
+  - "audit-log-path=/var/log/k3s-audit.log"
+  - "audit-log-maxage=30"
+  - "audit-log-maxbackup=10"
+  - "audit-log-maxsize=100"
+CONFIG
+
+curl -fsSL https://get.k3s.io -o /tmp/k3s-install.sh
+INSTALL_K3S_VERSION="${k3s_version}" INSTALL_K3S_EXEC="server" sh /tmp/k3s-install.sh
+rm -f /tmp/k3s-install.sh
+
+# Publish the admin kubeconfig (SecureString) for the deploy role, which reaches
+# the API through an SSM port forward to 127.0.0.1:6443.
+until [ -s /etc/rancher/k3s/k3s.yaml ]; do sleep 5; done
+aws ssm put-parameter --region "${region}" --overwrite --type SecureString --tier Advanced \
+  --key-id "${kms_key_arn}" --name "/${name_prefix}/k3s/kubeconfig" \
+  --value "file:///etc/rancher/k3s/k3s.yaml" >/dev/null
