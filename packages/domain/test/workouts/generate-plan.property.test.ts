@@ -53,7 +53,8 @@ const userArb: fc.Arbitrary<UserTrainingInput> = fc.record({
 
 const codes = new Set<string>(RATIONALE_CODES);
 
-describe('generatePlan properties', () => {
+// Thousands of runs under coverage on a shared CI runner take longer than vitest's 5 s default.
+describe('generatePlan properties', { timeout: 60_000 }, () => {
   it('always produces a plan that passes validatePlan (TC-WO-10)', () => {
     fc.assert(
       fc.property(userArb, (u) => {
