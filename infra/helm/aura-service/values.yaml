@@ -55,6 +55,12 @@ global:
     # Name of the namespaced SecretStore created by the aura-namespaces chart.
     storeName: aws-secrets-manager
     refreshInterval: 1h
+  # Feature flags for NestJS services (platform LLD §11). Deployed environments read AWS AppConfig
+  # (application/environment/profile); env is the catalogue defaults only.
+  flags:
+    source: env
+    appconfigApplication: auracoach
+    appconfigProfile: flags
   # Where Postgres and Redis are reachable, for NetworkPolicy egress.
   # In prod they are RDS and ElastiCache (CIDRs of the isolated subnets, a deploy input);
   # in dev and staging they are pods from the aura-datastores chart in <prefix>aura-data.

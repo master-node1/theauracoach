@@ -84,7 +84,7 @@ step "helm install $SERVICE (migration hook, http and worker)"
 helm install "$SERVICE" infra/helm/aura-service -n "$SVC_NS" \
   -f infra/helm/values/common.yaml -f infra/helm/values/env/dev.yaml -f "infra/helm/values/$SERVICE.yaml" \
   --set image.tag="$TAG" --set image.pullPolicy=Never \
-  --set global.otel.endpoint= \
+  --set global.otel.endpoint= --set global.flags.source=env \
   --set global.auth.issuer=http://dev-auth.invalid \
   --set global.auth.jwksUrl=http://dev-auth.invalid/.well-known/jwks.json \
   --set 'global.auth.clientIds={aura-dev-client}' \

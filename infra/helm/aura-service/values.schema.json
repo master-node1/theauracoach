@@ -66,6 +66,10 @@
             "clientIds": { "type": "array", "items": { "type": "string" } }
           }
         },
+        "flags": {
+          "type": "object",
+          "properties": { "source": { "type": "string", "enum": ["env", "file", "appconfig"] } }
+        },
         "datastores": {
           "type": "object",
           "properties": {

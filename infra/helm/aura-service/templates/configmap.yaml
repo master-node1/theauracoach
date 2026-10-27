@@ -20,6 +20,12 @@ data:
   {{- $urls = append $urls (printf "%s=http://%s" . (include "aura.hostPortOf" (dict "ctx" $ "name" .))) }}
   {{- end }}
   INTERNAL_SERVICE_URLS: {{ join "," $urls | quote }}
+  FLAGS_SOURCE: {{ .Values.global.flags.source | quote }}
+  {{- if eq .Values.global.flags.source "appconfig" }}
+  APPCONFIG_APPLICATION: {{ .Values.global.flags.appconfigApplication | quote }}
+  APPCONFIG_ENVIRONMENT: {{ .Values.environment | quote }}
+  APPCONFIG_PROFILE: {{ .Values.global.flags.appconfigProfile | quote }}
+  {{- end }}
   {{- with .Values.global.otel.endpoint }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ . | quote }}
   {{- end }}

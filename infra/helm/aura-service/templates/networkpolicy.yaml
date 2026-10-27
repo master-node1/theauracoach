@@ -2,6 +2,8 @@
 {{- $name := include "aura.name" . -}}
 {{- $callers := include "aura.callers" . | fromYamlArray -}}
 {{- $callees := include "aura.callees" . | fromYamlArray -}}
+{{- /* NestJS services reading flags from AppConfig call an AWS API with the node role (Stage 1). */}}
+{{- $appconfig := and (eq .Values.kind "node-service") (eq .Values.global.flags.source "appconfig") -}}
 {{- /*
 The namespace denies everything by default (aura-namespaces chart) and allows DNS. These policies
 open exactly the documented paths: callers -> this deployable, and this deployable -> its callees,
@@ -77,7 +79,7 @@ spec:
             matchLabels:
               {{- toYaml .Values.global.otel.podLabels | nindent 14 }}
     {{- end }}
-    {{- if .Values.networkPolicy.internetEgress }}
+    {{- if or .Values.networkPolicy.internetEgress $appconfig }}
     - ports:
         - protocol: TCP
           port: 443
@@ -91,7 +93,7 @@ spec:
               - 169.254.0.0/16
               - 100.64.0.0/10
     {{- end }}
-    {{- if and .Values.networkPolicy.awsMetadata (eq .Values.stage "k3s") }}
+    {{- if and (or .Values.networkPolicy.awsMetadata $appconfig) (eq .Values.stage "k3s") }}
     - ports:
         - protocol: TCP
           port: 80

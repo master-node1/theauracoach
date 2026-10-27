@@ -100,7 +100,10 @@ Every environment namespace starts as deny-all with DNS allowed. Each release th
 | coach-service | yes | no | AI provider |
 | notification-service | yes | yes | Expo Push, SES |
 | web | yes | no | Cognito token endpoint |
-| progress-service, audit-service, api-gateway | no | no | internal only |
+| progress-service, audit-service | yes | yes | AWS AppConfig only (feature flags) |
+| api-gateway | no | no | internal only |
+
+Every NestJS service reads feature flags from AWS AppConfig (`global.flags.source: appconfig`, application `auracoach`, environment = `dev`/`staging`/`prod`, profile `flags`; platform LLD §11), so each gets 443 egress and, in Stage 1, the metadata endpoint for the node role. A NetworkPolicy cannot narrow 443 to AppConfig's addresses; the Route 53 DNS Firewall allow-list is what limits the domains.
 
 `global.callGraph` is the single source for the allow-lists, `INTERNAL_SERVICE_URLS` and the gateway's upstreams. CI compares it with the service catalog diagram and checks every rendered policy against it, so a new call needs a catalog (ADR) change first.
 
@@ -165,6 +168,6 @@ Run it locally with the same tools on `PATH` (helm 3, kubeconform, kube-linter, 
 |---|---|
 | The web app has no Dockerfile or health route yet; its values assume an image `auracoach/web` serving on 3000 and probe `/auth/sign-in` | TAC-37 |
 | coach-service will need the AI provider key in `auracoach/<env>/coach-service` and in `secrets.keys` | TAC-25 |
-| Terraform must create the Secrets Manager entries, IAM roles, ECR repositories and `helm_release` resources described here | TAC-36 |
+| Terraform must create the Secrets Manager entries, IAM roles, ECR repositories, the AppConfig application `auracoach` with a `flags` profile per environment, and the `helm_release` resources described here | TAC-36 |
 | The `X-Origin-Verify` value sits in the IngressRoute object; anyone who can read IngressRoutes in `aura-edge` can read it. Cluster access is limited to the deploy role and operators (SSM) | accepted for beta |
 | system-upgrade-controller and OS patching plans | TAC-41 |

@@ -30,5 +30,9 @@ global:
     coach-service: [profile-service, workout-service, nutrition-service, progress-service]
     progress-service: [workout-service]
 
+  # Deployed environments read feature flags from AWS AppConfig (environment = dev, staging or prod).
+  flags:
+    source: appconfig
+
   otel:
     endpoint: http://otel-collector.aura-system.svc.cluster.local:4318
