@@ -94,13 +94,9 @@ describe('GET /v1/me', () => {
     const sub = randomUUID();
     const token = await dev.mintAccessToken({ sub, email: `coach-${sub}@example.com` });
     const { body } = await get(token).expect(200);
-    await prisma.role.upsert({
-      where: { id: 'trainer' },
-      create: { id: 'trainer', description: 'Trainer' },
-      update: {},
-    });
-    await prisma.userRole.create({ data: { userId: body.id, roleId: 'trainer' } });
-    expect((await get(token).expect(200)).body.roles).toEqual(['user', 'trainer']);
+    // Staff roles are seeded by migration.
+    await prisma.userRole.create({ data: { userId: body.id, roleId: 'content_editor' } });
+    expect((await get(token).expect(200)).body.roles).toEqual(['user', 'content_editor']);
   });
 
   it('refuses to create an account when the token has no email', async () => {

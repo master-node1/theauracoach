@@ -63,7 +63,8 @@ let redis: Redis;
 
 beforeAll(async () => {
   dev = await createDevIssuer();
-  redis = new Redis(redisUrl, { db: 14 });
+  // Its own Redis db: events-tracing.int.test.ts uses db 14 while files run in parallel.
+  redis = new Redis(redisUrl, { db: 13 });
   @Module({
     controllers: [LimitedController, HealthController],
     providers: [
