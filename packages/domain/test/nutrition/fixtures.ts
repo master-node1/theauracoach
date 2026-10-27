@@ -440,13 +440,3 @@ export const RECIPES: PlanRecipe[] = [
     5,
   ),
 ];
-
-  'MEAT',
-  'FISH',
-  'EGG',
-  'DAIRY',
-  'HONEY',
-  'ROOT_VEGETABLE',
-  'ONION',
-  'GARLIC',
-];
