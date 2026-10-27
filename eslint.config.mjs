@@ -1,6 +1,7 @@
 import { builtinModules } from 'node:module';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import aura from './tools/eslint-rules/index.mjs';
 
 export default tseslint.config(
   { ignores: ['**/dist/**', '**/src/generated/**', '**/coverage/**', '**/*.mjs'] },
@@ -61,6 +62,12 @@ export default tseslint.config(
         'setInterval',
       ],
     },
+  },
+  {
+    // User-facing text comes from the packages/i18n catalogue (docs/ux/content-style-guide.md).
+    files: ['apps/*/src/**/*.tsx'],
+    plugins: { aura },
+    rules: { 'aura/no-hardcoded-ui-strings': 'error' },
   },
   {
     files: ['**/test/**/*.ts', '**/*.test.ts', 'tests/**/*.ts', 'tools/**/*.ts'],
