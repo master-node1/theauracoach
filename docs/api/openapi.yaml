@@ -240,6 +240,23 @@ paths:
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
         '401': { $ref: '#/components/responses/Unauthenticated' }
+  /v1/me/flags:
+    get:
+      tags: [me]
+      operationId: getMyFlags
+      summary: The caller's evaluated feature flags
+      description: |
+        Every flag in the catalogue (`packages/contracts/src/flags.ts`), evaluated for this user
+        from the flag document (AWS AppConfig when deployed, a JSON file locally). Web and mobile
+        read every flag from here and fall back to their `FEATURE_<KEY>` env defaults on failure.
+      responses:
+        '200':
+          description: Flags
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlagsResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /v1/me/exports:
     post:
       tags: [me]
@@ -1272,6 +1289,70 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
+  /v1/admin/flags:
+    get:
+      tags: [admin]
+      operationId: adminListFlags
+      summary: Flag catalogue and the current flag document (permission flag:write)
+      responses:
+        '200':
+          description: Flags
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [writable, catalogue, document]
+                properties:
+                  writable:
+                    type: boolean
+                    description: False when flags come from AWS AppConfig (change them through Terraform or the console)
+                  catalogue:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required: [default, description]
+                      properties:
+                        default: { type: boolean }
+                        description: { type: string }
+                  document: { $ref: '#/components/schemas/FlagDocument' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /v1/admin/flags/{key}:
+    parameters:
+      - { name: key, in: path, required: true, schema: { $ref: '#/components/schemas/FlagKey' } }
+    put:
+      tags: [admin]
+      operationId: adminPutFlag
+      summary: Set one flag's rule (local and dev flag files only; permission flag:write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FlagRule' }
+      responses:
+        '200':
+          description: Saved; this replica applies it at once, others within their poll interval
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlagRule' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: FLAGS_READ_ONLY, flags come from AWS AppConfig in this environment
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [admin]
+      operationId: adminDeleteFlag
+      summary: Remove a flag's rule so its default applies (local and dev only; permission flag:write)
+      responses:
+        '204': { description: Removed }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /v1/admin/usage:
     get:
       tags: [admin]
@@ -1523,6 +1604,44 @@ components:
       properties:
         status: { type: string, enum: [NOT_STARTED, IN_PROGRESS, PLANNING, READY] }
         result: { $ref: '#/components/schemas/OnboardingResult' }
+
+    FlagKey:
+      type: string
+      enum: [settings_v1, privacy_v1, onboarding_v1, workouts_v1, nutrition_v1, coach_v1, coach_enabled, progress_v1, notifications_v1, meal_plans_v1, barcode_v1]
+
+    FlagsResponse:
+      type: object
+      required: [flags]
+      properties:
+        flags:
+          type: object
+          description: Every flag in the catalogue, true when on for this user
+          additionalProperties: { type: boolean }
+
+    FlagRule:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+        rolloutPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: With enabled true, on for this share of users only (deterministic per user and flag)
+        users:
+          type: object
+          description: Per-user overrides by user id; they win over enabled and rolloutPercent
+          additionalProperties: { type: boolean }
+
+    FlagDocument:
+      type: object
+      required: [flags]
+      properties:
+        flags:
+          type: object
+          description: Rules by flag key; flags without a rule use their default
+          additionalProperties: { $ref: '#/components/schemas/FlagRule' }
 
     Consent:
       type: object

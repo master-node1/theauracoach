@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { featureEnabled } from '../src/lib/features';
+import { flagDefaults } from '../src/lib/features';
 import { applyTheme } from '../src/lib/theme';
 
 describe('feature flags', () => {
-  it('turns settings on unless the environment switches it off', () => {
-    expect(featureEnabled('SETTINGS_V1', {})).toBe(true);
-    expect(featureEnabled('SETTINGS_V1', { FEATURE_SETTINGS_V1: 'true' })).toBe(true);
-    expect(featureEnabled('SETTINGS_V1', { FEATURE_SETTINGS_V1: 'false' })).toBe(false);
-    expect(featureEnabled('SETTINGS_V1', { FEATURE_SETTINGS_V1: '0' })).toBe(false);
+  it('falls back to settings on unless the environment switches it off', () => {
+    expect(flagDefaults({}).settings_v1).toBe(true);
+    expect(flagDefaults({ FEATURE_SETTINGS_V1: 'true' }).settings_v1).toBe(true);
+    expect(flagDefaults({ FEATURE_SETTINGS_V1: 'false' }).settings_v1).toBe(false);
+    expect(flagDefaults({ FEATURE_SETTINGS_V1: '0' }).settings_v1).toBe(false);
   });
 });
 
