@@ -12,10 +12,13 @@ import { Redis } from 'ioredis';
 import { AuthGuard } from './auth/auth.guard';
 import { UserTokenVerifier } from './auth/user-token.verifier';
 import { parseServiceUrls, type BaseConfig } from './config/config';
+import { createFeatureFlags, FeatureFlags } from './flags/feature-flags';
+import { FeatureFlagGuard } from './flags/require-flag';
 import { HealthController, HealthRegistry } from './health/health';
 import { loggerModule } from './http/logging';
 import { ProblemDetailsFilter } from './http/problem-details.filter';
 import { InternalClient } from './internal-client/internal-client';
+import { RateLimitGuard } from './rate-limit/rate-limit';
 import { shutdownTelemetry } from './telemetry/sdk';
 import { REDIS, SERVICE_KIT_CONFIG } from './tokens';
 
@@ -23,6 +26,8 @@ export interface ServiceKitOptions {
   config: BaseConfig;
   /** Override the user token verifier (tests). */
   verifier?: UserTokenVerifier;
+  /** Override the feature flags (tests). */
+  flags?: FeatureFlags;
 }
 
 @Global()
@@ -30,7 +35,10 @@ export interface ServiceKitOptions {
 export class ServiceKitModule implements OnApplicationShutdown {
   constructor(@Inject(REDIS) private readonly redis: Redis) {}
 
-  /** Wires config, logging, problem details, the global auth guard, health, Redis and the internal client. */
+  /**
+   * Wires config, logging, problem details, the global guards (auth, then rate limits, then
+   * feature flags; Nest runs them in this order), health, Redis, feature flags and the internal client.
+   */
   static forRoot(options: ServiceKitOptions): DynamicModule {
     const { config } = options;
     const providers: Provider[] = [
@@ -69,8 +77,13 @@ export class ServiceKitModule implements OnApplicationShutdown {
           >,
         }),
       },
+      options.flags
+        ? { provide: FeatureFlags, useValue: options.flags }
+        : { provide: FeatureFlags, useFactory: () => createFeatureFlags(config) },
       HealthRegistry,
       { provide: APP_GUARD, useClass: AuthGuard },
+      { provide: APP_GUARD, useClass: RateLimitGuard },
+      { provide: APP_GUARD, useClass: FeatureFlagGuard },
       { provide: APP_FILTER, useClass: ProblemDetailsFilter },
     ];
     return {
@@ -78,7 +91,14 @@ export class ServiceKitModule implements OnApplicationShutdown {
       imports: [loggerModule(config)],
       controllers: [HealthController],
       providers,
-      exports: [SERVICE_KIT_CONFIG, REDIS, InternalClient, HealthRegistry, UserTokenVerifier],
+      exports: [
+        SERVICE_KIT_CONFIG,
+        REDIS,
+        InternalClient,
+        HealthRegistry,
+        UserTokenVerifier,
+        FeatureFlags,
+      ],
     };
   }
 

@@ -16,6 +16,13 @@ x-service-env: &service-env
   # Empty (telemetry off) unless set, e.g. by pnpm stack:observability.
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
   OTEL_METRIC_EXPORT_INTERVAL: '15000'
+  # Every service re-reads infra/local/flags/flags.json every 5 s; edit it to flip a flag.
+  FLAGS_SOURCE: file
+  FLAGS_FILE: /etc/aura/flags/flags.json
+  FLAGS_POLL_SECONDS: '5'
+
+# The flag file is read-only except in profile (PUT /v1/admin/flags/{key} writes it).
+x-flags-ro: &flags-ro ['./infra/local/flags:/etc/aura/flags:ro']
 
 x-depends: &depends
   postgres: { condition: service_healthy }
@@ -87,6 +94,7 @@ services:
     image: auracoach/profile-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: ['./infra/local/flags:/etc/aura/flags']
     environment:
       <<: *service-env
       SERVICE_NAME: profile-service
@@ -109,6 +117,7 @@ services:
   profile-worker:
     image: auracoach/profile-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: profile-service
@@ -122,6 +131,7 @@ services:
     image: auracoach/workout-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: workout-service
@@ -144,6 +154,7 @@ services:
   workout-worker:
     image: auracoach/workout-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: workout-service
@@ -157,6 +168,7 @@ services:
     image: auracoach/nutrition-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: nutrition-service
@@ -179,6 +191,7 @@ services:
   nutrition-worker:
     image: auracoach/nutrition-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: nutrition-service
@@ -192,6 +205,7 @@ services:
     image: auracoach/progress-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: progress-service
@@ -214,6 +228,7 @@ services:
   progress-worker:
     image: auracoach/progress-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: progress-service
@@ -227,6 +242,7 @@ services:
     image: auracoach/coach-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: coach-service
@@ -249,6 +265,7 @@ services:
   coach-worker:
     image: auracoach/coach-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: coach-service
@@ -262,6 +279,7 @@ services:
     image: auracoach/notification-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: notification-service
@@ -284,6 +302,7 @@ services:
   notification-worker:
     image: auracoach/notification-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: notification-service
@@ -297,6 +316,7 @@ services:
     image: auracoach/audit-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: audit-service
@@ -319,6 +339,7 @@ services:
   audit-worker:
     image: auracoach/audit-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *flags-ro
     environment:
       <<: *service-env
       SERVICE_NAME: audit-service

@@ -56,7 +56,9 @@ pnpm --filter @aura/web test     # BFF unit tests, using dev-auth's real OAuth h
 pnpm --filter @aura/web build && pnpm --filter @aura/web e2e   # Playwright against the running stack
 ```
 
-Settings (`/settings`, from the avatar) is behind the `settings_v1` flag, on by default. Set `FEATURE_SETTINGS_V1=false` (web) or `EXPO_PUBLIC_FEATURE_SETTINGS_V1=false` (mobile) to hide it. Flags move to AWS AppConfig with the hosting work.
+Feature flags come from `GET /v1/me/flags`, which every service evaluates from `infra/local/flags/flags.json` (re-read every 5 s, no restart). To hide Settings (`settings_v1`), set `{"flags": {"settings_v1": {"enabled": false}}}` in that file, or as an admin call `PUT /v1/admin/flags/settings_v1` with `{"enabled": false}` (the http container writes the file, so the folder must be writable by its `node` user). `FEATURE_SETTINGS_V1=false` (web) and `EXPO_PUBLIC_FEATURE_SETTINGS_V1=false` (mobile) are now only the defaults used when the API cannot answer. See [platform LLD §11](../modules/platform/LLD.md#11-feature-flags).
+
+Every service also applies the API rate limits (300 requests a minute per user, 1000 per IP; platform LLD §9) with counters in the local Redis. `redis-cli --scan --pattern 'rl:*'` shows them; `redis-cli del` one to reset it.
 
 Set `DEV_AUTH_ACCESS_TOKEN_TTL=30` before `docker compose up` to make every request go through the refresh path, as CI does.
 

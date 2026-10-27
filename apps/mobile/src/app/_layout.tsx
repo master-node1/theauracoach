@@ -1,13 +1,13 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
-import { appConfig } from '../config';
-import { MeProvider } from '../preferences';
+import { MeProvider, useFlags } from '../preferences';
 import { useScheme } from '../theme';
 
 function RootStack() {
   const { status } = useAuth();
   const scheme = useScheme();
+  const flags = useFlags();
   // Keep the native splash until the secure store has been read.
   if (status === 'loading') return null;
   const signedIn = status === 'signedIn';
@@ -17,7 +17,7 @@ function RootStack() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" />
-          <Stack.Protected guard={appConfig.features.settingsV1}>
+          <Stack.Protected guard={flags.settings_v1}>
             <Stack.Screen name="settings" />
           </Stack.Protected>
         </Stack.Protected>

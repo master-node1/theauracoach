@@ -1,7 +1,14 @@
 import { cookies } from 'next/headers';
 import { cache } from 'react';
-import { createApiClient, type ApiClient, type MeResponse } from '@aura/api-client';
+import {
+  createApiClient,
+  loadFlags,
+  type ApiClient,
+  type FlagValues,
+  type MeResponse,
+} from '@aura/api-client';
 import { config } from './config';
+import { flagDefaults } from './features';
 import { SESSION_COOKIE } from './cookies';
 import { idTokenVerifier } from './oidc';
 import { readSession, type Session } from './session';
@@ -29,6 +36,13 @@ export const currentMe = cache(async (): Promise<MeResponse | null> => {
   return serverApi(session)
     .me()
     .catch(() => null);
+});
+
+/** The current user's feature flags, fetched once per request; env defaults when the API fails. */
+export const currentFlags = cache(async (): Promise<FlagValues> => {
+  const session = await currentSession();
+  if (!session) return flagDefaults();
+  return loadFlags(serverApi(session), flagDefaults());
 });
 
 export function authDeps(): AuthDeps {

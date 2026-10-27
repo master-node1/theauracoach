@@ -3,3 +3,4 @@ export * from './events/envelope';
 export * from './events/catalog';
 export * from './auth/permissions';
 export * from './api/me';
+export * from './flags';

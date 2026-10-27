@@ -4,15 +4,14 @@ import { AppNav } from '@/components/AppNav';
 import { Logo } from '@/components/Logo';
 import { SignOutButton } from '@/components/SignOutButton';
 import { ThemeSync } from '@/components/ThemeSync';
-import { featureEnabled } from '@/lib/features';
 import { isStaff } from '@/lib/session';
-import { currentMe, currentSession } from '@/lib/server-session';
+import { currentFlags, currentMe, currentSession } from '@/lib/server-session';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await currentSession();
   if (!session) redirect('/auth/sign-in');
-  const me = await currentMe();
-  const settings = featureEnabled('SETTINGS_V1');
+  const [me, flags] = await Promise.all([currentMe(), currentFlags()]);
+  const settings = flags.settings_v1;
   const name = me?.displayName ?? session.email;
   return (
     <div className="shell">
