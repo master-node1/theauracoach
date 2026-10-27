@@ -41,7 +41,7 @@ export function redirectUri(config: WebConfig): string {
 
 export function authorizeUrl(
   config: WebConfig,
-  p: { state: string; nonce: string; codeChallenge: string },
+  p: { state: string; nonce: string; codeChallenge: string; provider?: string },
 ): string {
   const url = new URL(`${config.oidc.domainUrl}/oauth2/authorize`);
   url.search = new URLSearchParams({
@@ -53,6 +53,8 @@ export function authorizeUrl(
     nonce: p.nonce,
     code_challenge: p.codeChallenge,
     code_challenge_method: 'S256',
+    // Skips the hosted page and goes straight to Google or Apple.
+    ...(p.provider ? { identity_provider: p.provider } : {}),
   }).toString();
   return url.toString();
 }

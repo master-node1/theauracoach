@@ -1,4 +1,11 @@
-import { CanActivate, ExecutionContext, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { ServiceName } from '@aura/contracts';
 import type { Request } from 'express';
@@ -12,6 +19,7 @@ import {
   type ServiceCaller,
 } from './decorators';
 import { INTERNAL_TOKEN_HEADER, verifyServiceToken } from './service-token';
+import { SESSION_REVOCATIONS, type SessionRevocations } from './session-revocations';
 import { UserTokenVerifier } from './user-token.verifier';
 
 type AuthedRequest = Request & { user?: AuthenticatedUser; serviceCaller?: ServiceCaller };
@@ -22,7 +30,7 @@ const unauthenticated = () =>
 /**
  * Global guard. Every route is authenticated unless marked @Public():
  * routes marked @InternalOnly(...) need a service token from a listed caller,
- * every other route needs a Cognito access token.
+ * every other route needs a Cognito access token that was not revoked by "sign out of all devices".
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -30,6 +38,9 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly verifier: UserTokenVerifier,
     @Inject(SERVICE_KIT_CONFIG) private readonly config: BaseConfig,
+    @Optional()
+    @Inject(SESSION_REVOCATIONS)
+    private readonly revocations?: SessionRevocations,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -65,11 +76,16 @@ export class AuthGuard implements CanActivate {
     // Public API routes never accept service tokens, and internal routes never accept user tokens.
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) throw unauthenticated();
+    let user: AuthenticatedUser;
     try {
-      req.user = await this.verifier.verify(header.slice('Bearer '.length));
+      user = await this.verifier.verify(header.slice('Bearer '.length));
     } catch {
       throw unauthenticated();
     }
+    // Fails closed: if Redis is down the request errors (and readiness already reports it).
+    const cutoff = await this.revocations?.revokedBefore(user.userId);
+    if (cutoff != null && user.issuedAt <= cutoff) throw unauthenticated();
+    req.user = user;
     return true;
   }
 }

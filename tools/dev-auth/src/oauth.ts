@@ -23,7 +23,7 @@ interface PendingCode {
   expiresAt: number;
 }
 
-interface DevUser {
+export interface DevUser {
   sub: string;
   email: string;
   groups: string[];
@@ -207,6 +207,22 @@ label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=
         refreshTokens.delete(form.get('token') as string);
       }
       return json(200, {});
+    },
+
+    clientAllowed(clientId: string): boolean {
+      return clientIds.includes(clientId);
+    },
+
+    /** Tokens for a user signed in through the identity API (dev-auth's InitiateAuth). */
+    issueTokens(clientId: string, user: DevUser) {
+      return issue(clientId, user);
+    },
+
+    /** GlobalSignOut: every refresh token of the user stops working. */
+    revokeAllFor(sub: string): void {
+      for (const [token, entry] of refreshTokens) {
+        if (entry.user.sub === sub) refreshTokens.delete(token);
+      }
     },
 
     logout(params: URLSearchParams): OAuthResult {

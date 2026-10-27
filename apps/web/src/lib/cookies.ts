@@ -6,12 +6,16 @@
 export const SESSION_COOKIE = '__Host-session';
 export const REFRESH_COOKIE = '__Host-refresh';
 export const FLOW_COOKIE = '__Host-auth-flow';
+/** Sealed {email, session?} between sign-up and verify, or forgot and reset (TAC-8). */
+export const PENDING_COOKIE = '__Host-auth-pending';
 /** Set on sign out, cleared on sign in; holds no data. See resolveSession. */
 export const SIGNED_OUT_COOKIE = '__Host-signed-out';
 
 /** Matches Cognito's default refresh token lifetime. */
 export const SESSION_MAX_AGE = 30 * 24 * 60 * 60;
 export const FLOW_MAX_AGE = 10 * 60;
+/** As long as a sign-up or reset code is valid. */
+export const PENDING_MAX_AGE = 15 * 60;
 /** Longer than any access token, which is the most a stray session cookie could live. */
 export const SIGNED_OUT_MAX_AGE = 24 * 60 * 60;
 

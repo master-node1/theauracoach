@@ -18,8 +18,32 @@ export interface WebConfig {
     clientSecret?: string;
     scopes: string;
   };
+  /** Cognito's user API for the email flows (TAC-8); dev-auth serves the same API locally. */
+  identityEndpoint: string;
+  /**
+   * Federated providers to offer as buttons, by their Cognito names (`Google`, `SignInWithApple`).
+   * Empty hides the buttons; a provider is listed only once its IdP app exists.
+   */
+  identityProviders: IdentityProviderName[];
+  /** Auth form posts allowed per client IP per minute (security architecture §5). */
+  authRateLimitPerMinute: number;
+  /** Proxies in front of the app that append to X-Forwarded-For (ingress, CloudFront). */
+  trustedProxyHops: number;
   /** At least 32 characters; encrypts the session cookies. */
   sessionSecret: string;
+}
+
+export const IDENTITY_PROVIDER_NAMES = ['Google', 'SignInWithApple'] as const;
+export type IdentityProviderName = (typeof IDENTITY_PROVIDER_NAMES)[number];
+
+export function parseProviders(value: string | undefined): IdentityProviderName[] {
+  const names = (value ?? '').split(',').map((p) => p.trim());
+  return IDENTITY_PROVIDER_NAMES.filter((p) => names.includes(p));
+}
+
+function positiveInt(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
 const DEV_SESSION_SECRET = 'local-development-only-session-key-change-me';
@@ -45,6 +69,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
       clientSecret: env.OIDC_CLIENT_SECRET || undefined,
       scopes: env.OIDC_SCOPES || 'openid email profile',
     },
+    identityEndpoint: get('IDENTITY_ENDPOINT', `${domainUrl}/`),
+    identityProviders: parseProviders(env.IDENTITY_PROVIDERS),
+    authRateLimitPerMinute: positiveInt(env.AUTH_RATE_LIMIT_PER_MINUTE, 10),
+    trustedProxyHops: positiveInt(env.TRUSTED_PROXY_HOPS, 1),
     sessionSecret,
   };
 }

@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { createDevIssuer, createOAuthHandlers, type OAuthResult } from './index';
+import {
+  createDevIssuer,
+  createIdentityHandlers,
+  createOAuthHandlers,
+  type OAuthResult,
+} from './index';
 
 /**
  * Local Cognito stand-in for docker compose.
@@ -8,6 +13,9 @@ import { createDevIssuer, createOAuthHandlers, type OAuthResult } from './index'
  *   POST /token  {"sub":"…","email":"…","groups":["admin"]}  -> {"access_token":"…"}
  *   GET  /oauth2/authorize, POST /oauth2/token, POST /oauth2/revoke, GET /logout
  *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints)
+ *   POST /  X-Amz-Target: AWSCognitoIdentityProviderService.SignUp (and the other email-flow
+ *        actions, shaped like Cognito's cognito-idp API)
+ *   GET  /test/codes?email=…  -> {"signUp":"123456","reset":"654321"} (codes are never emailed)
  * Keys and sessions live in memory and are lost on restart.
  */
 function readBody(req: IncomingMessage): Promise<string> {
@@ -34,6 +42,7 @@ async function main() {
   const oauth = createOAuthHandlers(dev, {
     accessTokenTtlSeconds: Number(process.env.DEV_AUTH_ACCESS_TOKEN_TTL ?? 900),
   });
+  const identity = createIdentityHandlers(dev, oauth);
   createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', issuer);
     try {
@@ -51,6 +60,34 @@ async function main() {
         res
           .writeHead(200, { 'content-type': 'application/json' })
           .end(JSON.stringify({ access_token: token }));
+        return;
+      }
+      if (url.pathname === '/' && req.method === 'POST') {
+        const raw = await readBody(req);
+        const target = req.headers['x-amz-target'];
+        send(
+          res,
+          await identity.handle(
+            typeof target === 'string' ? target : undefined,
+            raw ? JSON.parse(raw) : {},
+          ),
+        );
+        return;
+      }
+      if (url.pathname === '/' && req.method === 'OPTIONS') {
+        res
+          .writeHead(204, {
+            'access-control-allow-origin': '*',
+            'access-control-allow-methods': 'POST',
+            'access-control-allow-headers': 'content-type, x-amz-target',
+          })
+          .end();
+        return;
+      }
+      if (url.pathname === '/test/codes' && req.method === 'GET') {
+        res
+          .writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+          .end(JSON.stringify(identity.pendingCodes(url.searchParams.get('email') ?? '')));
         return;
       }
       if (url.pathname === '/oauth2/authorize' && req.method === 'GET') {

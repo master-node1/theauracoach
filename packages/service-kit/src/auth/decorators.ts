@@ -19,6 +19,8 @@ export interface AuthenticatedUser {
   email?: string;
   groups: string[];
   clientId: string;
+  /** The access token's `iat`, epoch seconds; compared with the user's revocation cut-off. */
+  issuedAt: number;
 }
 
 export interface ServiceCaller {

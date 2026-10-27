@@ -54,6 +54,7 @@ export class UserTokenVerifier {
       ...(typeof payload.email === 'string' ? { email: payload.email } : {}),
       groups: Array.isArray(groups) ? groups.filter((g): g is string => typeof g === 'string') : [],
       clientId,
+      issuedAt: typeof payload.iat === 'number' ? payload.iat : 0,
     };
   }
 }

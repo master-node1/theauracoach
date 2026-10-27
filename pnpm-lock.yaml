@@ -90,6 +90,9 @@ importers:
         specifier: ~0.21.0
         version: 0.21.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
     devDependencies:
+      '@aura/dev-auth':
+        specifier: workspace:*
+        version: link:../../tools/dev-auth
       '@types/react':
         specifier: ~19.2.2
         version: 19.2.2
@@ -120,6 +123,9 @@ importers:
       react-dom:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
+      zod:
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@aura/dev-auth':
         specifier: workspace:*
@@ -719,10 +725,16 @@ importers:
 
   tools/dev-auth:
     dependencies:
+      '@aura/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       jose:
         specifier: 5.10.0
         version: 5.10.0
     devDependencies:
+      '@aura/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       vitest:
         specifier: 3.2.7
         version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.51.2)(yaml@2.9.1)

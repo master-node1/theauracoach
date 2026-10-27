@@ -34,7 +34,7 @@ curl -s localhost:8080/v1/me/notification-preferences -H "authorization: Bearer 
 
 To see traces and metrics as well, start the stack with `pnpm stack:observability` and open Grafana at http://localhost:3300. Every service log line inside a request has a `traceId` you can paste into Tempo. See [monitoring](monitoring.md).
 
-dev-auth issues tokens shaped like Cognito access tokens (`token_use`, `client_id`, `cognito:groups`, plus the `email` claim our pre-token-generation trigger adds). Pass `"groups":["admin"]` to act as an admin. It also serves Cognito's hosted OAuth endpoints (`/oauth2/authorize` with a local sign-in form, `/oauth2/token` for the code and refresh grants, `/oauth2/revoke`, `/logout`) so the apps run the real sign-in flow. It refuses to start with `NODE_ENV=production`.
+dev-auth issues tokens shaped like Cognito access tokens (`token_use`, `client_id`, `cognito:groups`, plus the `email` claim our pre-token-generation trigger adds). Pass `"groups":["admin"]` to act as an admin. It also serves Cognito's hosted OAuth endpoints (`/oauth2/authorize` with a local sign-in form, `/oauth2/token` for the code and refresh grants, `/oauth2/revoke`, `/logout`) so the apps run the real sign-in flow. For the email screens it implements Cognito's user API (`POST /` with `X-Amz-Target: AWSCognitoIdentityProviderService.SignUp` and friends, TAC-8): sign-up and reset codes are printed to its log (`docker compose logs dev-auth`) and returned by `GET http://localhost:4100/test/codes?email=you@example.com`, since nothing is emailed locally. Accounts live in memory and vanish when dev-auth restarts. It refuses to start with `NODE_ENV=production`.
 
 ## Run the web app
 
@@ -45,9 +45,9 @@ pnpm --filter @aura/web... build # the shared packages the app imports
 pnpm dev                         # web app on http://localhost:3100
 ```
 
-Open http://localhost:3100 and press **Continue**. dev-auth shows a local sign-in form instead of Cognito's managed login: any email works, and **Staff (admin console)** puts you in the `admin` group so `/admin` opens. You land on Today, which shows your email from `GET /v1/me`.
+Open http://localhost:3100. Either **Create an account** (email and password, then the code from `GET http://localhost:4100/test/codes?email=…`) or press **More sign-in options**: dev-auth then shows a local sign-in form instead of Cognito's managed login, where any email works and **Staff (admin console)** puts you in the `admin` group so `/admin` opens. You land on Today, which shows your email from `GET /v1/me`.
 
-The web app is a backend for frontend (ADR-006): `/api/auth/*` runs Authorization Code + PKCE, keeps the tokens in encrypted `__Host-session` and `__Host-refresh` cookies (HttpOnly, Secure, SameSite=Lax), refreshes them in `src/proxy.ts` when under 60 s remain, and `/api/v1/*` forwards to the gateway with the bearer token. Browser JavaScript never sees a token. Settings come from env with local defaults; see `apps/web/src/lib/config.ts` (`APP_URL`, `API_BASE_URL`, `OIDC_DOMAIN_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `SESSION_SECRET`). A production build refuses to start without them.
+The web app is a backend for frontend (ADR-006): `/api/auth/*` runs Authorization Code + PKCE, keeps the tokens in encrypted `__Host-session` and `__Host-refresh` cookies (HttpOnly, Secure, SameSite=Lax), refreshes them in `src/proxy.ts` when under 60 s remain, and `/api/v1/*` forwards to the gateway with the bearer token. Browser JavaScript never sees a token. Settings come from env with local defaults; see `apps/web/src/lib/config.ts` (`APP_URL`, `API_BASE_URL`, `OIDC_DOMAIN_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `SESSION_SECRET`, plus `IDENTITY_ENDPOINT` for the email flows, `IDENTITY_PROVIDERS` such as `Google,SignInWithApple` to show those buttons, `AUTH_RATE_LIMIT_PER_MINUTE` (default 10) and `TRUSTED_PROXY_HOPS` (default 1)). A production build refuses to start without them.
 
 Tests:
 
@@ -70,7 +70,7 @@ pnpm --filter @aura/mobile... build
 pnpm --filter @aura/mobile start # then press i (iOS simulator) or a (Android emulator)
 ```
 
-The app signs in with `expo-auth-session` (Authorization Code + PKCE) against dev-auth and keeps tokens only in `expo-secure-store`. It reaches your machine at `localhost` from the iOS simulator and at `10.0.2.2` from the Android emulator. To point it elsewhere, set `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_OIDC_DOMAIN_URL` and `EXPO_PUBLIC_OIDC_CLIENT_ID` (read in `app.config.ts`). On a physical phone, use your machine's LAN address for both. Native simulator builds come with EAS; CI checks the app with `expo export`.
+The app signs in with `expo-auth-session` (Authorization Code + PKCE) against dev-auth and keeps tokens only in `expo-secure-store`. It reaches your machine at `localhost` from the iOS simulator and at `10.0.2.2` from the Android emulator. To point it elsewhere, set `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_OIDC_DOMAIN_URL`, `EXPO_PUBLIC_OIDC_CLIENT_ID`, `EXPO_PUBLIC_IDENTITY_ENDPOINT` and `EXPO_PUBLIC_IDENTITY_PROVIDERS` (read in `app.config.ts`). On a physical phone, use your machine's LAN address for both. Native simulator builds come with EAS; CI checks the app with `expo export`.
 
 ## Work on one service without Docker images
 

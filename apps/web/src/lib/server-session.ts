@@ -13,6 +13,11 @@ import { SESSION_COOKIE } from './cookies';
 import { idTokenVerifier } from './oidc';
 import { readSession, type Session } from './session';
 import type { AuthDeps } from './auth-handlers';
+import type { EmailAuthDeps } from './email-auth';
+import { RateLimiter } from './rate-limit';
+
+/** One budget per server process for every rate-limited auth route. */
+const authLimiter = new RateLimiter();
 
 /** The current request's session. proxy.ts has already refreshed it if needed. */
 export async function currentSession(): Promise<Session | null> {
@@ -47,5 +52,9 @@ export const currentFlags = cache(async (): Promise<FlagValues> => {
 
 export function authDeps(): AuthDeps {
   const cfg = config();
-  return { config: cfg, verifyIdToken: idTokenVerifier(cfg) };
+  return { config: cfg, verifyIdToken: idTokenVerifier(cfg), limiter: authLimiter };
+}
+
+export function emailAuthDeps(): EmailAuthDeps {
+  return authDeps();
 }

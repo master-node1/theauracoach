@@ -81,4 +81,5 @@ export async function createDevIssuer(issuer = 'http://localhost:4100'): Promise
   };
 }
 
-export { createOAuthHandlers, devUserId, type OAuthResult } from './oauth';
+export { createOAuthHandlers, devUserId, type DevUser, type OAuthResult } from './oauth';
+export { createIdentityHandlers, MAX_CODE_FAILURES, MAX_CODES_PER_WINDOW } from './identity';
