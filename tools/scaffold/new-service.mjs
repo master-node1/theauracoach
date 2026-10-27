@@ -377,6 +377,13 @@ INTERNAL_TOKEN_SECRET=local-dev-only-internal-secret-change-me
 INTERNAL_SERVICE_URLS=
 # Set to export traces and metrics, e.g. to the observability profile: http://localhost:4318
 OTEL_EXPORTER_OTLP_ENDPOINT=
+# Feature flags (platform LLD §11): env (FEATURE_<KEY> variables only), file (FLAGS_FILE, re-read
+# every FLAGS_POLL_SECONDS) or appconfig (APPCONFIG_APPLICATION/ENVIRONMENT/PROFILE, deployed only).
+FLAGS_SOURCE=file
+FLAGS_FILE=../../infra/local/flags/flags.json
+FLAGS_POLL_SECONDS=5
+# API limits (security architecture §5); defaults 300/min per user, 1000/min per IP.
+RATE_LIMIT_ENABLED=true
 `,
 );
 write(

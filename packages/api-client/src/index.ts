@@ -4,6 +4,7 @@
  * React Native).
  */
 
+import { envFlagDefaults, type FlagValues, type FlagsResponse } from '@aura/contracts';
 import type {
   ConsentInput,
   ConsentResponse,
@@ -25,9 +26,13 @@ export type {
   ProfileResponse,
   ProfileUpdate,
   ProfileUpdateResponse,
+  FlagKey,
+  FlagValues,
+  FlagsResponse,
   Theme,
   UnitSystem,
 } from '@aura/contracts';
+export { catalogueDefaults, envFlagDefaults, FEATURE_FLAGS } from '@aura/contracts';
 
 /** `Me` in docs/api/openapi.yaml, returned by profile-service. */
 export type MeResponse = Omit<MeContract, 'roles'> & { roles: Role[] };
@@ -74,6 +79,8 @@ export interface ApiClient {
   updatePreferences(update: PreferencesUpdate): Promise<PreferencesResponse>;
   consents(): Promise<ConsentResponse[]>;
   recordConsent(input: ConsentInput): Promise<ConsentResponse>;
+  /** The caller's evaluated feature flags. */
+  flags(): Promise<FlagsResponse>;
 }
 
 /** Drops trailing slashes without a regex (a `/\/+$/` scan is quadratic on long slash runs). */
@@ -121,6 +128,23 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     updatePreferences: (update) => send('PATCH', '/v1/me/preferences', update),
     consents: () => request<ConsentResponse[]>('/v1/me/consents'),
     recordConsent: (input) => send('POST', '/v1/me/consents', input),
+    flags: () => request<FlagsResponse>('/v1/me/flags'),
   };
+}
+
+/**
+ * The caller's flags from `GET /v1/me/flags`, on top of `fallback` (the app's env defaults), so a
+ * flag the API does not know yet, or a failed call, falls back instead of breaking the screen.
+ */
+export async function loadFlags(
+  api: Pick<ApiClient, 'flags'>,
+  fallback: FlagValues = envFlagDefaults({}),
+): Promise<FlagValues> {
+  try {
+    const { flags } = await api.flags();
+    return { ...fallback, ...flags };
+  } catch {
+    return fallback;
+  }
 }
 export * from './settings';
