@@ -7,6 +7,8 @@
 import type {
   ConsentInput,
   ConsentResponse,
+  DataRequestResponse,
+  DeletionScheduledResponse,
   MeResponse as MeContract,
   PreferencesResponse,
   PreferencesUpdate,
@@ -20,6 +22,9 @@ export type {
   ConsentInput,
   ConsentPurpose,
   ConsentResponse,
+  DataRequestResponse,
+  DataRequestStatus,
+  DeletionScheduledResponse,
   PreferencesResponse,
   PreferencesUpdate,
   ProfileResponse,
@@ -58,6 +63,16 @@ export class ApiError extends Error {
   }
 }
 
+/** The account is waiting out its deletion grace period (423); show the restore screen. */
+export function isPendingDeletion(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 423;
+}
+
+/** Deleting the account needs a fresh sign-in first (403 REAUTH_REQUIRED). */
+export function isReauthRequired(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403 && err.code === 'REAUTH_REQUIRED';
+}
+
 export interface ApiClientOptions {
   /** Gateway origin, e.g. http://localhost:8080. */
   baseUrl: string;
@@ -74,6 +89,15 @@ export interface ApiClient {
   updatePreferences(update: PreferencesUpdate): Promise<PreferencesResponse>;
   consents(): Promise<ConsentResponse[]>;
   recordConsent(input: ConsentInput): Promise<ConsentResponse>;
+  /** Starts an export, or returns today's ready one. 409 EXPORT_IN_PROGRESS while one runs. */
+  requestExport(): Promise<DataRequestResponse>;
+  /** The latest exports, newest first. */
+  exports(): Promise<DataRequestResponse[]>;
+  getExport(id: string): Promise<DataRequestResponse>;
+  /** Schedules deletion. 403 REAUTH_REQUIRED unless the user signed in within five minutes. */
+  deleteAccount(): Promise<DeletionScheduledResponse>;
+  /** Cancels a pending deletion. */
+  restoreAccount(): Promise<void>;
 }
 
 /** Drops trailing slashes without a regex (a `/\/+$/` scan is quadratic on long slash runs). */
@@ -121,6 +145,12 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     updatePreferences: (update) => send('PATCH', '/v1/me/preferences', update),
     consents: () => request<ConsentResponse[]>('/v1/me/consents'),
     recordConsent: (input) => send('POST', '/v1/me/consents', input),
+    requestExport: () => request<DataRequestResponse>('/v1/me/exports', { method: 'POST' }),
+    exports: () => request<DataRequestResponse[]>('/v1/me/exports'),
+    getExport: (id) => request<DataRequestResponse>(`/v1/me/exports/${encodeURIComponent(id)}`),
+    deleteAccount: () => request<DeletionScheduledResponse>('/v1/me', { method: 'DELETE' }),
+    restoreAccount: () => request<void>('/v1/me/restore', { method: 'POST' }),
   };
 }
 export * from './settings';
+export * from './privacy';

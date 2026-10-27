@@ -39,9 +39,13 @@ export function redirectUri(config: WebConfig): string {
   return `${config.appUrl}/api/auth/callback`;
 }
 
+/**
+ * `reauth` makes the provider ask for credentials even with a live session (`prompt=login`,
+ * `max_age=0`), so the new tokens carry a fresh `auth_time` (needed to delete an account).
+ */
 export function authorizeUrl(
   config: WebConfig,
-  p: { state: string; nonce: string; codeChallenge: string },
+  p: { state: string; nonce: string; codeChallenge: string; reauth?: boolean },
 ): string {
   const url = new URL(`${config.oidc.domainUrl}/oauth2/authorize`);
   url.search = new URLSearchParams({
@@ -53,6 +57,7 @@ export function authorizeUrl(
     nonce: p.nonce,
     code_challenge: p.codeChallenge,
     code_challenge_method: 'S256',
+    ...(p.reauth ? { prompt: 'login', max_age: '0' } : {}),
   }).toString();
   return url.toString();
 }

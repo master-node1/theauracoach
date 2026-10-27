@@ -82,6 +82,10 @@ paths:
       tags: [me]
       operationId: requestAccountDeletion
       summary: Request account deletion (30-day grace period)
+      description: >
+        Needs a sign-in from the last 5 minutes (token `auth_time`); otherwise 403 REAUTH_REQUIRED and
+        the client signs in again with `prompt=login&max_age=0`. Asking again while pending returns
+        the same date. Meanwhile the other services answer 423 ACCOUNT_PENDING_DELETION.
       responses:
         '202':
           description: Deletion scheduled
@@ -93,6 +97,11 @@ paths:
                 properties:
                   deletionDueAt: { type: string, format: date-time }
         '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: REAUTH_REQUIRED (sign in again first)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /v1/me/restore:
     post:
@@ -100,8 +109,12 @@ paths:
       operationId: restoreAccount
       summary: Cancel a pending deletion
       responses:
-        '204': { description: Restored }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '204': { description: Restored (also when the account was not pending) }
+        '409':
+          description: RESTORE_WINDOW_CLOSED (the 30 days are over)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /v1/me/profile:
     patch:
@@ -245,13 +258,36 @@ paths:
       tags: [me]
       operationId: requestExport
       summary: Request a full data export
+      description: One export at a time; a ready export from the last 24 hours is returned instead of a new one.
       responses:
-        '202':
-          description: Export queued
+        '200':
+          description: The ready export from the last 24 hours
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DataRequest' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '202':
+          description: Export started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataRequest' }
+        '409':
+          description: EXPORT_IN_PROGRESS
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    get:
+      tags: [me]
+      operationId: listExports
+      summary: The latest five exports, newest first
+      responses:
+        '200':
+          description: Exports
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DataRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
 
   /v1/me/exports/{id}:
     get:
@@ -267,6 +303,28 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DataRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/me/export-files:
+    get:
+      tags: [me]
+      operationId: downloadLocalExport
+      summary: Local development only - serves an export through a signed link
+      description: >
+        In AWS the download URL is an S3 pre-signed URL and this route answers 404. Locally it checks
+        the HMAC signature and expiry in the link; no token is needed.
+      security: []
+      parameters:
+        - { name: key, in: query, required: true, schema: { type: string } }
+        - { name: filename, in: query, required: true, schema: { type: string } }
+        - { name: expires, in: query, required: true, schema: { type: integer } }
+        - { name: signature, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The zip
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        '404': { description: 'Bad signature, expired link, no such file, or storage is not local' }
 
   /v1/me/devices:
     post:
@@ -1443,6 +1501,10 @@ components:
         locale: { type: string }
         onboardingComplete: { type: boolean }
         status: { type: string, enum: [ACTIVE, PENDING_DELETION] }
+        deletionDueAt:
+          type: [string, 'null']
+          format: date-time
+          description: While PENDING_DELETION, when the account is erased; restore works until then.
         roles: { type: array, items: { type: string } }
         profile:
           description: Null until onboarding creates the profile.
@@ -1535,13 +1597,22 @@ components:
 
     DataRequest:
       type: object
-      required: [id, kind, status, createdAt]
+      required: [id, kind, status, createdAt, completedAt, downloadUrl, downloadExpiresAt, expiresAt]
       properties:
         id: { type: string, format: uuid }
         kind: { type: string, enum: [export, delete] }
-        status: { type: string, enum: [queued, running, ready, failed, done] }
-        downloadUrl: { type: [string, 'null'], format: uri }
+        status: { type: string, enum: [queued, running, ready, failed, done, expired, cancelled] }
         createdAt: { type: string, format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        downloadUrl:
+          type: [string, 'null']
+          format: uri
+          description: Set while ready; a fresh link valid for 15 minutes on every read.
+        downloadExpiresAt: { type: [string, 'null'], format: date-time }
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the export file is deleted (7 days after it was ready).
 
     Questionnaire:
       type: object

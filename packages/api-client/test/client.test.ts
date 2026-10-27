@@ -16,6 +16,7 @@ const me = {
   locale: 'en-IN',
   onboardingComplete: false,
   status: 'ACTIVE',
+  deletionDueAt: null,
   roles: ['user' as const],
   profile: null,
   preferences: { theme: 'system', coachTone: 'supportive' },

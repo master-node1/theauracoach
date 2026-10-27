@@ -29,7 +29,8 @@ describeParticipantContract(vitest, {
     // The trail stays with the pseudonymous id only: no snapshots, no IP hash.
     const rows = await prisma.auditLog.findMany({ where: { actorId: userId } });
     vitest.expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) vitest.expect(row).toMatchObject({ before: null, after: null, ipHash: null });
+    for (const row of rows)
+      vitest.expect(row).toMatchObject({ before: null, after: null, ipHash: null });
   },
   redisDb: 12,
 });

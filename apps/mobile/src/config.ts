@@ -16,5 +16,7 @@ export const appConfig = {
   /** Flags for unfinished slices: on unless set to "false" or "0" (AppConfig arrives with TAC-4). */
   features: {
     settingsV1: !['false', '0'].includes(extra.featureSettingsV1 ?? ''),
+    /** Export and account deletion in Settings (TAC-7). */
+    privacyV1: !['false', '0'].includes(extra.featurePrivacyV1 ?? ''),
   },
 };

@@ -45,6 +45,8 @@ Web: the same code flow handled by the BFF; cookies `__Host-session` (encrypted,
 
 Email sign-up and password reset use Cognito `SignUp`, `ConfirmSignUp`, `ForgotPassword`, `ConfirmForgotPassword` from our own screens (BFF on web, direct SDK on mobile). Reset codes expire in 15 min, single use.
 
+Fresh sign-in for sensitive actions: account deletion needs a sign-in from the last 5 minutes, judged by the access token's `auth_time` claim (`AuthenticatedUser.authTime`). Otherwise the API answers `403 REAUTH_REQUIRED` and the client starts a new authorization with `prompt=login&max_age=0` (web: `/api/auth/login?reauth=1&returnTo=…`; mobile: a second auth request), then retries. Deleting an account also deletes the Cognito user (`AdminDeleteUser`) once every service has purged its data.
+
 Log out all devices: `POST /v1/me/sessions/revoke` → Cognito `GlobalSignOut` + API deny-list of `jti`/`origin_jti` in Redis until expiry.
 
 ## 3. User identity across services
@@ -61,7 +63,7 @@ The AuraCoach user id **is** the Cognito `sub` (a UUID). profile-service creates
 
 ## 5. Errors
 
-`401 UNAUTHENTICATED` (missing/invalid/expired token), `403 FORBIDDEN`, `403 MFA_REQUIRED`, `403 CONSENT_REQUIRED` (with `purpose`), `423 ACCOUNT_PENDING_DELETION`.
+`401 UNAUTHENTICATED` (missing/invalid/expired token), `403 FORBIDDEN`, `403 MFA_REQUIRED`, `403 CONSENT_REQUIRED` (with `purpose`), `403 REAUTH_REQUIRED`, `423 ACCOUNT_PENDING_DELETION` (from every service while the account waits out its deletion grace period).
 
 ## 6. Tests
 

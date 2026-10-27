@@ -16,11 +16,19 @@ x-service-env: &service-env
   # Empty (telemetry off) unless set, e.g. by pnpm stack:observability.
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
   OTEL_METRIC_EXPORT_INTERVAL: '15000'
+  # Exports and other private files: a shared volume stands in for S3 locally (users LLD §3).
+  OBJECT_STORAGE: local
+  OBJECT_STORAGE_DIR: /var/lib/aura/object-store
+  OBJECT_STORAGE_PUBLIC_URL: http://localhost:8080/v1/me/export-files
 
 x-depends: &depends
   postgres: { condition: service_healthy }
   redis: { condition: service_healthy }
   dev-auth: { condition: service_started }
+  object-store-init: { condition: service_completed_successfully }
+
+x-object-store: &object-store
+  - object-store:/var/lib/aura/object-store
 
 services:
   postgres:
@@ -47,6 +55,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  # The services run as the image's node user (uid 1000); a fresh named volume is root-owned.
+  object-store-init:
+    image: postgres:16-alpine
+    command: ['chown', '1000:1000', '/var/lib/aura/object-store']
+    volumes: *object-store
 
   # Collector + Tempo (traces) + Prometheus (metrics) + Loki + Grafana in one container. Local only.
   otel-lgtm:
@@ -87,11 +101,15 @@ services:
     image: auracoach/profile-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: profile-service
       DATABASE_URL: postgresql://profile_svc:local-dev-only@postgres:5432/profile_db
       INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000,nutrition-service=http://nutrition:3000'
+      # Account deletion removes the sign-in from dev-auth (Cognito in AWS).
+      IDENTITY_ADMIN: dev-auth
+      DEV_AUTH_URL: http://dev-auth:4100
     ports: ['3001:3000']
     depends_on: *depends
     healthcheck:
@@ -109,11 +127,15 @@ services:
   profile-worker:
     image: auracoach/profile-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: profile-service
       DATABASE_URL: postgresql://profile_svc:local-dev-only@postgres:5432/profile_db
       INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000,nutrition-service=http://nutrition:3000'
+      # Account deletion removes the sign-in from dev-auth (Cognito in AWS).
+      IDENTITY_ADMIN: dev-auth
+      DEV_AUTH_URL: http://dev-auth:4100
     depends_on:
       profile: { condition: service_healthy }
 
@@ -122,6 +144,7 @@ services:
     image: auracoach/workout-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: workout-service
@@ -144,6 +167,7 @@ services:
   workout-worker:
     image: auracoach/workout-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: workout-service
@@ -157,6 +181,7 @@ services:
     image: auracoach/nutrition-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: nutrition-service
@@ -179,6 +204,7 @@ services:
   nutrition-worker:
     image: auracoach/nutrition-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: nutrition-service
@@ -192,6 +218,7 @@ services:
     image: auracoach/progress-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: progress-service
@@ -214,6 +241,7 @@ services:
   progress-worker:
     image: auracoach/progress-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: progress-service
@@ -227,6 +255,7 @@ services:
     image: auracoach/coach-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: coach-service
@@ -249,6 +278,7 @@ services:
   coach-worker:
     image: auracoach/coach-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: coach-service
@@ -262,6 +292,7 @@ services:
     image: auracoach/notification-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: notification-service
@@ -284,6 +315,7 @@ services:
   notification-worker:
     image: auracoach/notification-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: notification-service
@@ -297,6 +329,7 @@ services:
     image: auracoach/audit-service:local
     # Locally the http container applies migrations first; in Kubernetes a Helm hook Job does it.
     command: ['sh', '-c', 'node_modules/.bin/prisma migrate deploy && node dist/main.http.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: audit-service
@@ -319,6 +352,7 @@ services:
   audit-worker:
     image: auracoach/audit-service:local
     command: ['node', 'dist/main.worker.js']
+    volumes: *object-store
     environment:
       <<: *service-env
       SERVICE_NAME: audit-service
@@ -329,3 +363,4 @@ services:
 
 volumes:
   pgdata:
+  object-store:

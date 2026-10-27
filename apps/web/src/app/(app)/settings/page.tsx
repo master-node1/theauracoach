@@ -9,15 +9,24 @@ import { SettingsForm } from './SettingsForm';
 export const metadata: Metadata = { title: 'Settings' };
 export const dynamic = 'force-dynamic';
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   if (!featureEnabled('SETTINGS_V1')) notFound();
   const session = await currentSession();
   const me = await currentMe();
-  const consents = session
-    ? await serverApi(session)
-        .consents()
-        .catch(() => null)
-    : null;
+  const api = session ? serverApi(session) : null;
+  const consents = api ? await api.consents().catch(() => null) : null;
+  // `?delete=confirm`: back from the fresh sign-in that deleting the account needs.
+  const privacy =
+    api && featureEnabled('PRIVACY_V1')
+      ? {
+          latestExport: (await api.exports().catch(() => []))[0] ?? null,
+          resumeDelete: (await searchParams).delete === 'confirm',
+        }
+      : null;
 
   return (
     <>
@@ -25,7 +34,12 @@ export default async function SettingsPage() {
         <h1 className="page-title">Settings</h1>
       </header>
       {me && consents ? (
-        <SettingsForm me={me} consents={consents} policyVersion={CURRENT_POLICY_VERSION} />
+        <SettingsForm
+          me={me}
+          consents={consents}
+          policyVersion={CURRENT_POLICY_VERSION}
+          privacy={privacy}
+        />
       ) : (
         <section className="card warning" role="alert">
           <h2>We couldn&apos;t load your settings</h2>

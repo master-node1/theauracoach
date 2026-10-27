@@ -27,7 +27,11 @@ export const userDataPlan: UserDataPlan = {
     { model: 'CoachConversation', where: (userId) => ({ userId }) },
     { model: 'CoachMemory', where: (userId) => ({ userId }) },
     { model: 'UserConsentState', where: (userId) => ({ userId }) },
-    { model: 'UsageRecord', where: (userId) => ({ userId }), purge: { anonymise: { userId: null } } },
+    {
+      model: 'UsageRecord',
+      where: (userId) => ({ userId }),
+      purge: { anonymise: { userId: null } },
+    },
   ],
   notUserData: {
     AiPromptVersion: 'Prompt templates (staff content)',

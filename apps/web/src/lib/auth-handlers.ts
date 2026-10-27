@@ -69,20 +69,25 @@ function signInError(config: WebConfig, error: string, setCookies: string[] = []
   return redirect(`${config.appUrl}/auth/sign-in?error=${encodeURIComponent(error)}`, setCookies);
 }
 
-/** GET /api/auth/login?returnTo=/path: starts Authorization Code + PKCE. */
+/**
+ * GET /api/auth/login?returnTo=/path: starts Authorization Code + PKCE. `reauth=1` asks the
+ * provider for the password again even when signed in (before deleting the account).
+ */
 export async function login(request: Request, deps: AuthDeps): Promise<Response> {
   const { config } = deps;
+  const params = new URL(request.url).searchParams;
   const flow: Flow = {
     state: randomToken(),
     nonce: randomToken(),
     verifier: randomToken(48),
-    returnTo: safeReturnTo(new URL(request.url).searchParams.get('returnTo')),
+    returnTo: safeReturnTo(params.get('returnTo')),
   };
   const sealed = await seal({ ...flow }, config.sessionSecret, FLOW_MAX_AGE);
   const target = authorizeUrl(config, {
     state: flow.state,
     nonce: flow.nonce,
     codeChallenge: await pkceChallenge(flow.verifier),
+    reauth: params.get('reauth') === '1',
   });
   return redirect(target, [serializeCookie(FLOW_COOKIE, sealed, FLOW_MAX_AGE)]);
 }

@@ -21,6 +21,7 @@ const config: ExpoConfig = {
     oidcDomainUrl: process.env.EXPO_PUBLIC_OIDC_DOMAIN_URL,
     oidcClientId: process.env.EXPO_PUBLIC_OIDC_CLIENT_ID,
     featureSettingsV1: process.env.EXPO_PUBLIC_FEATURE_SETTINGS_V1,
+    featurePrivacyV1: process.env.EXPO_PUBLIC_FEATURE_PRIVACY_V1,
   },
 };
 

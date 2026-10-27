@@ -25,7 +25,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApi } from '../api';
 import { useAuth } from '../auth/AuthProvider';
+import { appConfig } from '../config';
 import { Icon } from '../components/Icon';
+import { DeleteAccountRow } from '../components/privacy/DeleteAccountRow';
+import { ExportRow } from '../components/privacy/ExportRow';
 import { Card } from '../components/Screen';
 import { useMe } from '../preferences';
 import { saveOptimistically, type SaveStatus } from '../settings/optimistic';
@@ -308,14 +311,23 @@ export default function SettingsScreen() {
                 />
               </View>
             ))}
-            <View style={row}>
-              <Text style={[styles.label, text]}>Export my data</Text>
-              <Text style={[styles.small, muted]}>Coming soon</Text>
-            </View>
-            <View style={row}>
-              <Text style={[styles.label, { color: p.danger }]}>Delete account</Text>
-              <Text style={[styles.small, muted]}>Coming soon</Text>
-            </View>
+            {appConfig.features.privacyV1 ? (
+              <>
+                <ExportRow style={row} />
+                <DeleteAccountRow style={row} />
+              </>
+            ) : (
+              <>
+                <View style={row}>
+                  <Text style={[styles.label, text]}>Export my data</Text>
+                  <Text style={[styles.small, muted]}>Coming soon</Text>
+                </View>
+                <View style={row}>
+                  <Text style={[styles.label, { color: p.danger }]}>Delete account</Text>
+                  <Text style={[styles.small, muted]}>Coming soon</Text>
+                </View>
+              </>
+            )}
           </View>
           <Text style={[styles.caption, muted]}>
             Privacy policy version {CURRENT_POLICY_VERSION}

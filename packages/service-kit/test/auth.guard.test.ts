@@ -87,16 +87,23 @@ describe('AuthGuard', () => {
 
   it('accepts a valid access token and exposes the user', async () => {
     const sub = '0b6f5c1e-8f0a-4b8e-9c47-3d2a1e5f7a90';
-    const token = await dev.mintAccessToken({ sub, email: 'a@example.com', groups: ['trainer'] });
+    const token = await dev.mintAccessToken({
+      sub,
+      email: 'a@example.com',
+      groups: ['trainer'],
+      authTime: 1_793_000_000,
+    });
     const res = await request(app.getHttpServer())
       .get('/v1/me')
       .set('authorization', `Bearer ${token}`)
       .expect(200);
+    // authTime (the token's auth_time) lets account deletion insist on a recent sign-in.
     expect(res.body).toEqual({
       userId: sub,
       email: 'a@example.com',
       groups: ['trainer'],
       clientId: DEV_CLIENT_ID,
+      authTime: 1_793_000_000,
     });
   });
 

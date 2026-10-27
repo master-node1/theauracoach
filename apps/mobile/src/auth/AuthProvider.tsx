@@ -36,6 +36,8 @@ interface AuthContextValue {
   error: string | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Signs in again (account deletion needs a recent sign-in); false when the user backs out. */
+  reauthenticate: () => Promise<boolean>;
   /** A fresh access token, refreshing first when under 60 s remain; null when signed out. */
   getAccessToken: () => Promise<string | null>;
 }
@@ -49,6 +51,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     { clientId, redirectUri, scopes, usePKCE: true },
+    discovery,
+  );
+  // Same client, but the hosted page must ask for the password again (users LLD §4).
+  const [reauthRequest, , promptReauth] = AuthSession.useAuthRequest(
+    {
+      clientId,
+      redirectUri,
+      scopes,
+      usePKCE: true,
+      prompt: AuthSession.Prompt.Login,
+      extraParams: { max_age: '0' },
+    },
     discovery,
   );
 
@@ -121,6 +135,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await promptAsync();
   }, [promptAsync]);
 
+  const reauthenticate = useCallback(async () => {
+    const result = await promptReauth();
+    const code = result.type === 'success' ? result.params.code : undefined;
+    if (!code || !reauthRequest?.codeVerifier) return false;
+    try {
+      const tokenResult = await AuthSession.exchangeCodeAsync(
+        {
+          clientId,
+          code,
+          redirectUri,
+          extraParams: { code_verifier: reauthRequest.codeVerifier },
+        },
+        discovery,
+      );
+      await store(fromTokenResult(tokenResult, tokens.current?.refreshToken ?? null));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [promptReauth, reauthRequest, store]);
+
   const signOut = useCallback(async () => {
     const current = tokens.current;
     await store(null);
@@ -140,8 +175,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [store]);
 
   const value = useMemo(
-    () => ({ status, error, signIn, signOut, getAccessToken }),
-    [status, error, signIn, signOut, getAccessToken],
+    () => ({ status, error, signIn, signOut, reauthenticate, getAccessToken }),
+    [status, error, signIn, signOut, reauthenticate, getAccessToken],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

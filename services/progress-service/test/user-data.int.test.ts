@@ -17,7 +17,13 @@ async function seed(prisma: PrismaClient, userId: string): Promise<void> {
   await prisma.workoutDayFact.create({ data: { userId, date: day, planned: 1 } });
   await prisma.nutritionDayFact.create({ data: { userId, date: day, totals: {} } });
   await prisma.exerciseBestFact.create({
-    data: { userId, exerciseId: randomUUID(), exerciseName: 'Goblet squat', date: day, bestReps: 12 },
+    data: {
+      userId,
+      exerciseId: randomUUID(),
+      exerciseName: 'Goblet squat',
+      date: day,
+      bestReps: 12,
+    },
   });
 }
 
