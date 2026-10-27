@@ -30,11 +30,11 @@ Both stages use the same chart and namespaces. Rows marked Stage 1 / Stage 2 dif
 
 | Item | Convention |
 |---|---|
-| Namespaces | `aura-edge` (api-gateway, web), `aura-services` (all NestJS services), `aura-system` (controllers). On the non-prod node each is prefixed with the environment: `dev-aura-edge`, `staging-aura-services`, … |
-| Chart | One generic chart `infra/helm/aura-service`, values per service from `infra/terraform/service/services/<name>.tfvars.json`; per-stage overrides only for replicas, autoscaling and service account annotations |
-| Deployments per service | `<name>-http` (Service + HPA + PDB) and, when the service has jobs or consumers, `<name>-worker`. Stage 1: HPA kept but capped at 3 replicas, PDB `minAvailable: 1`, workers at a fixed count (no KEDA). Stage 2: workers scale on queue depth / stream lag via KEDA |
+| Namespaces | `aura-edge` (api-gateway, web), `aura-services` (all NestJS services), `aura-data` (non-prod Postgres and Redis), `aura-system` (controllers). On the non-prod node the environment namespaces are prefixed: `dev-aura-edge`, `staging-aura-services`, …; `aura-system` is shared by the cluster and not prefixed |
+| Chart | One generic chart `infra/helm/aura-service`, values in `infra/helm/values` (shared `common.yaml`, one file per environment, one per deployable, `stage/eks.yaml` for Stage 2); Terraform passes only deploy inputs (image tag, registry, Cognito ids, data store CIDRs, origin header). See [deployment](../operations/deployment.md) |
+| Deployments per service | `<name>-http` (Service + HPA + PDB) and, when the service has jobs or consumers, `<name>-worker`. Stage 1: HPA in the chart but off (one node leaves little room; max 3 when turned on), fixed replica counts, PDB `minAvailable: 1` when there are two or more replicas, workers at a fixed count (no KEDA). Stage 2: workers scale on queue depth / stream lag via KEDA |
 | Migrations | Helm pre-upgrade hook Job running `prisma migrate deploy` for that service only |
-| Config and secrets | ConfigMap from tfvars; secrets via External Secrets Operator from AWS Secrets Manager. Stage 1: ESO uses the node instance role, limited to `auracoach/<env>/*`. Stage 2: IRSA role per service |
+| Config and secrets | ConfigMap rendered by the chart; secrets via External Secrets Operator from AWS Secrets Manager. Stage 1: each environment's SecretStore assumes a role (from the node instance role) that may read only `auracoach/<env>/*`, so dev and staging on the shared node cannot read each other's secrets. Stage 2: IRSA role per service |
 | AWS API access from pods | Stage 1: only pods that need AWS (External Secrets, workout-service for S3, notification-service for SES, profile-service for Cognito admin calls) may reach the instance metadata endpoint, by NetworkPolicy; IMDSv2 required, hop limit 2. Stage 2: IRSA |
 | Network | Default-deny NetworkPolicies (enforced by the k3s network policy controller in Stage 1, VPC CNI network policies in Stage 2); allow rules generated from the catalog's sync-dependency graph; internet egress only for pods that need it, on 443 (coach-service for the AI provider, nutrition-service for Open Food Facts, notification-service for Expo Push) |
 | Probes | `/health/live` and `/health/ready` (DB, Redis, and for consumers stream connectivity) from `service-kit` |
@@ -113,7 +113,7 @@ Egress keeps the DNS Firewall allow-list; AWS Network Firewall is added only if 
 
 ## 4. CI/CD (GitHub Actions)
 
-Mirrors the-aura-lab: a service is any `services/<name>/` folder with a `Dockerfile`, and each must have `infra/terraform/service/services/<name>.tfvars.json`.
+Mirrors the-aura-lab: a service is any `services/<name>/` folder with a `Dockerfile`, and each must have `infra/helm/values/<name>.yaml`.
 
 The pipeline is the same in both hosting stages. Only the deploy step's cluster connection differs: in Stage 1 the job assumes the environment's deploy role through GitHub OIDC, opens an SSM Session Manager port forward to the k3s API on 6443, and runs Terraform `helm_release` through it; in Stage 2 it reaches the private EKS endpoint with the same SSM port-forward pattern through a small bastion instance. Images live in ECR in both stages.
 
@@ -138,7 +138,7 @@ Change detection:
 |---|---|
 | `services/<name>/**` | `<name>` |
 | `packages/contracts/**`, `packages/service-kit/**`, `packages/domain/**` | every service that depends on it (Turborepo graph) |
-| `infra/terraform/service/services/<name>.tfvars.json` | `<name>` |
+| `infra/helm/values/<name>.yaml` | `<name>` |
 | `infra/helm/**`, `infra/terraform/service/*.tf`, `.github/workflows/**` | all |
 | `apps/web/**` | web |
 | `apps/mobile/**` | EAS build only |
@@ -158,7 +158,7 @@ Rules:
 | Stack | Stage 1 | Stage 2 |
 |---|---|---|
 | `platform` | VPC (public + isolated subnets, S3 gateway endpoint), k3s EC2 node (launch template with cloud-init installing a pinned k3s version, Elastic IP, instance role, auto-recovery and status-check alarms, Instance Scheduler tag in non-prod), RDS, ElastiCache (prod), S3, CloudFront + WAF, Route 53 + DNS Firewall, Cognito, ECR, observability, budgets | VPC across 3 AZs with NAT, EKS + Karpenter, RDS Multi-AZ, ElastiCache with replica, VPC interface endpoints; the rest unchanged |
-| `service` | One `helm_release` per service from its tfvars, database and DB user creation, Secrets Manager entries; Helm provider points at the k3s API through the SSM port forward | Same module; Helm provider points at EKS; adds the IRSA role per service |
+| `service` | One `helm_release` per service from its `infra/helm/values` files plus deploy inputs, database and DB user creation, Secrets Manager entries; Helm provider points at the k3s API through the SSM port forward | Same module; Helm provider points at EKS; adds the IRSA role per service |
 
 The stage is a variable of the `platform` stack (`hosting_stage = "k3s" | "eks"`), so both live in one codebase and the `service` stack does not change between them. Nothing is applied until the owner provides AWS accounts (TAC-44).
 

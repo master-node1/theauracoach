@@ -1,0 +1,11 @@
+# profile-service: users, consents, onboarding saga, privacy requests. Calls Cognito admin APIs with the node role (Stage 1).
+# Layered after values/common.yaml and values/env/<env>.yaml. Service catalog: docs/architecture/service-catalog.md
+kind: node-service
+image:
+  repository: auracoach/profile-service
+secrets:
+  keys: [DATABASE_URL, REDIS_URL]
+  sharedKeys: [INTERNAL_TOKEN_SECRET]
+networkPolicy:
+  internetEgress: true
+  awsMetadata: true

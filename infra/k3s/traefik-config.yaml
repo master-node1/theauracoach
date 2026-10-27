@@ -1,0 +1,42 @@
+# k3s bundled Traefik (Stage 1). CloudFront is the only client: it connects to 443 with the origin
+# certificate and adds the X-Origin-Verify header that each IngressRoute requires (ADR-007).
+# Applied by k3s from /var/lib/rancher/k3s/server/manifests; validated in CI, never applied from here.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    globalArguments:
+      - --global.checknewversion=false
+      - --global.sendanonymoususage=false
+    ports:
+      web:
+        # No plain HTTP origin: the node's security group admits 443 only.
+        expose:
+          default: false
+      websecure:
+        tls:
+          enabled: true
+    tlsOptions:
+      default:
+        minVersion: VersionTLS12
+        sniStrict: true
+    providers:
+      kubernetesCRD:
+        allowCrossNamespace: false
+      kubernetesIngress:
+        enabled: false
+    logs:
+      general:
+        format: json
+      access:
+        enabled: true
+        format: json
+        fields:
+          headers:
+            defaultMode: drop
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { memory: 192Mi }

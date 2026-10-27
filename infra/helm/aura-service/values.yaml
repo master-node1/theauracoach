@@ -1,0 +1,208 @@
+# Defaults for aura-service. A release is rendered from, in order:
+#   this file
+#   ../values/common.yaml          deployables, sync call graph, shared settings
+#   ../values/env/<env>.yaml       replicas, sizing and data stores for dev, staging or prod
+#   ../values/<deployable>.yaml    what is specific to one service, the gateway or web
+#   deploy inputs                  image tag, registry, Cognito ids, data store CIDRs (Terraform, TAC-36)
+# Nothing here or in ../values is a secret. Secrets come from AWS Secrets Manager via External Secrets.
+# How a deploy runs: docs/operations/deployment.md.
+
+# -- Resource name; defaults to the release name, which is the deployable name (profile-service, ...).
+nameOverride: ''
+
+# dev | staging | prod
+environment: dev
+# k3s (Stage 1) | eks (Stage 2), ADR-007.
+stage: k3s
+
+# node-service: NestJS service with http and worker deployments and a migration hook.
+# gateway: nginx api-gateway. web: Next.js app and BFF.
+kind: node-service
+
+global:
+  # Prefix for namespaces on the shared non-prod node ("dev-", "staging-"); empty in prod.
+  namespacePrefix: ''
+  # Namespaces without the prefix. aura-system holds cluster add-ons and is shared, so it is never prefixed.
+  namespaces:
+    edge: aura-edge
+    services: aura-services
+    data: aura-data
+    system: aura-system
+  # Deploy input: <account>.dkr.ecr.ap-south-1.amazonaws.com
+  imageRegistry: ''
+  # Every deployable, the namespace tier it runs in and its port. Set in values/common.yaml.
+  deployables: {}
+  # Synchronous calls allowed between deployables (service catalog §4). Set in values/common.yaml.
+  # Drives INTERNAL_SERVICE_URLS, gateway upstreams and the NetworkPolicy allow-lists.
+  callGraph: {}
+  auth:
+    # Deploy inputs from the Cognito user pool.
+    issuer: ''
+    jwksUrl: ''
+    # App client ids whose access tokens services accept (web BFF, mobile).
+    clientIds: []
+  otel:
+    # OTLP/HTTP endpoint of the in-cluster collector; empty turns telemetry off.
+    endpoint: ''
+    tracesSampleRatio: ''
+    # Collector pods in the system namespace, for NetworkPolicy egress.
+    port: 4318
+    podLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  secrets:
+    # AWS Secrets Manager prefix, e.g. auracoach/prod. Every secret this chart reads lives under it.
+    prefix: ''
+    # Name of the namespaced SecretStore created by the aura-namespaces chart.
+    storeName: aws-secrets-manager
+    refreshInterval: 1h
+  # Where Postgres and Redis are reachable, for NetworkPolicy egress.
+  # In prod they are RDS and ElastiCache (CIDRs of the isolated subnets, a deploy input);
+  # in dev and staging they are pods from the aura-datastores chart in <prefix>aura-data.
+  datastores:
+    postgres:
+      port: 5432
+      cidrs: []
+      podLabels: {}
+    redis:
+      port: 6379
+      cidrs: []
+      podLabels: {}
+  # Pods from the ingress controller that may reach edge deployables.
+  ingressController:
+    namespace: kube-system
+    podLabels:
+      app.kubernetes.io/name: traefik
+
+image:
+  # Repository without the registry, e.g. auracoach/profile-service. Defaults to auracoach/<name>.
+  repository: ''
+  # Deploy input: the git SHA CI built.
+  tag: ''
+  pullPolicy: IfNotPresent
+
+containerPort: 3000
+
+# Non-secret environment for every container of this release, on top of what the chart derives.
+env: {}
+
+# User the image runs as: node (1000) for NestJS and Next.js, nginx (101) for the gateway.
+podSecurity:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Extra writable paths on the read-only root filesystem (emptyDir each). /tmp is always mounted.
+writablePaths: []
+
+http:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 160Mi }
+    limits: { memory: 384Mi }
+  probes:
+    # Liveness never checks dependencies; readiness does (service-kit health controller).
+    livenessPath: /health/live
+    readinessPath: /health/ready
+    startup: { periodSeconds: 5, timeoutSeconds: 3, failureThreshold: 24 }
+    readiness: { periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3 }
+    liveness: { periodSeconds: 20, timeoutSeconds: 5, failureThreshold: 3 }
+  command: []
+
+worker:
+  # Relays, consumers and jobs (no HTTP server). Fixed count in Stage 1; KEDA scaling is a Stage 2 item.
+  enabled: true
+  replicas: 1
+  command: ['node', 'dist/main.worker.js']
+  resources:
+    requests: { cpu: 25m, memory: 128Mi }
+    limits: { memory: 320Mi }
+
+# Helm pre-install/pre-upgrade Job running the service's own migrations. Expand-only migrations
+# ship with the code; contract migrations one release later (deployment architecture §4).
+migration:
+  enabled: true
+  command: ['node_modules/.bin/prisma', 'migrate', 'deploy']
+  activeDeadlineSeconds: 600
+  backoffLimit: 1
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 384Mi }
+
+secrets:
+  # externalSecret: External Secrets Operator syncs from AWS Secrets Manager (deployed environments).
+  # existing: use Secrets created out of band (the k3d smoke test only).
+  source: externalSecret
+  # Keys read from <prefix>/<name>, injected as environment variables of the same name.
+  keys: []
+  # Keys read from <prefix>/shared.
+  sharedKeys: []
+  # Key holding the migration user's connection string (DDL rights), read from <prefix>/<name>
+  # and given to the migration Job only, as DATABASE_URL.
+  migrationKey: MIGRATION_DATABASE_URL
+  # With source=existing: Secret names to use.
+  existing:
+    app: ''
+    migration: ''
+
+service:
+  port: ''
+
+autoscaling:
+  # Off on the single k3s node (ADR-007): there is little room to scale into. On in Stage 2.
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  # Rendered only when more than one http replica can run.
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  # Accept traffic from the ingress controller (api-gateway and web only).
+  fromIngressController: false
+  # Egress to Postgres and Redis.
+  datastores: true
+  # Egress to the OpenTelemetry collector (when global.otel.endpoint is set).
+  telemetry: true
+  # Egress to public addresses on 443 (AI provider, Open Food Facts, Expo Push, Cognito, AWS APIs).
+  # Private ranges and the metadata endpoint are excluded. DNS Firewall narrows the domains.
+  internetEgress: false
+  # Egress to the instance metadata endpoint, for pods that call AWS with the node role (Stage 1 only).
+  awsMetadata: false
+
+# kind=web only. Deploy inputs: the public origin and the Cognito app client the BFF signs in with.
+web:
+  appUrl: ''
+  oidcDomainUrl: ''
+  oidcClientId: ''
+
+ingress:
+  enabled: false
+  # Deploy input: the origin host CloudFront forwards to, e.g. origin.auracoach.app.
+  host: ''
+  # Path prefixes routed to this deployable.
+  paths: ['/']
+  # Higher wins when two routes match (api-gateway /v1 over web /).
+  priority: 0
+  # Name of the TLS Secret issued by cert-manager in the ingress namespace (infra/k3s).
+  tlsSecretName: origin-tls
+  # Reject requests without CloudFront's secret X-Origin-Verify header. The value is a deploy input
+  # read from Secrets Manager by Terraform and passed with set_sensitive; it is never in a values file.
+  originVerify:
+    enabled: true
+    header: X-Origin-Verify
+    value: ''
+
+# Stage 2 spreads replicas over zones; on one k3s node only the soft anti-affinity applies.
+topologySpreadConstraints: []
+nodeSelector: {}
+tolerations: []
+
+# Stage 2: per-service IAM role (IRSA) annotation on the ServiceAccount.
+serviceAccount:
+  annotations: {}
+
+terminationGracePeriodSeconds: 30
+revisionHistoryLimit: 5

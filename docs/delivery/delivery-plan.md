@@ -61,9 +61,11 @@ flowchart LR
 |---|---|
 | Monorepo, `packages/contracts`, `packages/service-kit`, 7 service skeletons with their databases, nginx gateway, docker compose stack, first event (`UserRegistered` profile → notification), CI with change detection ([TAC-1](https://harisireddi7776.atlassian.net/browse/TAC-1)) | Done |
 | Web (Next.js) and mobile (Expo) shells, sign-in through the BFF and PKCE against dev-auth, `packages/ui-tokens` and `packages/api-client`, web Playwright smoke in CI ([TAC-2](https://harisireddi7776.atlassian.net/browse/TAC-2)) | Done |
-| Helm chart, Terraform `platform` and `service` stacks, image push and deploy (hosting revision to k3s on EC2 for beta: [TAC-4](https://harisireddi7776.atlassian.net/browse/TAC-4), on hold until closer to beta) | Not started |
+| Hosting revision: k3s on EC2 for beta, EKS for growth ([TAC-4](https://harisireddi7776.atlassian.net/browse/TAC-4), ADR-007) | Done |
+| Generic Helm chart `aura-service`, `aura-platform` and non-prod `aura-datastores` charts, values for all 9 deployables × dev/staging/prod, k3s add-on values, CI validation (kubeconform, kube-linter, NetworkPolicy vs catalog) and [deployment](../operations/deployment.md) doc; validated, never applied ([TAC-35](https://harisireddi7776.atlassian.net/browse/TAC-35)) | Done |
+| Terraform `platform` and `service` stacks ([TAC-36](https://harisireddi7776.atlassian.net/browse/TAC-36)), image push and CD disabled until AWS accounts exist ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37)) | Not started |
 | OpenTelemetry tracing, metrics and log correlation in every service, local Grafana stack, [monitoring](../operations/monitoring.md) doc ([TAC-5](https://harisireddi7776.atlassian.net/browse/TAC-5)) | Done |
-| EAS dev builds, remaining operations docs (deployment, troubleshooting) | Not started |
+| EAS dev builds, remaining operations docs (troubleshooting) | Not started |
 
 ## Phase 5 — MVP vertical slices (≈ 8–10 sprints)
 

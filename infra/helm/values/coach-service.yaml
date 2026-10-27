@@ -1,0 +1,11 @@
+# coach-service: AI coach, AI gateway, recommendations. Calls the AI provider over 443; its API key arrives with TAC-25.
+# Layered after values/common.yaml and values/env/<env>.yaml. Service catalog: docs/architecture/service-catalog.md
+kind: node-service
+image:
+  repository: auracoach/coach-service
+secrets:
+  keys: [DATABASE_URL, REDIS_URL]
+  sharedKeys: [INTERNAL_TOKEN_SECRET]
+networkPolicy:
+  internetEgress: true
+  awsMetadata: false

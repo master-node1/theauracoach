@@ -1,0 +1,11 @@
+# progress-service: measurements, check-ins, dashboard read models. Internal only.
+# Layered after values/common.yaml and values/env/<env>.yaml. Service catalog: docs/architecture/service-catalog.md
+kind: node-service
+image:
+  repository: auracoach/progress-service
+secrets:
+  keys: [DATABASE_URL, REDIS_URL]
+  sharedKeys: [INTERNAL_TOKEN_SECRET]
+networkPolicy:
+  internetEgress: false
+  awsMetadata: false

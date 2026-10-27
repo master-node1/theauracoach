@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aura.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "aura.componentSelectorLabels" (dict "ctx" . "component" "http") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ include "aura.servicePort" . }}
+      targetPort: http

@@ -1,0 +1,32 @@
+# web: Next.js user app, admin console and auth BFF (apps/web). Calls the gateway in-cluster and
+# Cognito's token endpoint over 443. The image and a dedicated health route arrive with TAC-37;
+# until then readiness uses the public sign-in page.
+kind: web
+image:
+  repository: auracoach/web
+containerPort: 3000
+# Next.js writes its fetch and image cache under .next/cache.
+writablePaths: [/app/.next/cache]
+http:
+  probes:
+    livenessPath: /auth/sign-in
+    readinessPath: /auth/sign-in
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 512Mi }
+worker:
+  enabled: false
+migration:
+  enabled: false
+secrets:
+  # Read from <prefix>/web.
+  keys: [SESSION_SECRET, OIDC_CLIENT_SECRET]
+networkPolicy:
+  fromIngressController: true
+  datastores: false
+  telemetry: false
+  internetEgress: true
+ingress:
+  enabled: true
+  paths: [/]
+  priority: 10

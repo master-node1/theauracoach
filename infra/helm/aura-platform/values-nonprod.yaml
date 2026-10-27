@@ -1,0 +1,14 @@
+# Non-prod k3s node: dev and staging as namespaces, Postgres and Redis in-cluster (ADR-007).
+# secretsRoleArn and originHost are deploy inputs (Terraform, TAC-36).
+cluster: nonprod
+environments:
+  dev:
+    namespacePrefix: dev-
+    inClusterData: true
+    secretsRoleArn: ''
+    originHost: ''
+  staging:
+    namespacePrefix: staging-
+    inClusterData: true
+    secretsRoleArn: ''
+    originHost: ''

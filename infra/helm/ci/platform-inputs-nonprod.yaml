@@ -1,0 +1,13 @@
+# Example deploy inputs for the aura-platform chart (non-prod cluster). CI only; none of these values is real.
+acme:
+  email: platform@example.test
+  hostedZoneId: Z0000000000EXAMPLE
+environments:
+  dev:
+    secretsRoleArn: arn:aws:iam::123456789012:role/auracoach-dev-secrets-reader
+    originHost: origin.dev.example.test
+  staging:
+    secretsRoleArn: arn:aws:iam::123456789012:role/auracoach-staging-secrets-reader
+    originHost: origin.staging.example.test
+system:
+  secretsRoleArn: arn:aws:iam::123456789012:role/auracoach-nonprod-platform-secrets-reader

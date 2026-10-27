@@ -1,0 +1,3 @@
+environment: staging
+namespacePrefix: staging-
+secretKey: auracoach/staging/datastores

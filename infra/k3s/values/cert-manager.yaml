@@ -1,0 +1,19 @@
+# cert-manager: issues the origin certificate (Let's Encrypt, Route 53 DNS-01) for Traefik.
+# Stage 1 uses the node instance role for Route 53; Stage 2 adds an IRSA annotation via Terraform.
+crds:
+  enabled: true
+  keep: true
+replicaCount: 1
+resources:
+  requests: { cpu: 10m, memory: 48Mi }
+  limits: { memory: 128Mi }
+webhook:
+  resources:
+    requests: { cpu: 10m, memory: 24Mi }
+    limits: { memory: 64Mi }
+cainjector:
+  resources:
+    requests: { cpu: 10m, memory: 48Mi }
+    limits: { memory: 128Mi }
+prometheus:
+  enabled: false
