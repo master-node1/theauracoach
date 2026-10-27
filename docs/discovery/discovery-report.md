@@ -77,7 +77,7 @@ Free during beta. Freemium later: free tier with limited daily AI coach messages
 | Deterministic engines; AI only explains and proposes via tools | [ADR-004](../architecture/ADR/ADR-004-deterministic-engines-ai-proposes.md) |
 | Provider-independent AI gateway, Claude as default provider | [ADR-005](../architecture/ADR/ADR-005-ai-provider-gateway.md) |
 | Managed identity provider (AWS Cognito); API validates its JWTs | [ADR-006](../architecture/ADR/ADR-006-authentication.md) |
-| AWS `ap-south-1`, EKS + one generic Helm chart, Terraform | [ADR-007](../architecture/ADR/ADR-007-hosting.md) |
+| AWS `ap-south-1`, k3s on EC2 for beta then EKS, one generic Helm chart, Terraform | [ADR-007](../architecture/ADR/ADR-007-hosting.md) |
 | Internal REST with service tokens; events over Redis Streams with a transactional outbox | [ADR-009](../architecture/ADR/ADR-009-service-communication.md) |
 | Curated nutrition dataset with provenance and confidence | [ADR-008](../architecture/ADR/ADR-008-nutrition-data.md) |
 

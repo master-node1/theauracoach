@@ -6,7 +6,7 @@ AuraCoach runs as **microservices in one repository**, following the same layout
 
 ```text
 services/
-  api-gateway/            nginx: TLS termination behind ALB, routing, request ids, rate limits
+  api-gateway/            nginx: behind the cluster ingress (Traefik on k3s, ALB on EKS), routing, request ids, rate limits
   profile-service/        users, profile, consents, screening, goals, assessment, onboarding saga, roles, privacy requests
   workout-service/        exercise library, templates, plans, sessions, sets, PRs, progression engine
   nutrition-service/      foods, recipes, targets, logs, meal plans, grocery lists, barcode lookup
@@ -24,7 +24,7 @@ packages/
   api-client/             generated typed client for web and mobile
   ui/  ui-tokens/         design system
 infra/
-  terraform/              network, EKS, RDS, Redis, S3, Cognito, per-service tfvars
+  terraform/              network, k3s node (Stage 1) or EKS (Stage 2), RDS, Redis, S3, Cognito, per-service tfvars
   helm/aura-service/      one generic chart used by every service
 docs/
 ```
