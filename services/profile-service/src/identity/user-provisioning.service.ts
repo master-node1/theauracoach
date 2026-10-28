@@ -1,5 +1,10 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ProblemException, writeOutbox, type AuthenticatedUser } from '@aura/service-kit';
+import {
+  ProblemException,
+  pendingDeletionProblem,
+  writeOutbox,
+  type AuthenticatedUser,
+} from '@aura/service-kit';
 import { Prisma, type Profile, type User, type UserPreference } from '../generated/prisma';
 import { PrismaService } from '../prisma.service';
 
@@ -25,8 +30,14 @@ const include = {
 export class UserProvisioningService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** The caller's account, created on first use. Deleted accounts get 403 on every route. */
-  async activeUser(identity: AuthenticatedUser): Promise<UserWithAccess> {
+  /**
+   * The caller's account, created on first use. Deleted accounts get 403 on every route; accounts
+   * pending deletion get 423 except on the routes that pass `allowPending` (status, restore, export).
+   */
+  async activeUser(
+    identity: AuthenticatedUser,
+    options: { allowPending?: boolean } = {},
+  ): Promise<UserWithAccess> {
     const user = await this.ensureUser(identity);
     if (user.status === 'DELETED') {
       throw new ProblemException(
@@ -35,6 +46,7 @@ export class UserProvisioningService {
         'This account has been deleted',
       );
     }
+    if (user.status === 'PENDING_DELETION' && !options.allowPending) throw pendingDeletionProblem();
     return user;
   }
 

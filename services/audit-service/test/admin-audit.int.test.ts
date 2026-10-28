@@ -15,6 +15,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module';
 import { loadServiceConfig } from '../src/config';
+import { Prisma } from '../src/generated/prisma';
 import { PrismaService } from '../src/prisma.service';
 
 let db: TestDatabase;
@@ -176,6 +177,36 @@ describe('append-only', () => {
     ).rejects.toThrow(/append-only/);
     await expect(prisma.$executeRawUnsafe(`DELETE FROM "AuditLog"`)).rejects.toThrow(/append-only/);
     await expect(prisma.$executeRawUnsafe(`TRUNCATE "AuditLog"`)).rejects.toThrow(/append-only/);
+  });
+
+  it('lets account deletion clear snapshots, and nothing else', async () => {
+    const row = await prisma.auditLog.create({
+      data: {
+        action: 'profile.update',
+        entityType: 'user',
+        entityId: OWNER,
+        before: { units: 'metric' },
+        after: { units: 'imperial' },
+        ipHash: 'a'.repeat(64),
+      },
+    });
+    await expect(
+      prisma.auditLog.update({
+        where: { id: row.id },
+        data: { before: Prisma.DbNull, after: { units: 'x' }, ipHash: null },
+      }),
+    ).rejects.toThrow(/append-only/);
+    await prisma.auditLog.update({
+      where: { id: row.id },
+      data: { before: Prisma.DbNull, after: Prisma.DbNull, ipHash: null },
+    });
+    expect(await prisma.auditLog.findUnique({ where: { id: row.id } })).toMatchObject({
+      action: 'profile.update',
+      entityId: OWNER,
+      before: null,
+      after: null,
+      ipHash: null,
+    });
   });
 });
 

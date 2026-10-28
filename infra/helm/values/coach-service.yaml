@@ -8,4 +8,4 @@ secrets:
   sharedKeys: [INTERNAL_TOKEN_SECRET]
 networkPolicy:
   internetEgress: true
-  awsMetadata: false
+  awsMetadata: true

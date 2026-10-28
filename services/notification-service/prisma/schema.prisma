@@ -92,6 +92,15 @@ model SuppressionFact {
   @@id([userId, key])
 }
 
+/// Replica of the account's deletion state (AccountDeletionRequested / AccountRestored), so this
+/// service can refuse a pending-deletion user's requests with 423 without asking profile-service.
+model AccountState {
+  userId          String    @id @db.Uuid
+  pendingDeletion Boolean
+  deletionDueAt   DateTime?
+  eventAt         DateTime
+}
+
 model OutboxEvent {
   id          String    @id @default(uuid()) @db.Uuid
   type        String    @db.VarChar(60)

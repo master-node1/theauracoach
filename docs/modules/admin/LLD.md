@@ -43,7 +43,7 @@ Every admin mutation writes an `AuditEvent` to the owning service's outbox in th
 Built in TAC-32:
 
 - Sensitive actions (role grant and revoke, dead-letter replay) carry a `reason` the console always asks for; it is stored in `AuditLog.reason`.
-- Append-only is enforced in the database: a trigger refuses UPDATE, DELETE and TRUNCATE on `AuditLog`, and the API has no route that changes an entry.
+- Append-only is enforced in the database: a trigger refuses UPDATE, DELETE and TRUNCATE on `AuditLog`, and the API has no route that changes an entry. The one exception is account deletion (TAC-7), which may only clear `before`, `after` and `ipHash` and must leave every other column as it was.
 - `GET /v1/admin/audit` filters by item type and id, actor, action (whole or prefix such as `role`) and time, newest or oldest first, with id-based cursor pages. `GET /v1/admin/audit/{id}` feeds the before/after diff. `GET /v1/admin/audit/export.csv` returns up to 10,000 rows, neutralises spreadsheet formulas and records an `audit.export` entry. Keys such as `email`, `notes` and `token` show as `[removed]` everywhere (`redactAuditValue` in contracts).
 - Viewing a user's support view writes `user.support_view`.
 

@@ -1,0 +1,108 @@
+# Connects a CD job to one environment's cluster (TAC-37, ADR-010). Expects AWS credentials for the
+# environment's deploy role to be configured already. Reads deploy inputs from the account's Terraform
+# outputs (never tfvars), the kubeconfig the node publishes to SSM, and the origin header secret, then
+# opens an SSM port forward to the k3s API on 127.0.0.1:6443. Nothing here creates AWS resources.
+name: Cluster access
+description: Deploy inputs, kubeconfig and an SSM port forward to the k3s API of one environment
+inputs:
+  environment:
+    description: dev, staging or prod
+    required: true
+  backend-hcl:
+    description: Contents of the account's backend.hcl (repository variable TF_BACKEND_HCL_<ACCOUNT>)
+    required: true
+  acme-email:
+    description: Let's Encrypt account e-mail for the platform inputs
+    required: false
+    default: ''
+outputs:
+  account:
+    description: nonprod or prod
+    value: ${{ steps.inputs.outputs.account }}
+  inputs-dir:
+    description: Directory with service-inputs.json and platform-inputs.json
+    value: ${{ steps.inputs.outputs.dir }}
+  image-registry:
+    description: ECR registry of the account
+    value: ${{ steps.inputs.outputs.registry }}
+runs:
+  using: composite
+  steps:
+    - name: Install pinned tools (helm, Session Manager plugin)
+      shell: bash
+      env:
+        HELM_VERSION: v3.22.1
+      run: |
+        mkdir -p "$HOME/bin" && echo "$HOME/bin" >> "$GITHUB_PATH"
+        arch=amd64; [[ "$(uname -m)" == aarch64 ]] && arch=arm64
+        curl -sSfL "https://get.helm.sh/helm-$HELM_VERSION-linux-$arch.tar.gz" | tar xz -C /tmp
+        mv "/tmp/linux-$arch/helm" "$HOME/bin/"
+        deb=ubuntu_64bit; [[ "$arch" == arm64 ]] && deb=ubuntu_arm64
+        curl -sSfL -o /tmp/ssm.deb "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/$deb/session-manager-plugin.deb"
+        sudo dpkg -i /tmp/ssm.deb >/dev/null
+    - uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.9.8
+        terraform_wrapper: false
+    - name: Deploy inputs from Terraform outputs
+      id: inputs
+      shell: bash
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+        BACKEND_HCL: ${{ inputs.backend-hcl }}
+        ACME_EMAIL: ${{ inputs.acme-email }}
+      run: |
+        case "$ENVIRONMENT" in dev | staging) account=nonprod ;; prod) account=prod ;; *) echo "::error::unknown environment $ENVIRONMENT"; exit 1 ;; esac
+        [[ -n "$BACKEND_HCL" ]] || { echo "::error::TF_BACKEND_HCL_${account^^} is not set (docs/operations/deployment.md, enabling CD)"; exit 1; }
+        root="infra/terraform/envs/$account"
+        printf '%s\n' "$BACKEND_HCL" > "$root/backend.hcl"
+        terraform -chdir="$root" init -input=false -backend-config=backend.hcl >/dev/null
+        dir="$RUNNER_TEMP/deploy-inputs"
+        mkdir -p "$dir"
+        terraform -chdir="$root" output -json > "$dir/terraform-output.json"
+        node tools/deploy/deploy-inputs.mjs "$ENVIRONMENT" "$dir/terraform-output.json" "$dir"
+        {
+          echo "account=$account"
+          echo "dir=$dir"
+          echo "registry=$(jq -r .global.imageRegistry "$dir/service-inputs.json")"
+          echo "instance=$(jq -r .k3s_instance_id.value "$dir/terraform-output.json")"
+        } >> "$GITHUB_OUTPUT"
+    - name: Origin header value
+      shell: bash
+      env:
+        ACCOUNT: ${{ steps.inputs.outputs.account }}
+      run: |
+        value="$(aws secretsmanager get-secret-value --secret-id "auracoach/$ACCOUNT/edge/origin-verify" \
+          --query SecretString --output text | jq -r .ORIGIN_VERIFY)"
+        echo "::add-mask::$value"
+        echo "ORIGIN_VERIFY=$value" >> "$GITHUB_ENV"
+    - name: Kubeconfig and SSM port forward to the k3s API
+      shell: bash
+      env:
+        ACCOUNT: ${{ steps.inputs.outputs.account }}
+        INSTANCE: ${{ steps.inputs.outputs.instance }}
+      run: |
+        state="$(aws ec2 describe-instances --instance-ids "$INSTANCE" --query 'Reservations[0].Instances[0].State.Name' --output text)"
+        if [[ "$state" != running ]]; then
+          # The non-prod node is stopped out of hours (weekdays 08:00-20:00 IST). Starting it costs money,
+          # so the pipeline never does; start it from the console or wait for the schedule.
+          echo "::error::k3s node $INSTANCE is $state; deploy again while it is running"
+          exit 1
+        fi
+        kubeconfig="$RUNNER_TEMP/kubeconfig"
+        (umask 077 && aws ssm get-parameter --with-decryption --name "/auracoach-$ACCOUNT/k3s/kubeconfig" \
+          --query Parameter.Value --output text > "$kubeconfig")
+        echo "KUBECONFIG=$kubeconfig" >> "$GITHUB_ENV"
+        nohup aws ssm start-session --target "$INSTANCE" --document-name AWS-StartPortForwardingSession \
+          --parameters portNumber=6443,localPortNumber=6443 > "$RUNNER_TEMP/port-forward.log" 2>&1 &
+        echo "PORT_FORWARD_PID=$!" >> "$GITHUB_ENV"
+        for _ in $(seq 1 30); do
+          if KUBECONFIG="$kubeconfig" kubectl version --request-timeout=5s >/dev/null 2>&1; then
+            echo "k3s API reachable through the port forward"
+            exit 0
+          fi
+          sleep 2
+        done
+        cat "$RUNNER_TEMP/port-forward.log"
+        echo "::error::k3s API did not answer through the SSM port forward"
+        exit 1

@@ -96,11 +96,13 @@ describe('AuthGuard', () => {
       email: 'a@example.com',
       groups: ['content_editor'],
       amr: ['pwd'],
+      authTime: 1_793_000_000,
     });
     const res = await request(app.getHttpServer())
       .get('/v1/me')
       .set('authorization', `Bearer ${token}`)
       .expect(200);
+    // authTime (the token's auth_time) lets account deletion insist on a recent sign-in.
     expect(res.body).toEqual({
       userId: sub,
       email: 'a@example.com',
@@ -108,6 +110,7 @@ describe('AuthGuard', () => {
       amr: ['pwd'],
       clientId: DEV_CLIENT_ID,
       issuedAt: expect.any(Number),
+      authTime: 1_793_000_000,
     });
   });
 

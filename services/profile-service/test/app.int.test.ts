@@ -49,9 +49,13 @@ afterAll(async () => {
 
 describe('profile-service', () => {
   it('guards every route: public only if reviewed, internal under /internal/v1, admin with permissions', () => {
-    expect(
-      guardMatrixViolations(describeRoutes(app), { publicRoutes: SERVICE_KIT_PUBLIC_ROUTES }),
-    ).toEqual([]);
+    const publicRoutes = [
+      ...SERVICE_KIT_PUBLIC_ROUTES,
+      // Reviewed (TAC-7): an HMAC-signed, expiring link stands in for an S3 pre-signed URL; it
+      // answers 404 unless storage is local, and local storage is refused in production.
+      'GET /v1/me/export-files',
+    ];
+    expect(guardMatrixViolations(describeRoutes(app), { publicRoutes })).toEqual([]);
   });
 
   it('is ready once its database and Redis answer', async () => {

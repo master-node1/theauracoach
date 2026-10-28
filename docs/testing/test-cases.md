@@ -11,9 +11,9 @@ ID format `TC-<area>-<n>`. Level: U unit, I integration, E E2E, B BDD, S securit
 | TC-SEC-3 | Admin route without MFA → 403 MFA_REQUIRED | I |
 | TC-SEC-4 | Expired / wrong-audience / id-token → 401 | I |
 | TC-SEC-5 | Logs for health endpoints contain no request body fields (log capture assertion) | I |
-| TC-PRV-1 | Export includes every owned table (model enumeration test) | I |
-| TC-PRV-2 | Deletion after 30 days removes all user rows, S3 prefix, Cognito user; UsageRecord userId null | I |
-| TC-PRV-3 | Restore within grace re-enables login and data | I |
+| TC-PRV-1 | Export includes every owned table (model enumeration test) | I — built (TAC-7): participant contract suite in each service, profile `privacy.int.test.ts`, `tests/e2e/data-rights`, web `privacy.spec.ts` |
+| TC-PRV-2 | Deletion after 30 days removes all user rows, S3 prefix, Cognito user; UsageRecord userId null | I — built (TAC-7): same suites; Cognito/S3 through their ports (real AWS with TAC-4) |
+| TC-PRV-3 | Restore within grace re-enables login and data | I — built (TAC-7): profile `privacy.int.test.ts`, web `privacy.spec.ts` |
 | TC-PRV-4 | Withdrawing AI_COACH consent → coach endpoints 403 CONSENT_REQUIRED, no summary jobs | I |
 
 ## Onboarding and safety

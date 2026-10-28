@@ -104,6 +104,14 @@ describe('web BFF', () => {
     return jar.take(await callback(new Request(back, { headers: { cookie: jar.header() } }), deps));
   }
 
+  it('asks for credentials again on reauth=1 only', async () => {
+    expect((await startLogin()).searchParams.get('prompt')).toBeNull();
+    const res = await login(new Request(`${APP}/api/auth/login?reauth=1&returnTo=/settings`), deps);
+    const url = new URL(res.headers.get('location') as string);
+    expect(url.searchParams.get('prompt')).toBe('login');
+    expect(url.searchParams.get('max_age')).toBe('0');
+  });
+
   it('starts Authorization Code + PKCE with state and nonce', async () => {
     const url = await startLogin();
     expect(url.origin + url.pathname).toBe('http://localhost:4100/oauth2/authorize');

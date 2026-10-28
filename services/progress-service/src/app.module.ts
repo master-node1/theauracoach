@@ -1,5 +1,8 @@
 import { DynamicModule, Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import {
+  ACCOUNT_STATE_DB,
+  AccountStateInterceptor,
   ADMIN_REPORTS,
   AdminOps,
   AdminOpsController,
@@ -24,6 +27,9 @@ export class AppModule {
         AdminOps,
         { provide: EVENT_DATABASE, useExisting: PrismaService },
         { provide: ADMIN_REPORTS, useClass: ProgressReports },
+        // Pending-deletion users get 423 on user routes (replica kept by the worker).
+        { provide: ACCOUNT_STATE_DB, useExisting: PrismaService },
+        { provide: APP_INTERCEPTOR, useClass: AccountStateInterceptor },
       ],
     };
   }

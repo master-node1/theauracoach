@@ -52,6 +52,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Everything except sign-in, the auth routes, Next internals and static files.
-  matcher: ['/((?!auth/|api/auth/|forbidden|_next/|favicon\\.ico|.*\\.(?:png|svg|ico|txt)$).*)'],
+  // Everything except sign-in, the auth routes, the health probe, Next internals and static files.
+  matcher: [
+    '/((?!auth/|api/auth/|api/health$|forbidden|_next/|favicon\\.ico|.*\\.(?:png|svg|ico|txt)$).*)',
+  ],
 };

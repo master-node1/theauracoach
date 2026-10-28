@@ -1,0 +1,171 @@
+# Release from a tag v* (TAC-37, deployment-architecture §4): make sure every image of the release
+# exists and is signed, deploy to staging, run the release gates there (k6 load, OWASP ZAP baseline,
+# live AI eval), then deploy the same images to prod after the prod environment's required reviewers
+# approve, and publish release notes. Off until CD_ENABLED=true; while off it only writes a summary.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: What to release
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.plan.outputs.enabled }}
+      deployables: ${{ steps.plan.outputs.deployables }}
+      previous: ${{ steps.plan.outputs.previous }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: plan
+        env:
+          CD_ENABLED: ${{ vars.CD_ENABLED }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          previous="$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)"
+          # Changed deployables since the previous release (ADR-007); the first release ships everything.
+          if [[ -n "$previous" ]]; then
+            deployables="$(node tools/ci/affected-services.mjs "$previous" "$TAG")"
+          else
+            deployables="$(node tools/ci/affected-services.mjs --all)"
+          fi
+          enabled=false
+          [[ "$CD_ENABLED" == true ]] && enabled=true
+          {
+            echo "deployables=$deployables"
+            echo "previous=$previous"
+            echo "enabled=$enabled"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Release $TAG (\`${GITHUB_SHA:0:12}\`)"
+            echo
+            echo "Previous release: ${previous:-none}. Deployables: \`$deployables\`"
+            echo
+            if [[ "$enabled" != true ]]; then
+              echo "**CD is disabled** (repository variable \`CD_ENABLED\` is not \`true\`). Nothing was built, pushed or deployed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  images:
+    needs: plan
+    if: needs.plan.outputs.enabled == 'true' && needs.plan.outputs.deployables != '[]'
+    uses: ./.github/workflows/build-images.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      deployables: ${{ needs.plan.outputs.deployables }}
+      sha: ${{ github.sha }}
+      push: true
+      environment: staging
+
+  staging:
+    needs: [plan, images]
+    if: needs.plan.outputs.enabled == 'true' && needs.plan.outputs.deployables != '[]'
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: staging
+      sha: ${{ github.sha }}
+      deployables: ${{ needs.plan.outputs.deployables }}
+
+  gates:
+    name: Release gate ${{ matrix.gate }} (staging)
+    needs: [plan, staging]
+    if: needs.plan.outputs.enabled == 'true' && needs.plan.outputs.deployables != '[]'
+    runs-on: ubuntu-latest
+    # Read-only use of the staging environment's variables (public URLs); no AWS role is assumed.
+    environment: staging
+    strategy:
+      fail-fast: false
+      matrix:
+        gate: [load, zap, ai-eval]
+    env:
+      GATE: ${{ matrix.gate }}
+      SMOKE_APP_URL: ${{ vars.SMOKE_APP_URL }}
+      SMOKE_API_URL: ${{ vars.SMOKE_API_URL }}
+      ALLOW_MISSING: ${{ vars.RELEASE_ALLOW_MISSING_GATES }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Is this gate implemented yet?
+        id: suite
+        run: |
+          case "$GATE" in
+            load) present=$([[ -f tests/load/release.js ]] && echo true || echo false); owner=TAC-40 ;;
+            zap) present=$([[ -n "$SMOKE_APP_URL" ]] && echo true || echo false); owner="SMOKE_APP_URL in environment staging" ;;
+            ai-eval) present=$(jq -e '.scripts["eval:live"]' package.json >/dev/null && echo true || echo false); owner=TAC-28 ;;
+          esac
+          echo "present=$present" >> "$GITHUB_OUTPUT"
+          if [[ "$present" != true ]]; then
+            if [[ "$ALLOW_MISSING" == true ]]; then
+              echo "::warning::Release gate $GATE is not available yet ($owner); allowed by RELEASE_ALLOW_MISSING_GATES"
+              echo "Gate **$GATE** skipped: not available yet ($owner), allowed by \`RELEASE_ALLOW_MISSING_GATES\`." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::Release gate $GATE is not available yet ($owner). Set RELEASE_ALLOW_MISSING_GATES=true to release without it."
+              exit 1
+            fi
+          fi
+      - name: k6 load test against staging
+        if: matrix.gate == 'load' && steps.suite.outputs.present == 'true'
+        run: >-
+          docker run --rm -e SMOKE_API_URL -e SMOKE_APP_URL -v "$PWD/tests/load:/load:ro"
+          grafana/k6:0.57.0 run /load/release.js
+      - name: OWASP ZAP baseline against staging
+        if: matrix.gate == 'zap' && steps.suite.outputs.present == 'true'
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ vars.SMOKE_APP_URL }}
+          allow_issue_writing: false
+          fail_action: true
+      - uses: pnpm/action-setup@v4
+        if: matrix.gate == 'ai-eval' && steps.suite.outputs.present == 'true'
+      - uses: actions/setup-node@v4
+        if: matrix.gate == 'ai-eval' && steps.suite.outputs.present == 'true'
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - name: Live AI eval (uses the AI provider, so it costs money per run)
+        if: matrix.gate == 'ai-eval' && steps.suite.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile && pnpm run eval:live
+
+  prod:
+    needs: [plan, gates]
+    if: needs.plan.outputs.enabled == 'true' && needs.plan.outputs.deployables != '[]'
+    # Waits for the prod environment's required reviewers (manual approval), then promotes by digest.
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: prod
+      sha: ${{ github.sha }}
+      deployables: ${{ needs.plan.outputs.deployables }}
+
+  notes:
+    name: Release notes
+    needs: [plan, prod]
+    if: needs.plan.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PREVIOUS: ${{ needs.plan.outputs.previous }}
+        run: |
+          node tools/release/release-notes.mjs "$PREVIOUS" "$TAG" > "$RUNNER_TEMP/notes.md"
+          prerelease=(); [[ "$TAG" == *-* ]] && prerelease=(--prerelease)
+          gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag "${prerelease[@]}"

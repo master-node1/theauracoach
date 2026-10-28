@@ -94,8 +94,8 @@ Compatibility: adding optional fields is a minor change within a version; anythi
 | coach | coach.weekly-summary | Sunday 08:30 local | (userId, week) | template summary without AI |
 | coach | ai.usage-rollup | every 5 min | window key | — |
 | notification | notifications.plan / send / receipts | nightly / delayed / 15 min | dedupeKey | status FAILED |
-| profile | privacy.export-collect | on parts ready | requestId | DataRequest failed + support alert |
-| profile | privacy.purge | daily 03:00 UTC | status guard | alert (compliance) |
+| profile | privacy export zip | on the last ExportPartReady | requestId (row lock) | event retried; export failed after 60 min |
+| profile | privacy.jobs (due deletions, finish deletions, ack alerts, export expiry) | every 15 min (`PRIVACY_JOB_INTERVAL_SECONDS`) | status guards + row locks | `aura.privacy.purge_ack_missing` alert (compliance) |
 | audit | audit.retention | monthly | partition | alert |
 
 Per-user fan-out jobs use `jobId = queue:userId:period` to dedupe across worker replicas.

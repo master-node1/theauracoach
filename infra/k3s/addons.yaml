@@ -1,6 +1,7 @@
 # Cluster add-ons for a Stage 1 k3s node, as Helm releases (ADR-007: no raw manifests for workloads).
-# Terraform (TAC-36) turns each entry into a helm_release, in this order, before aura-platform and the
-# services. Versions are pinned; bump them in a ticket, non-prod first.
+# tools/deploy/install-platform.sh (the Cluster platform workflow, TAC-37, ADR-010) installs them in
+# this order before aura-platform; entries with afterPlatform: true wait until aura-platform exists
+# because they read a Secret it syncs. Versions are pinned; bump them in a ticket, non-prod first.
 k3s:
   # Pinned k3s version for the node's cloud-init. CI validates manifests against this minor version.
   version: v1.36.5+k3s1
@@ -27,6 +28,8 @@ releases:
     chart: opentelemetry-collector
     version: 0.177.0
     values: values/otel-collector.yaml
+    # Reads the otel-grafana-cloud Secret that aura-platform's ExternalSecret creates.
+    afterPlatform: true
   # In-repo charts, installed after the add-ons above:
   #   infra/helm/aura-platform    once per cluster (values-nonprod.yaml or values-prod.yaml)
   #   infra/helm/aura-datastores  per non-prod environment (values-dev.yaml, values-staging.yaml)

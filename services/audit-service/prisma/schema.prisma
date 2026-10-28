@@ -28,12 +28,22 @@ model AuditLog {
   requestId  String?  @db.Uuid
   ipHash     String?  @db.VarChar(64)
   createdAt  DateTime @default(now())
-  // append-only: a trigger refuses UPDATE, DELETE and TRUNCATE (migration SQL)
+  // append-only: a trigger refuses UPDATE, DELETE and TRUNCATE, except account deletion
+  // clearing before/after/ipHash (migration SQL)
 
   @@index([entityType, entityId, createdAt])
   @@index([actorId, createdAt])
   @@index([action, createdAt])
   @@index([createdAt])
+}
+
+/// Replica of the account's deletion state (AccountDeletionRequested / AccountRestored), so this
+/// service can refuse a pending-deletion user's requests with 423 without asking profile-service.
+model AccountState {
+  userId          String    @id @db.Uuid
+  pendingDeletion Boolean
+  deletionDueAt   DateTime?
+  eventAt         DateTime
 }
 
 model OutboxEvent {

@@ -73,6 +73,8 @@ Our own screens call Cognito's public user API (`cognito-idp` JSON protocol, app
 
 `POST /v1/me/sessions/revoke` (profile-service) writes a per-user cut-off `auth:revoked-before:<sub>` (epoch seconds, 24 h TTL) to the shared Redis and then calls Cognito `GlobalSignOut` with the caller's token. The `AuthGuard` in every service rejects access tokens whose `iat` is at or before the cut-off, so tokens on other devices get 401 before they expire, and their refresh tokens no longer work. A cut-off rather than a deny-list of `jti`/`origin_jti`: the API never sees the token ids of the user's other devices, and one key per user covers them all. The guard fails closed when Redis is unreachable (readiness already reports Redis down). If `GlobalSignOut` fails the route answers `503 IDENTITY_UNAVAILABLE` (the cut-off stays) and the apps ask the user to retry. Web: Settings → "Sign out of all devices" (`POST /api/auth/logout-everywhere`); mobile: the same row in Settings.
 
+Fresh sign-in for sensitive actions: account deletion needs a sign-in from the last 5 minutes, judged by the access token's `auth_time` claim (`AuthenticatedUser.authTime`). Otherwise the API answers `403 REAUTH_REQUIRED` and the client starts a new authorization with `prompt=login&max_age=0` (web: `/api/auth/login?reauth=1&returnTo=…`; mobile: a second auth request), then retries. Deleting an account also deletes the Cognito user (`AdminDeleteUser`) once every service has purged its data.
+
 ## 3. User identity across services
 
 The AuraCoach user id **is** the Cognito `sub` (a UUID). profile-service creates `User` with `id = sub` on the first call, and every other service keys its rows by the token's `sub` directly, so no service needs a lookup call to find "who is this". `User.cognitoSub` is stored separately so a future identity-provider migration can remap logins without changing ids. Access tokens must carry `email`, added by a Cognito pre-token-generation trigger (V2); without it profile-service refuses to create the account (`403 EMAIL_CLAIM_MISSING`). The verifier rejects tokens whose `sub` is not a UUID.
@@ -124,7 +126,7 @@ Every service's `app.int.test.ts` reads all routes from Nest metadata (`describe
 
 ## 5. Errors
 
-`401 UNAUTHENTICATED` (missing/invalid/expired token), `403 FORBIDDEN`, `403 MFA_REQUIRED`, `403 CONSENT_REQUIRED` (with a `purpose` member, e.g. `AI_COACH`), `404 USER_NOT_FOUND` / `ROLE_GRANT_NOT_FOUND`, `409 LAST_OWNER`, `423 ACCOUNT_PENDING_DELETION`, `503 IDENTITY_UNAVAILABLE`.
+`401 UNAUTHENTICATED` (missing/invalid/expired token), `403 FORBIDDEN`, `403 MFA_REQUIRED`, `403 CONSENT_REQUIRED` (with a `purpose` member, e.g. `AI_COACH`), `403 REAUTH_REQUIRED`, `404 USER_NOT_FOUND` / `ROLE_GRANT_NOT_FOUND`, `409 LAST_OWNER`, `423 ACCOUNT_PENDING_DELETION` (from every service while the account waits out its deletion grace period), `503 IDENTITY_UNAVAILABLE`.
 
 ## 6. Tests
 

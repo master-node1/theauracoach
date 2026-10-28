@@ -19,3 +19,6 @@ apple_key_id      = ""
 state_bucket      = "auracoach-nonprod-tfstate-222222222222"
 lock_table        = "auracoach-nonprod-tflock"
 state_kms_key_arn = "arn:aws:kms:ap-south-1:222222222222:key/00000000-0000-0000-0000-000000000000"
+
+# Release promotion (TAC-37): the prod account allowed to pull images from this registry.
+prod_account_id = "111111111111"

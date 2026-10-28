@@ -115,7 +115,7 @@ Egress keeps the DNS Firewall allow-list; AWS Network Firewall is added only if 
 
 Mirrors the-aura-lab: a service is any `services/<name>/` folder with a `Dockerfile`, and each must have `infra/helm/values/<name>.yaml`.
 
-The pipeline is the same in both hosting stages. Only the deploy step's cluster connection differs: in Stage 1 the job assumes the environment's deploy role through GitHub OIDC, opens an SSM Session Manager port forward to the k3s API on 6443, and runs Terraform `helm_release` through it; in Stage 2 it reaches the private EKS endpoint with the same SSM port-forward pattern through a small bastion instance. Images live in ECR in both stages.
+The pipeline is the same in both hosting stages. Only the deploy step's cluster connection differs: in Stage 1 the job assumes the environment's deploy role through GitHub OIDC, opens an SSM Session Manager port forward to the k3s API on 6443, and runs `helm upgrade --install --atomic` through it ([ADR-010](ADR/ADR-010-cd-helm-cli.md); deploy inputs from the account's Terraform outputs); in Stage 2 it reaches the private EKS endpoint with the same SSM port-forward pattern through a small bastion instance. Images live in ECR in both stages.
 
 ```mermaid
 flowchart LR
@@ -125,8 +125,8 @@ flowchart LR
   ct --> sec[CodeQL · Semgrep · gitleaks · pnpm audit · Trivy]
   sec --> plan[Terraform plan per service]
   main[merge to main] --> bp[build + push ECR per changed service, cosign sign]
-  bp --> dd[deploy dev: helm_release per service]
-  dd --> e2e[E2E Playwright web + Maestro mobile on dev]
+  bp --> dd[deploy dev: helm upgrade per changed service]
+  dd --> e2e[smoke on dev; E2E Playwright web + Maestro mobile from TAC-40]
   tag[release tag] --> st[deploy staging] --> ld[k6 load + ZAP + AI eval gate]
   ld --> appr{manual approval}
   appr --> pd[deploy prod: progressive rollout per service]
@@ -139,8 +139,8 @@ Change detection:
 | `services/<name>/**` | `<name>` |
 | `packages/contracts/**`, `packages/service-kit/**`, `packages/domain/**` | every service that depends on it (Turborepo graph) |
 | `infra/helm/values/<name>.yaml` | `<name>` |
-| `infra/helm/**`, `infra/terraform/service/*.tf`, `.github/workflows/**` | all |
-| `apps/web/**` | web |
+| `infra/**`, `.github/workflows/**`, `docker-compose.yml` | all |
+| `apps/web/**` and the workspace packages it imports | web |
 | `apps/mobile/**` | EAS build only |
 | `docs/**` | none (docs lint only) |
 
@@ -158,7 +158,7 @@ Rules:
 | Stack | Stage 1 | Stage 2 |
 |---|---|---|
 | `platform` | VPC (public + isolated subnets, S3 gateway endpoint), k3s EC2 node (launch template with cloud-init installing a pinned k3s version, Elastic IP, instance role, auto-recovery and status-check alarms, Instance Scheduler tag in non-prod), RDS, ElastiCache (prod), S3, CloudFront + WAF, Route 53 + DNS Firewall, Cognito, ECR, observability, budgets | VPC across 3 AZs with NAT, EKS + Karpenter, RDS Multi-AZ, ElastiCache with replica, VPC interface endpoints; the rest unchanged |
-| `service` | One `helm_release` per service from its `infra/helm/values` files plus deploy inputs, database and DB user creation, Secrets Manager entries; Helm provider points at the k3s API through the SSM port forward | Same module; Helm provider points at EKS; adds the IRSA role per service |
+| `service` | Replaced by the CD workflows ([ADR-010](ADR/ADR-010-cd-helm-cli.md)): `helm upgrade` per deployable from its `infra/helm/values` files plus deploy inputs read from the `platform` stack's outputs, through the SSM port forward. Databases, DB users and Secrets Manager entries come from the `platform` stack and `scripts/bootstrap-secrets.sh` | Same workflows; the job reaches EKS instead; the IRSA role per service moves into the `platform` stack |
 
 The Stage 1 `platform` stack is written ([TAC-36](https://harisireddi7776.atlassian.net/browse/TAC-36)): `infra/terraform/envs/{prod,nonprod}` composed from `infra/terraform/modules`, with the state backend in `infra/terraform/bootstrap`; details and apply steps in [infrastructure](../operations/infrastructure.md). Stage 2 adds an EKS variant of the compute modules in the same codebase, and the `service` stack does not change between them. Nothing is applied until the owner provides AWS accounts (TAC-44).
 

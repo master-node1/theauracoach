@@ -6,6 +6,7 @@ import {
   EXPERIENCE_LEVELS,
   TRAINING_LOCATIONS,
 } from '../api/me';
+import type { ServiceName } from '../services';
 
 /**
  * Event payload schemas by `Type@version` (platform LLD §4.3).
@@ -70,6 +71,59 @@ export const consentChangedV1 = z.object({
 });
 export type ConsentChangedV1 = z.infer<typeof consentChangedV1>;
 
+/** Services that hold user data and take part in export and deletion (all but profile-service). */
+export const DATA_PARTICIPANTS = [
+  'workout-service',
+  'nutrition-service',
+  'progress-service',
+  'coach-service',
+  'notification-service',
+  'audit-service',
+] as const satisfies readonly ServiceName[];
+export type DataParticipant = (typeof DATA_PARTICIPANTS)[number];
+
+/**
+ * A user asked for their data (users LLD §3). Each participant writes its part to object storage
+ * under `exportPrefix` as `{service}.json` and answers with ExportPartReady.
+ */
+export const exportRequestedV1 = z.object({
+  requestId: z.uuid(),
+  userId: z.uuid(),
+  exportPrefix: z.string().min(1).max(200),
+});
+export type ExportRequestedV1 = z.infer<typeof exportRequestedV1>;
+
+export const exportPartReadyV1 = z.object({
+  requestId: z.uuid(),
+  userId: z.uuid(),
+  service: z.enum(DATA_PARTICIPANTS),
+  key: z.string().min(1).max(300),
+  rows: z.number().int().min(0),
+});
+export type ExportPartReadyV1 = z.infer<typeof exportPartReadyV1>;
+
+/** Deletion requested: the 30-day grace period starts. Services refuse the user's requests (423). */
+export const accountDeletionRequestedV1 = z.object({
+  userId: z.uuid(),
+  deletionDueAt: z.iso.datetime(),
+});
+export type AccountDeletionRequestedV1 = z.infer<typeof accountDeletionRequestedV1>;
+
+/** The user cancelled a pending deletion within the grace period. */
+export const accountRestoredV1 = z.object({ userId: z.uuid() });
+export type AccountRestoredV1 = z.infer<typeof accountRestoredV1>;
+
+/** Grace period over: every participant deletes the user's data and answers with UserDataPurged. */
+export const accountDeletedV1 = z.object({ userId: z.uuid(), requestId: z.uuid() });
+export type AccountDeletedV1 = z.infer<typeof accountDeletedV1>;
+
+export const userDataPurgedV1 = z.object({
+  userId: z.uuid(),
+  requestId: z.uuid(),
+  service: z.enum(DATA_PARTICIPANTS),
+});
+export type UserDataPurgedV1 = z.infer<typeof userDataPurgedV1>;
+
 /**
  * An admin action to record in the audit log (admin LLD §5). The owning service writes it to its
  * outbox in the same transaction as the change; audit-service stores it append-only.
@@ -93,6 +147,12 @@ export const eventCatalog = {
   'UserRegistered@1': userRegisteredV1,
   'ProfileChanged@1': profileChangedV1,
   'ConsentChanged@1': consentChangedV1,
+  'ExportRequested@1': exportRequestedV1,
+  'ExportPartReady@1': exportPartReadyV1,
+  'AccountDeletionRequested@1': accountDeletionRequestedV1,
+  'AccountRestored@1': accountRestoredV1,
+  'AccountDeleted@1': accountDeletedV1,
+  'UserDataPurged@1': userDataPurgedV1,
   'AuditEvent@1': auditEventV1,
 } as const;
 

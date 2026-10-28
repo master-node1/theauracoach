@@ -8,7 +8,6 @@ import {
 import { jwtVerify } from 'jose';
 import type { DevIssuer } from './index';
 import type { createOAuthHandlers, DevUser, OAuthResult } from './oauth';
-import { devUserId } from './oauth';
 
 /**
  * The part of Cognito's `cognito-idp` JSON API that the apps' email flows use (TAC-8): SignUp,
@@ -154,7 +153,7 @@ export function createIdentityHandlers(
       checkPassword(password);
       if (accounts.has(email)) fail('UsernameExistsException', 'User already exists');
       const salt = randomBytes(16);
-      const sub = devUserId(email);
+      const sub = oauth.idFor(email);
       accounts.set(email, {
         user: { sub, email, amr: ['pwd'] },
         salt,
@@ -248,6 +247,25 @@ export function createIdentityHandlers(
         return { AuthenticationResult: await tokens(clientId, account.user) };
       }
       return fail('InvalidParameterException', 'Unsupported AuthFlow');
+    },
+
+    /** Only the `sub = "…"` filter account deletion uses. Username is the sub. */
+    ListUsers(b) {
+      const sub = /^sub\s*=\s*"([^"]+)"$/.exec(str(b.Filter))?.[1]?.toLowerCase();
+      if (!sub) fail('InvalidParameterException', 'Only the sub filter is supported');
+      if (!oauth.userExists(sub)) return { Users: [] };
+      return { Users: [{ Username: sub, Attributes: [{ Name: 'sub', Value: sub }] }] };
+    },
+
+    /** Account deletion (users LLD §4): sign-in, refresh tokens and groups go. Username is the sub. */
+    AdminDeleteUser(b) {
+      const sub = str(b.Username).toLowerCase();
+      if (!sub || !oauth.userExists(sub)) fail('UserNotFoundException', 'User does not exist.');
+      oauth.deleteUser(sub);
+      for (const [email, account] of accounts) {
+        if (account.user.sub === sub) accounts.delete(email);
+      }
+      return {};
     },
 
     async GlobalSignOut(b) {

@@ -4,9 +4,12 @@ import {
   EVENT_SUBSCRIPTIONS,
   EventWorker,
   ServiceKitModule,
+  createObjectStorage,
+  participantSubscriptions,
 } from '@aura/service-kit';
 import type { ServiceConfig } from './config';
 import { PrismaService } from './prisma.service';
+import { userDataPlan } from './user-data-plan';
 
 /** The worker deployment: outbox relay, event consumers and scheduled jobs. */
 @Module({})
@@ -18,7 +21,15 @@ export class WorkerModule {
       providers: [
         PrismaService,
         { provide: EVENT_DATABASE, useExisting: PrismaService },
-        { provide: EVENT_SUBSCRIPTIONS, useValue: [] },
+        {
+          provide: EVENT_SUBSCRIPTIONS,
+          useFactory: () =>
+            participantSubscriptions({
+              service: 'workout-service',
+              plan: userDataPlan,
+              storage: createObjectStorage(config),
+            }),
+        },
         EventWorker,
       ],
     };

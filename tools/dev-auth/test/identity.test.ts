@@ -72,6 +72,36 @@ describe('dev-auth identity API (Cognito-shaped)', () => {
     );
   });
 
+  it('finds and deletes users like ListUsers and AdminDeleteUser (account deletion)', async () => {
+    const call = async (action: string, input: object) => {
+      const res = await identity.handle(`AWSCognitoIdentityProviderService.${action}`, input);
+      return { status: res.status, body: JSON.parse(res.body as string) };
+    };
+    await client.signUp('meera@example.com', PASSWORD);
+    await client.confirmSignUp('meera@example.com', code('meera@example.com', 'signUp'));
+    const signedIn = await client.signInWithPassword('meera@example.com', PASSWORD);
+    const sub = decodeJwt(signedIn.accessToken).sub as string;
+    expect(decodeJwt(signedIn.accessToken).auth_time).toBe(1_800_000_000);
+
+    const found = await call('ListUsers', { UserPoolId: 'local', Filter: `sub = "${sub}"` });
+    expect(found.body.Users).toEqual([expect.objectContaining({ Username: sub })]);
+    expect((await call('AdminDeleteUser', { UserPoolId: 'local', Username: sub })).status).toBe(
+      200,
+    );
+    expect(
+      (await call('ListUsers', { UserPoolId: 'local', Filter: `sub = "${sub}"` })).body.Users,
+    ).toEqual([]);
+    expect((await call('AdminDeleteUser', { Username: sub })).body.__type).toBe(
+      'UserNotFoundException',
+    );
+    await expectCode(client.signInWithPassword('meera@example.com', PASSWORD), 'NotAuthorized');
+    // The same email can sign up again, as a new user.
+    await client.signUp('meera@example.com', PASSWORD);
+    await client.confirmSignUp('meera@example.com', code('meera@example.com', 'signUp'));
+    const reborn = await client.signInWithPassword('meera@example.com', PASSWORD);
+    expect(decodeJwt(reborn.accessToken).sub).toBe(devUserId('meera@example.com', 1));
+  });
+
   it('enforces the password policy and unique emails', async () => {
     await expectCode(client.signUp('a@example.com', 'short1A'), 'InvalidPassword');
     await expectCode(client.signUp('a@example.com', 'alllowercase123'), 'InvalidPassword');
@@ -165,7 +195,7 @@ describe('dev-auth identity API (Cognito-shaped)', () => {
   });
 
   it('answers unknown actions and clients with Cognito errors', async () => {
-    const res = await identity.handle('AWSCognitoIdentityProviderService.AdminDeleteUser', {});
+    const res = await identity.handle('AWSCognitoIdentityProviderService.AdminDisableUser', {});
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body!).__type).toBe('UnknownOperationException');
     const other = createIdentityClient({

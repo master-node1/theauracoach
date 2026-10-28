@@ -33,3 +33,7 @@ export * from './rate-limit/rate-limit';
 export * from './admin/admin-ops';
 export * from './service-kit.module';
 export * from './bootstrap';
+export * from './privacy/object-storage';
+export * from './privacy/user-data';
+export * from './privacy/account-state';
+export * from './privacy/participant';
