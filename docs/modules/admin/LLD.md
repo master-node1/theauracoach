@@ -29,10 +29,30 @@ Safety reviews (`SafetyReview`), user feedback (thumbs-down with reasons), food 
 
 Usage (DAU, sessions, logs), AI cost by feature/model/day vs budget, coach thumbs-up rate, safety-flag rate, error rate and latency (from Prometheus via Grafana embeds), queue health.
 
+Built in TAC-32:
+
+- **Dashboard** (`/admin`): DAU, sign-ups (7 days), sessions and meals logged (24 h), and the latest audit entries, each shown only to roles with `usage:read` / `audit:read`.
+- **Usage and health** (`/admin/usage`, `usage:read`): every service's counters from `GET /v1/admin/ops/{service}/usage`, Grafana panels from `ADMIN_GRAFANA_PANELS` (`Title|url,…`; hidden when unset) and queue health (outbox backlog, oldest unpublished row, dead letters) from `GET /v1/admin/ops/{service}/queues`.
+- DAU comes from `User.lastActiveAt`, which `GET /v1/me` sets at most once an hour. Sessions and meals come from workout-service and nutrition-service. AI cost and coach quality arrive with TAC-34.
+- **Operations** (`/admin/operations`, `event:replay`, owner only): each service's dead-letter stream (newest 100, payloads stay on the server). Replay takes a reason and moves the entry back to its stream with one Lua script (XRANGE, XDEL, XADD), so two replays of the same entry publish it once. The `event.replay` audit event is written in the same transaction; consumers that already handled the event skip it through `ProcessedEvent`.
+
 ## 5. Audit
 
 Every admin mutation writes an `AuditEvent` to the owning service's outbox in the same transaction (interceptor + explicit calls), with `before/after` minus sensitive fields; audit-service stores it append-only. Audit viewer filters by entity, actor, time. Export for compliance.
 
+Built in TAC-32:
+
+- Sensitive actions (role grant and revoke, dead-letter replay) carry a `reason` the console always asks for; it is stored in `AuditLog.reason`.
+- Append-only is enforced in the database: a trigger refuses UPDATE, DELETE and TRUNCATE on `AuditLog`, and the API has no route that changes an entry.
+- `GET /v1/admin/audit` filters by item type and id, actor, action (whole or prefix such as `role`) and time, newest or oldest first, with id-based cursor pages. `GET /v1/admin/audit/{id}` feeds the before/after diff. `GET /v1/admin/audit/export.csv` returns up to 10,000 rows, neutralises spreadsheet formulas and records an `audit.export` entry. Keys such as `email`, `notes` and `token` show as `[removed]` everywhere (`redactAuditValue` in contracts).
+- Viewing a user's support view writes `user.support_view`.
+
 ## 6. API (prefix /v1/admin, routed by the gateway to the owning service)
 
 `/exercises`, `/templates` (workout) · `/foods`, `/recipes` (nutrition) · `/prompts`, `/model-configs`, `/policies`, `/reviews/safety`, `/feedback`, `/usage` (coach) · `/audit` (audit) · `/roles`, `/users/{id}` (profile). Content routes: CRUD + `/{id}/submit`, `/{id}/publish`, `/{id}/archive`. The support user view (`/users/{id}`, masked) is assembled by the web BFF from each service's admin read endpoint. Feature flags are managed in AWS AppConfig.
+
+Per-service operations live under `/v1/admin/ops/{service}/…` (`AdminOpsController` in service-kit, routed by the gateway to the named service): `users/{id}` (support-view section, `user:support_read`), `usage` and `queues` (`usage:read`), `dlq` and `dlq/{id}/replay` (`event:replay`). A service adds its section and counters by providing `ADMIN_REPORTS`.
+
+Support view (TAC-32, `/admin/users`, `user:support_read`): look up by email (`GET /v1/admin/users?email=`, answers with a masked email such as `pr***@e***.com`) or by user id. The page shows profile-service's account section (status, dates, locale, onboarding state, roles, current consents; the view is audited) and counts and dates from workout, nutrition, progress, coach and notification. No profile details, health data or conversation text appear; a service that does not answer shows as unavailable without hiding the rest.
+
+Console access (TAC-32): every `/admin/*` page needs the permission of the API it calls (`proxy.ts` answers 403 otherwise), so a section is hidden and its API refuses the same people. Sections without pages yet (content, review queues, prompts) show as "Soon" until TAC-33 and TAC-34.
