@@ -1,0 +1,111 @@
+# Static checks for infra/terraform (TAC-36). Nothing here applies infrastructure:
+# `plan` runs only when the owner has created the AWS accounts and set the GitHub
+# variables listed in docs/operations/infrastructure.md; otherwise it is skipped.
+name: Terraform
+
+on:
+  pull_request:
+    paths: ['infra/terraform/**', '.github/workflows/terraform.yml']
+  push:
+    branches: [main]
+    paths: ['infra/terraform/**', '.github/workflows/terraform.yml']
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: 1.9.8
+  TFLINT_VERSION: v0.53.0
+  CHECKOV_VERSION: 3.3.30
+  TF_IN_AUTOMATION: '1'
+  TF_INPUT: '0'
+
+jobs:
+  static:
+    name: fmt, validate, tflint, checkov
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff
+      - name: terraform validate
+        run: |
+          for root in bootstrap envs/prod envs/nonprod; do
+            echo "::group::validate $root"
+            terraform -chdir="$root" init -backend=false -input=false >/dev/null
+            terraform -chdir="$root" validate
+            echo "::endgroup::"
+          done
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init --config "$PWD/.tflint.hcl"
+          tflint --recursive --config "$PWD/.tflint.hcl" --format compact
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: checkov
+        run: |
+          pip install --quiet "checkov==${CHECKOV_VERSION}"
+          checkov -d . --framework terraform --quiet --compact
+
+  plan:
+    name: plan (${{ matrix.account }})
+    needs: static
+    # Fork PRs never get AWS credentials.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        account: [nonprod, prod]
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      # Set per account once it exists: AWS_PLAN_ROLE_ARN_<ACCOUNT>, TF_BACKEND_HCL_<ACCOUNT>, TF_VARS_<ACCOUNT>.
+      PLAN_ROLE: ${{ matrix.account == 'prod' && vars.AWS_PLAN_ROLE_ARN_PROD || vars.AWS_PLAN_ROLE_ARN_NONPROD }}
+      BACKEND_HCL: ${{ matrix.account == 'prod' && vars.TF_BACKEND_HCL_PROD || vars.TF_BACKEND_HCL_NONPROD }}
+      TF_VARS: ${{ matrix.account == 'prod' && vars.TF_VARS_PROD || vars.TF_VARS_NONPROD }}
+    defaults:
+      run:
+        working-directory: infra/terraform/envs/${{ matrix.account }}
+    steps:
+      - name: Skip until AWS credentials exist
+        if: env.PLAN_ROLE == ''
+        working-directory: .
+        run: echo "::notice::No plan role configured for ${{ matrix.account }}; skipping terraform plan (see docs/operations/infrastructure.md)."
+      - uses: actions/checkout@v4
+        if: env.PLAN_ROLE != ''
+      - uses: hashicorp/setup-terraform@v3
+        if: env.PLAN_ROLE != ''
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: env.PLAN_ROLE != ''
+        with:
+          role-to-assume: ${{ env.PLAN_ROLE }}
+          aws-region: ap-south-1
+      - name: terraform plan
+        if: env.PLAN_ROLE != ''
+        run: |
+          printf '%s\n' "$BACKEND_HCL" > backend.hcl
+          printf '%s\n' "$TF_VARS" > terraform.tfvars
+          terraform init -backend-config=backend.hcl
+          terraform plan -lock=false -no-color

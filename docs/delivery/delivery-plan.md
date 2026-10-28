@@ -63,6 +63,7 @@ flowchart LR
 | Web (Next.js) and mobile (Expo) shells, sign-in through the BFF and PKCE against dev-auth, `packages/ui-tokens` and `packages/api-client`, web Playwright smoke in CI ([TAC-2](https://harisireddi7776.atlassian.net/browse/TAC-2)) | Done |
 | Helm chart, Terraform `platform` and `service` stacks, image push and deploy (hosting revision to k3s on EC2 for beta: [TAC-4](https://harisireddi7776.atlassian.net/browse/TAC-4), on hold until closer to beta) | Not started |
 | OpenTelemetry tracing, metrics and log correlation in every service, local Grafana stack, [monitoring](../operations/monitoring.md) doc ([TAC-5](https://harisireddi7776.atlassian.net/browse/TAC-5)) | Done |
+| Terraform `platform` stack for Stage 1 (prod and nonprod accounts, state backend, CI fmt/validate/tflint/checkov, plan once credentials exist), validated but not applied; [infrastructure](../operations/infrastructure.md) runbook ([TAC-36](https://harisireddi7776.atlassian.net/browse/TAC-36)) | Done |
 | EAS dev builds, remaining operations docs (deployment, troubleshooting) | Not started |
 
 ## Phase 5 — MVP vertical slices (≈ 8–10 sprints)
