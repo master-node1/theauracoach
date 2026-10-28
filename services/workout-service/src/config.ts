@@ -1,7 +1,13 @@
 import { baseEnvSchema, loadConfig } from '@aura/service-kit';
+import { z } from 'zod';
 
-/** workout-service has no settings beyond the shared ones yet. Extend the schema here when it does. */
-export const configSchema = baseEnvSchema;
+export const configSchema = baseEnvSchema.extend({
+  /**
+   * Public base URL of the exercise media bucket (CloudFront), e.g. https://media.example.com.
+   * Unset until licensed media exists; media keys are then returned unchanged.
+   */
+  MEDIA_BASE_URL: z.url().optional(),
+});
 export type ServiceConfig = ReturnType<typeof configSchema.parse>;
 
 export function loadServiceConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {

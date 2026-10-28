@@ -656,6 +656,9 @@ importers:
       '@aura/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@aura/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@aura/service-kit':
         specifier: workspace:*
         version: link:../../packages/service-kit
@@ -696,6 +699,9 @@ importers:
       '@types/supertest':
         specifier: 7.2.1
         version: 7.2.1
+      fast-check:
+        specifier: 4.10.2
+        version: 4.10.2
       supertest:
         specifier: 7.3.1
         version: 7.3.1
