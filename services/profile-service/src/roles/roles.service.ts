@@ -8,7 +8,12 @@ import {
   type RoleGrantInput,
   type RoleListResponse,
 } from '@aura/contracts';
-import { ProblemException, writeOutbox, type AuthenticatedUser } from '@aura/service-kit';
+import {
+  actorRoleFor,
+  ProblemException,
+  writeOutbox,
+  type AuthenticatedUser,
+} from '@aura/service-kit';
 import type { Prisma } from '../generated/prisma';
 import { IDENTITY_GROUPS, type IdentityGroups } from '../identity/identity-groups';
 import { PrismaService } from '../prisma.service';
@@ -25,17 +30,6 @@ function toGrant(row: GrantRow, email: string): RoleGrant {
     grantedBy: row.grantedBy,
     grantedAt: row.grantedAt.toISOString(),
   };
-}
-
-/** The role the audit log shows for the actor: the one that let them grant roles. */
-function actorRole(actor: AuthenticatedUser): string {
-  return (
-    actor.groups.find((g) =>
-      (ROLE_PERMISSIONS[g as GrantableRole] as readonly string[] | undefined)?.includes(
-        'role:grant',
-      ),
-    ) ?? 'staff'
-  );
 }
 
 /**
@@ -90,7 +84,16 @@ export class RolesService {
       const created = await tx.userRole.create({
         data: { userId: user.id, roleId: input.role, grantedBy: actor.userId },
       });
-      await this.audit(tx, actor, 'role.grant', user.id, input.role, requestId, false);
+      await this.audit(
+        tx,
+        actor,
+        'role.grant',
+        user.id,
+        input.role,
+        requestId,
+        false,
+        input.reason,
+      );
       await this.identity.addUserToGroup(user.id, input.role);
       return created;
     });
@@ -102,6 +105,7 @@ export class RolesService {
     userId: string,
     role: GrantableRole,
     requestId: string | undefined,
+    reason?: string,
   ): Promise<void> {
     await this.inIdentityTransaction(async (tx) => {
       if (role === 'owner') {
@@ -120,7 +124,7 @@ export class RolesService {
       if (deleted.count === 0) {
         throw new ProblemException(HttpStatus.NOT_FOUND, 'ROLE_GRANT_NOT_FOUND', 'No such grant');
       }
-      await this.audit(tx, actor, 'role.revoke', userId, role, requestId, true);
+      await this.audit(tx, actor, 'role.revoke', userId, role, requestId, true, reason);
       await this.identity.removeUserFromGroup(userId, role);
     });
   }
@@ -133,6 +137,7 @@ export class RolesService {
     role: GrantableRole,
     requestId: string | undefined,
     revoked: boolean,
+    reason: string | undefined,
   ) {
     const state = { userId, role };
     return writeOutbox(tx, {
@@ -141,13 +146,14 @@ export class RolesService {
       userId,
       data: {
         actorId: actor.userId,
-        actorRole: actorRole(actor),
+        actorRole: actorRoleFor(actor, 'role:grant'),
         action,
         entityType: 'user_role',
         entityId: `${userId}:${role}`,
         before: revoked ? state : null,
         after: revoked ? null : state,
         requestId: requestId && UUID.test(requestId) ? requestId : null,
+        reason: reason ?? null,
       },
     });
   }

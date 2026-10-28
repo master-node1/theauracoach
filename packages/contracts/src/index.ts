@@ -6,4 +6,5 @@ export * from './api/me';
 export * from './flags';
 export * from './api/auth';
 export * from './api/admin-roles';
+export * from './api/admin';
 export * from './api/workout-content';

@@ -11,6 +11,8 @@ export class MeController {
   @Get()
   async me(@CurrentUser() identity: AuthenticatedUser): Promise<MeResponse> {
     // Allowed while pending deletion: the apps read `status` here to show the restore screen.
-    return toMe(await this.provisioning.activeUser(identity, { allowPending: true }));
+    const user = await this.provisioning.activeUser(identity, { allowPending: true });
+    await this.provisioning.touchActivity(user);
+    return toMe(user);
   }
 }

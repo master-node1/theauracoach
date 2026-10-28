@@ -127,7 +127,8 @@ export type UserDataPurgedV1 = z.infer<typeof userDataPurgedV1>;
 /**
  * An admin action to record in the audit log (admin LLD §5). The owning service writes it to its
  * outbox in the same transaction as the change; audit-service stores it append-only.
- * `before` and `after` hold ids and codes only, never free text or health data.
+ * `before` and `after` hold ids and codes only, never free text or health data. `reason` is the
+ * staff member's own note for a sensitive action (role change, replay), never user data.
  */
 export const auditEventV1 = z.object({
   actorId: z.uuid().nullable(),
@@ -138,6 +139,7 @@ export const auditEventV1 = z.object({
   before: z.record(z.string(), z.unknown()).nullable(),
   after: z.record(z.string(), z.unknown()).nullable(),
   requestId: z.uuid().nullable(),
+  reason: z.string().max(200).nullable().optional(),
 });
 export type AuditEventV1 = z.infer<typeof auditEventV1>;
 

@@ -8,10 +8,12 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
 import {
+  auditReasonSchema,
   GRANTABLE_ROLES,
   roleGrantSchema,
   type GrantableRole,
@@ -63,11 +65,19 @@ export class RolesController {
     @CurrentUser() actor: AuthenticatedUser,
     @Param('userId', new ParseUUIDPipe()) userId: string,
     @Param('role') role: string,
+    @Query('reason', new ZodValidationPipe(auditReasonSchema.optional()))
+    reason: string | undefined,
     @Req() req: HttpReq,
   ): Promise<void> {
     if (!(GRANTABLE_ROLES as readonly string[]).includes(role)) {
       throw new ProblemException(HttpStatus.NOT_FOUND, 'ROLE_GRANT_NOT_FOUND', 'No such grant');
     }
-    await this.roles.revoke(actor, userId.toLowerCase(), role as GrantableRole, requestIdOf(req));
+    await this.roles.revoke(
+      actor,
+      userId.toLowerCase(),
+      role as GrantableRole,
+      requestIdOf(req),
+      reason,
+    );
   }
 }

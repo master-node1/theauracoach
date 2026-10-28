@@ -1,5 +1,16 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { ServiceKitModule, type FeatureFlags, type UserTokenVerifier } from '@aura/service-kit';
+import {
+  ADMIN_REPORTS,
+  AdminOps,
+  AdminOpsController,
+  EVENT_DATABASE,
+  ServiceKitModule,
+  type FeatureFlags,
+  type UserTokenVerifier,
+} from '@aura/service-kit';
+import { AdminUsersController } from './admin/admin-users.controller';
+import { AdminUsersService } from './admin/admin-users.service';
+import { ProfileReports } from './admin/profile-reports';
 import { DEV_IDENTITY_ENDPOINT, type ServiceConfig } from './config';
 import { ConsentsController } from './consents/consents.controller';
 import { ConsentsService } from './consents/consents.service';
@@ -62,6 +73,8 @@ export class AppModule {
         ConsentsController,
         FlagsController,
         RolesController,
+        AdminUsersController,
+        AdminOpsController,
         UserContextController,
       ],
       providers: [
@@ -70,6 +83,10 @@ export class AppModule {
         ProfileService,
         ConsentsService,
         RolesService,
+        AdminUsersService,
+        AdminOps,
+        { provide: EVENT_DATABASE, useExisting: PrismaService },
+        { provide: ADMIN_REPORTS, useClass: ProfileReports },
         {
           provide: IDENTITY_GROUPS,
           useValue: identityGroups ?? new CognitoIdentityGroups(config),

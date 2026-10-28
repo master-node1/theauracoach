@@ -30,6 +30,7 @@ export * from './flags/flag-source';
 export * from './flags/feature-flags';
 export * from './flags/require-flag';
 export * from './rate-limit/rate-limit';
+export * from './admin/admin-ops';
 export * from './service-kit.module';
 export * from './bootstrap';
 export * from './privacy/object-storage';

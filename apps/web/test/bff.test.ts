@@ -353,7 +353,7 @@ describe('web BFF', () => {
     expect(visibleAdminSections([])).toEqual([]);
     expect(visibleAdminSections(['support'])).toEqual(['Dashboard', 'Feedback', 'Users']);
     expect(visibleAdminSections(['nutrition_reviewer'])).toEqual(['Dashboard', 'Foods', 'Recipes']);
-    expect(visibleAdminSections(['owner'])).toHaveLength(13);
+    expect(visibleAdminSections(['owner'])).toHaveLength(14);
   });
 
   it('reads MFA from the access token amr when the session is made', async () => {

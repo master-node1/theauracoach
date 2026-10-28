@@ -16,7 +16,14 @@ const FORWARD_REQUEST = [
   'if-none-match',
   'x-request-id',
 ];
-const FORWARD_RESPONSE = ['content-type', 'etag', 'location', 'retry-after', 'x-request-id'];
+const FORWARD_RESPONSE = [
+  'content-disposition',
+  'content-type',
+  'etag',
+  'location',
+  'retry-after',
+  'x-request-id',
+];
 
 function problem(status: number, code: string, title: string): Response {
   return new Response(JSON.stringify({ type: 'about:blank', title, status, code }), {

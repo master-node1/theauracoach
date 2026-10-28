@@ -3,10 +3,15 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import {
   ACCOUNT_STATE_DB,
   AccountStateInterceptor,
+  ADMIN_REPORTS,
+  AdminOps,
+  AdminOpsController,
   CONSENT_STATE,
+  EVENT_DATABASE,
   ServiceKitModule,
   type UserTokenVerifier,
 } from '@aura/service-kit';
+import { CoachReports } from './admin-reports';
 import type { ServiceConfig } from './config';
 import { ConsentStateService } from './consents/consent-state';
 import { PrismaService } from './prisma.service';
@@ -18,9 +23,12 @@ export class AppModule {
     return {
       module: AppModule,
       imports: [ServiceKitModule.forRoot({ config, ...(verifier ? { verifier } : {}) })],
-      controllers: [],
+      controllers: [AdminOpsController],
       providers: [
         PrismaService,
+        AdminOps,
+        { provide: EVENT_DATABASE, useExisting: PrismaService },
+        { provide: ADMIN_REPORTS, useClass: CoachReports },
         ConsentStateService,
         { provide: CONSENT_STATE, useExisting: ConsentStateService },
         // Pending-deletion users get 423 on user routes (replica kept by the worker).
