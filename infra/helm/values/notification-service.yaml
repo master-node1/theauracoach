@@ -1,0 +1,11 @@
+# notification-service: devices, preferences, delivery. Sends through Expo Push over 443 and SES with the node role (Stage 1).
+# Layered after values/common.yaml and values/env/<env>.yaml. Service catalog: docs/architecture/service-catalog.md
+kind: node-service
+image:
+  repository: auracoach/notification-service
+secrets:
+  keys: [DATABASE_URL, REDIS_URL]
+  sharedKeys: [INTERNAL_TOKEN_SECRET]
+networkPolicy:
+  internetEgress: true
+  awsMetadata: true

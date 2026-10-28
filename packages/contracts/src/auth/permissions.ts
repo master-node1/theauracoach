@@ -1,17 +1,31 @@
 /**
  * Roles are owned by profile-service and mirrored to Cognito groups (security architecture §3).
- * Permission names follow the catalogue in docs/modules/authentication/LLD.md §3.
+ * Permission names follow the catalogue in docs/modules/authentication/LLD.md §4.
  * A user's own data needs no permission: ownership is checked in each service.
  */
 export const ROLES = [
   'user',
-  'trainer',
-  'nutritionist',
-  'content_admin',
+  'owner',
+  'content_editor',
+  'content_reviewer',
+  'nutrition_reviewer',
+  'safety_reviewer',
   'support',
-  'admin',
 ] as const;
 export type Role = (typeof ROLES)[number];
+
+/** Roles an admin can grant. `user` is implicit for every account and never stored as a grant. */
+export const GRANTABLE_ROLES = ROLES.filter((r): r is Exclude<Role, 'user'> => r !== 'user');
+export type GrantableRole = (typeof GRANTABLE_ROLES)[number];
+
+export const ROLE_DESCRIPTIONS: Record<GrantableRole, string> = {
+  owner: 'Everything, including AI prompts, policies and role grants',
+  content_editor: 'Drafts exercises, templates, foods and recipes',
+  content_reviewer: 'Reviews and publishes exercises and workout templates',
+  nutrition_reviewer: 'Reviews and publishes foods and recipes',
+  safety_reviewer: 'Works the safety review queue and user feedback',
+  support: 'Reads a masked support view of a user and their feedback',
+};
 
 const CONTENT = ['exercise', 'template', 'food', 'recipe', 'prompt', 'policy'] as const;
 const CONTENT_ACTIONS = ['write', 'review', 'publish'] as const;
@@ -30,21 +44,41 @@ export const PERMISSIONS = [
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
+const contentPermissions = (types: string[], actions: string[]) =>
+  PERMISSIONS.filter((p) => {
+    const [type, action] = p.split(':');
+    return types.includes(type!) && actions.includes(action!);
+  });
+
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   user: [],
-  trainer: ['exercise:write', 'exercise:review', 'template:write', 'template:review'],
-  nutritionist: ['food:write', 'food:review', 'recipe:write', 'recipe:review'],
-  content_admin: PERMISSIONS.filter((p) =>
-    /^(exercise|template|food|recipe):/.test(p),
-  ) as Permission[],
+  owner: [...PERMISSIONS],
+  content_editor: contentPermissions(['exercise', 'template', 'food', 'recipe'], ['write']),
+  content_reviewer: contentPermissions(['exercise', 'template'], ['review', 'publish']),
+  nutrition_reviewer: contentPermissions(['food', 'recipe'], ['review', 'publish']),
+  safety_reviewer: ['review:read', 'review:resolve', 'feedback:read'],
   support: ['user:support_read', 'feedback:read'],
-  admin: [...PERMISSIONS],
 };
+
+export function isRole(value: string): value is Role {
+  return (ROLES as readonly string[]).includes(value);
+}
 
 export function permissionsFor(roles: readonly string[]): Set<Permission> {
   const result = new Set<Permission>();
   for (const role of roles) {
-    for (const p of ROLE_PERMISSIONS[role as Role] ?? []) result.add(p);
+    if (!isRole(role)) continue;
+    for (const p of ROLE_PERMISSIONS[role]) result.add(p);
   }
   return result;
+}
+
+/**
+ * Authentication methods that count as multi-factor in a token's `amr` claim (RFC 8176).
+ * Admin routes need one of them (TC-SEC-3).
+ */
+export const MFA_METHODS = ['mfa', 'otp', 'hwk', 'swk'] as const;
+
+export function hasMfa(amr: readonly string[] | undefined): boolean {
+  return !!amr?.some((m) => (MFA_METHODS as readonly string[]).includes(m));
 }

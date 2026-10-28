@@ -10,6 +10,7 @@ import {
   serializeCookie,
 } from './cookies';
 import { isSameOrigin, safeReturnTo } from './csrf';
+import type { RateLimiter } from './rate-limit';
 import {
   authorizeUrl,
   exchangeCode,
@@ -38,6 +39,8 @@ export interface AuthDeps {
   verifyIdToken: IdTokenVerifier;
   fetch?: typeof fetch;
   now?: () => number;
+  /** Auth routes share one per-IP budget; unset in tests that are not about it. */
+  limiter?: RateLimiter;
 }
 
 interface Flow {
@@ -47,13 +50,18 @@ interface Flow {
   returnTo: string;
 }
 
-function redirect(location: string, setCookies: string[] = [], status = 302): Response {
+export function redirect(location: string, setCookies: string[] = [], status = 302): Response {
   const headers = new Headers({ location, 'cache-control': 'no-store' });
   for (const c of setCookies) headers.append('set-cookie', c);
   return new Response(null, { status, headers });
 }
 
-function problem(status: number, code: string, title: string, setCookies: string[] = []): Response {
+export function problem(
+  status: number,
+  code: string,
+  title: string,
+  setCookies: string[] = [],
+): Response {
   const headers = new Headers({
     'content-type': 'application/problem+json',
     'cache-control': 'no-store',
@@ -70,12 +78,16 @@ function signInError(config: WebConfig, error: string, setCookies: string[] = []
 }
 
 /**
- * GET /api/auth/login?returnTo=/path: starts Authorization Code + PKCE. `reauth=1` asks the
- * provider for the password again even when signed in (before deleting the account).
+ * GET /api/auth/login?returnTo=/path[&provider=Google]: starts Authorization Code + PKCE, on the
+ * hosted page or (with a configured provider) straight at Google or Apple. `reauth=1` asks for
+ * the password again even when signed in (before deleting the account).
  */
 export async function login(request: Request, deps: AuthDeps): Promise<Response> {
   const { config } = deps;
+  const limited = deps.limiter?.check(request, config);
+  if (limited) return limited;
   const params = new URL(request.url).searchParams;
+  const provider = config.identityProviders.find((p) => p === params.get('provider'));
   const flow: Flow = {
     state: randomToken(),
     nonce: randomToken(),
@@ -87,6 +99,7 @@ export async function login(request: Request, deps: AuthDeps): Promise<Response>
     state: flow.state,
     nonce: flow.nonce,
     codeChallenge: await pkceChallenge(flow.verifier),
+    ...(provider ? { provider } : {}),
     reauth: params.get('reauth') === '1',
   });
   return redirect(target, [serializeCookie(FLOW_COOKIE, sealed, FLOW_MAX_AGE)]);

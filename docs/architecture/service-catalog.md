@@ -36,7 +36,7 @@ Each `services/<name>/` has `src/`, `prisma/` (own schema and migrations), `test
 | Service | Owns (data) | Public API (via gateway) | Internal API | Publishes | Consumes | Background jobs |
 |---|---|---|---|---|---|---|
 | **api-gateway** | — | all `/v1/*` routes | — | — | — | — |
-| **profile-service** | User, Profile, UserPreference, Consent, FitnessGoal, SafetyScreening, HealthCondition, FitnessAssessment, Onboarding, Role/UserRole, DataRequest, Subscription (P2) | `/v1/me*`, `/v1/onboarding/*`, `/v1/admin/roles`, `/v1/admin/users/*`, `/v1/admin/flags*` | `GET /internal/v1/users/{id}/context` | UserRegistered, ProfileChanged, ConsentChanged, OnboardingCompleted, ExportRequested, AccountDeletionRequested, AccountRestored, AccountDeleted | ExportPartReady, UserDataPurged | privacy.jobs (due deletions, finish deletions, acknowledgement alerts, export expiry) |
+| **profile-service** | User, Profile, UserPreference, Consent, FitnessGoal, SafetyScreening, HealthCondition, FitnessAssessment, Onboarding, Role/UserRole, DataRequest, Subscription (P2) | `/v1/me*`, `/v1/onboarding/*`, `/v1/admin/roles`, `/v1/admin/users/*`, `/v1/admin/flags*` | `GET /internal/v1/users/{id}/context` | UserRegistered, ProfileChanged, ConsentChanged, OnboardingCompleted, ExportRequested, AccountDeletionRequested, AccountRestored, AccountDeleted, AuditEvent | ExportPartReady, UserDataPurged | privacy.jobs (due deletions, finish deletions, acknowledgement alerts, export expiry) |
 | **workout-service** | Exercise library, Equipment, UserEquipment, templates, WorkoutPlan, weeks, sessions, sets, PRs, UserTrainingProfile (replica) | `/v1/exercises*`, `/v1/workout-plans*`, `/v1/workout-sessions*`, `/v1/admin/exercises*`, `/v1/admin/templates*` | `POST /internal/v1/plans` (onboarding), `GET /internal/v1/users/{id}/week`, `POST /internal/v1/proposals/{validate,apply}` | PlanCreated, PlanWeekReady, PlanAdjustmentProposed, WorkoutCompleted, SessionMissed, PersonalRecordSet, ContentPublished, ExportPartReady, UserDataPurged | ProfileChanged, OnboardingCompleted, CheckInSaved, ExportRequested, AccountDeletionRequested, AccountRestored, AccountDeleted | plans.weekly-adapt, sessions.mark-missed |
 | **nutrition-service** | Foods, nutrients, units, recipes, NutritionTarget, MealPlan, MealEntry, WaterEntry, DailyNutritionSummary, UserNutritionProfile (replica) | `/v1/foods*`, `/v1/nutrition/*`, `/v1/meal-plans*`, `/v1/recipes/*`, `/v1/admin/foods*`, `/v1/admin/recipes*` | `POST /internal/v1/targets` (onboarding), `GET /internal/v1/users/{id}/day/{date}`, `GET /internal/v1/foods/search`, `POST /internal/v1/proposals/{validate,apply}` | TargetsSet, TargetChangeProposed, MealLogged, MealDeleted, WaterLogged, ContentPublished, ExportPartReady, UserDataPurged | ProfileChanged, OnboardingCompleted, MeasurementAdded, ExportRequested, AccountDeletionRequested, AccountRestored, AccountDeleted | nutrition.adapt-targets, foods.data-qa, composites.recompute |
 | **progress-service** | BodyMeasurement, DailyCheckIn, DeviceIntegration, read models: WorkoutDayFact, NutritionDayFact | `/v1/progress/*`, `/v1/dashboard/today` | `GET /internal/v1/users/{id}/progress-summary` | MeasurementAdded, CheckInSaved, PlateauDetected, ExportPartReady, UserDataPurged | WorkoutCompleted, SessionMissed, PersonalRecordSet, MealLogged, MealDeleted, TargetsSet, PlanWeekReady, ExportRequested, AccountDeletionRequested, AccountRestored, AccountDeleted | progress.plateau-scan, integrations.sync (P2) |
@@ -58,6 +58,7 @@ Recommendations (proposals) live in coach-service because both the coach and eng
 
 ```mermaid
 flowchart LR
+  webapp[web] -->|BFF: /api/v1/*| gw
   gw[api-gateway] --> prof[profile-service]
   gw --> wo[workout-service]
   gw --> nu[nutrition-service]
@@ -74,7 +75,7 @@ flowchart LR
   pr -->|dashboard: today's session| wo
 ```
 
-Any new arrow needs an ADR update. Cycles are not allowed.
+Any new arrow needs an ADR update. Cycles are not allowed. The Helm values (`global.callGraph` in `infra/helm/values/common.yaml`) mirror these arrows; they generate `INTERNAL_SERVICE_URLS`, the gateway's upstreams and the Kubernetes NetworkPolicies, and CI (`tools/ci/check-network-policies.mjs`) fails when the two differ. The `web` arrow is the Next.js BFF forwarding to the gateway (ADR-002); the mobile app reaches the gateway from outside the cluster.
 
 ## 5. Data stores
 

@@ -64,7 +64,7 @@ Logging: `pino` JSON with `service`, `requestId`, `traceId`, `route`, `status`, 
 |---|---|---|---|
 | UserRegistered | profile | notification, audit | userId, timezone, locale |
 | ProfileChanged | profile | workout, nutrition, coach, notification (time zone), audit (field names) | `fields` + `changes` (new values). v1: timezone, locale, heightCm, activityLevel, experience, dietType, cuisines, allergens, trainingDays, sessionMinutes, location, equipment. Onboarding-owned fields (sex, birthYear, intensityCap, conditionCodes, goal) are added as optional fields with slice 5.2 |
-| ConsentChanged | profile | coach, notification, audit | purpose, granted, policyVersion |
+| ConsentChanged | profile | coach (AI_COACH replica, newest event wins), notification, audit | purpose, granted, policyVersion |
 | OnboardingCompleted | profile | workout, nutrition | onboardingId, snapshot needed for plan and targets |
 | ExportRequested / ExportPartReady | profile / each service | each service / profile | requestId |
 | AccountDeletionRequested / AccountDeleted / UserDataPurged | profile / profile / each service | notification / all / profile | userId |
@@ -77,7 +77,7 @@ Logging: `pino` JSON with `service`, `requestId`, `traceId`, `route`, `status`, 
 | RecommendationCreated, RecommendationAccepted | coach | notification, audit | id, kind, owner service |
 | SafetyFlagRaised | coach | audit | conversationId, category |
 | ContentPublished | workout, nutrition, coach | same service (cache), audit | contentType, id, version |
-| AuditEvent | every service | audit | actor, action, entity, before/after (redacted) |
+| AuditEvent | every service (profile: `role.grant`, `role.revoke`) | audit | actorId, actorRole, action, entityType, entityId, before/after (ids and codes only), requestId |
 
 Compatibility: adding optional fields is a minor change within a version; anything else is a new version, consumers ship support first, producers dual-publish until all consumers move.
 

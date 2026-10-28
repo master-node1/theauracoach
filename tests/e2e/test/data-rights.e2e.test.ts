@@ -84,7 +84,6 @@ beforeAll(async () => {
       ...testEnv({ service, databaseUrl: db.url, issuer: dev.issuer, redisDb: REDIS_DB }),
       OBJECT_STORAGE_DIR: storageDir,
       OBJECT_STORAGE_PUBLIC_URL: 'http://localhost/v1/me/export-files',
-      IDENTITY_ADMIN: 'none',
     };
   };
 
@@ -96,7 +95,11 @@ beforeAll(async () => {
   coachDb = new CoachDb({ datasources: { db: { url: cc.DATABASE_URL } } });
 
   profile = (await boot(
-    [ProfileApp.register(pc, verifier(), undefined, { identityAdmin: identity })],
+    [
+      ProfileApp.register(pc, verifier(), undefined, undefined, undefined, {
+        identityAdmin: identity,
+      }),
+    ],
     true,
   )) as INestApplication;
   notification = (await boot([NotificationApp.register(nc, verifier())], true)) as INestApplication;

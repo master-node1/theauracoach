@@ -1,14 +1,25 @@
 #!/usr/bin/env node
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { createDevIssuer, createOAuthHandlers, type OAuthResult } from './index';
+import {
+  createDevIssuer,
+  createIdentityHandlers,
+  createOAuthHandlers,
+  GroupStore,
+  handleGroupTarget,
+  type OAuthResult,
+} from './index';
 
 /**
  * Local Cognito stand-in for docker compose.
  *   GET  /.well-known/jwks.json
  *   POST /token  {"sub":"…","email":"…","groups":["admin"]}  -> {"access_token":"…"}
- *   GET  /oauth2/authorize, POST /oauth2/token, POST /oauth2/revoke, GET /logout
- *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints)
- *   POST /admin/delete-user  {"sub":"…"}  (Cognito AdminDeleteUser stand-in for account deletion)
+ *   GET  /oauth2/authorize, POST /oauth2/mfa, POST /oauth2/token, POST /oauth2/revoke, GET /logout
+ *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints; staff get an MFA step)
+ *   POST /  X-Amz-Target: AWSCognitoIdentityProviderService.AdminAddUserToGroup (also
+ *        AdminRemoveUserFromGroup, AdminListGroupsForUser): profile-service role grants
+ *        Also the email-flow actions (SignUp, ConfirmSignUp, ForgotPassword, InitiateAuth, …)
+ *        and ListUsers / AdminDeleteUser for account deletion
+ *   GET  /test/codes?email=…  -> {"signUp":"123456","reset":"654321"} (codes are never emailed)
  * Keys and sessions live in memory and are lost on restart.
  */
 function readBody(req: IncomingMessage): Promise<string> {
@@ -32,9 +43,13 @@ async function main() {
   const port = Number(process.env.PORT ?? 4100);
   const issuer = process.env.DEV_AUTH_ISSUER ?? `http://localhost:${port}`;
   const dev = await createDevIssuer(issuer);
+  const groups = new GroupStore();
   const oauth = createOAuthHandlers(dev, {
     accessTokenTtlSeconds: Number(process.env.DEV_AUTH_ACCESS_TOKEN_TTL ?? 900),
+    groups,
+    ...(process.env.DEV_AUTH_MFA_CODE ? { mfaCode: process.env.DEV_AUTH_MFA_CODE } : {}),
   });
+  const identity = createIdentityHandlers(dev, oauth);
   createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', issuer);
     try {
@@ -54,6 +69,22 @@ async function main() {
           .end(JSON.stringify({ access_token: token }));
         return;
       }
+      if (url.pathname === '/' && req.method === 'OPTIONS') {
+        res
+          .writeHead(204, {
+            'access-control-allow-origin': '*',
+            'access-control-allow-methods': 'POST',
+            'access-control-allow-headers': 'content-type, x-amz-target',
+          })
+          .end();
+        return;
+      }
+      if (url.pathname === '/test/codes' && req.method === 'GET') {
+        res
+          .writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+          .end(JSON.stringify(identity.pendingCodes(url.searchParams.get('email') ?? '')));
+        return;
+      }
       if (url.pathname === '/oauth2/authorize' && req.method === 'GET') {
         send(res, oauth.authorizePage(url.searchParams));
         return;
@@ -62,18 +93,25 @@ async function main() {
         send(res, oauth.authorizeSubmit(new URLSearchParams(await readBody(req))));
         return;
       }
+      if (url.pathname === '/oauth2/mfa' && req.method === 'POST') {
+        send(res, oauth.mfaSubmit(new URLSearchParams(await readBody(req))));
+        return;
+      }
+      if (url.pathname === '/' && req.method === 'POST') {
+        // Cognito's cognito-idp JSON API: admin group calls (role grants) or the email flows.
+        const target = req.headers['x-amz-target'];
+        const action = typeof target === 'string' ? target : undefined;
+        const raw = await readBody(req);
+        const body = raw ? JSON.parse(raw) : {};
+        send(res, handleGroupTarget(groups, action, body) ?? (await identity.handle(action, body)));
+        return;
+      }
       if (url.pathname === '/oauth2/token' && req.method === 'POST') {
         send(res, await oauth.token(new URLSearchParams(await readBody(req))));
         return;
       }
       if (url.pathname === '/oauth2/revoke' && req.method === 'POST') {
         send(res, oauth.revoke(new URLSearchParams(await readBody(req))));
-        return;
-      }
-      if (url.pathname === '/admin/delete-user' && req.method === 'POST') {
-        const body = JSON.parse(await readBody(req)) as { sub?: unknown };
-        if (typeof body.sub !== 'string') throw new Error('sub is required');
-        send(res, oauth.deleteUser(body.sub));
         return;
       }
       if (url.pathname === '/oauth2/token' && req.method === 'OPTIONS') {

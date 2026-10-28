@@ -1,0 +1,28 @@
+# api-gateway: nginx, routes public /v1 paths to the owning service (services/api-gateway).
+# The only API entry point: Traefik (Stage 1) or the ALB (Stage 2) forwards /v1 here.
+kind: gateway
+image:
+  repository: auracoach/api-gateway
+containerPort: 8080
+# nginx user in nginx:alpine. The entrypoint renders templates into conf.d, so it must be writable.
+podSecurity: { runAsUser: 101, runAsGroup: 101, fsGroup: 101 }
+writablePaths: [/etc/nginx/conf.d, /var/cache/nginx, /run]
+http:
+  probes:
+    livenessPath: /health
+    readinessPath: /health
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { memory: 128Mi }
+worker:
+  enabled: false
+migration:
+  enabled: false
+networkPolicy:
+  fromIngressController: true
+  datastores: false
+  telemetry: false
+ingress:
+  enabled: true
+  paths: [/v1]
+  priority: 100

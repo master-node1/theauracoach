@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars (git-ignored). Secrets (google_client_secret,
+# apple_private_key) go in TF_VAR_* environment variables, never in this file.
+aws_account_id     = "222222222222"
+domain_name        = "test.auracoach.example"
+route53_zone_id    = "Z0000000000000000000"
+alert_emails       = ["ops@auracoach.example"]
+monthly_budget_usd = 50
+dmarc_report_email = ""
+
+# Federation (optional until the owner registers the apps, TAC-44).
+google_client_id  = ""
+apple_services_id = ""
+apple_team_id     = ""
+apple_key_id      = ""
+
+# geo_allow_countries = ["IN"]
+
+# From infra/terraform/bootstrap outputs.
+state_bucket      = "auracoach-nonprod-tfstate-222222222222"
+lock_table        = "auracoach-nonprod-tflock"
+state_kms_key_arn = "arn:aws:kms:ap-south-1:222222222222:key/00000000-0000-0000-0000-000000000000"

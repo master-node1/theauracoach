@@ -5,7 +5,7 @@ const email = () => `settings-${Date.now()}-${Math.floor(Math.random() * 1e6)}@e
 
 async function openSettings(page: Page) {
   await page.goto('/');
-  await page.getByRole('link', { name: 'Continue' }).click();
+  await page.getByRole('link', { name: 'More sign-in options' }).click();
   await page.getByLabel('Email').fill(email());
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page).toHaveURL(/\/$/);

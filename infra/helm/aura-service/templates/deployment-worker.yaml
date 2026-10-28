@@ -1,0 +1,65 @@
+{{- if and (eq .Values.kind "node-service") .Values.worker.enabled }}
+{{- $name := include "aura.name" . -}}
+{{- $component := dict "ctx" . "component" "worker" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.componentLabels" $component | nindent 4 }}
+  annotations:
+    # The worker has no HTTP server (service-kit bootstrapWorker): it runs outbox relays, stream
+    # consumers and jobs. A crash exits the process and Kubernetes restarts it; stuck consumers show
+    # as stream lag alerts (docs/operations/monitoring.md), not as probe failures.
+    ignore-check.kube-linter.io/no-liveness-probe: Worker has no HTTP server; failures exit the process.
+    ignore-check.kube-linter.io/no-readiness-probe: Worker receives no traffic, so readiness gates nothing.
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "aura.componentSelectorLabels" $component | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "aura.componentLabels" $component | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- include "aura.podSecurityContext" . | nindent 8 }}
+      {{- include "aura.scheduling" $component | nindent 6 }}
+      containers:
+        - name: {{ $name }}-worker
+          image: {{ include "aura.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.worker.command | nindent 12 }}
+          env:
+            - name: SERVICE_VERSION
+              value: {{ .Values.image.tag | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ $name }}-env
+            {{- if include "aura.hasAppSecret" . }}
+            - secretRef:
+                name: {{ include "aura.appSecretName" . }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            {{- include "aura.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            {{- include "aura.volumeMounts" . | nindent 12 }}
+      volumes:
+        {{- include "aura.volumes" . | nindent 8 }}
+{{- end }}

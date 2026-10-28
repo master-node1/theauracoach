@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { adminSections } from '@aura/ui-tokens';
 import { Logo } from '@/components/Logo';
 import { SignOutButton } from '@/components/SignOutButton';
-import { isStaff } from '@/lib/session';
+import { adminAccess, visibleAdminSections } from '@/lib/admin-access';
 import { currentSession } from '@/lib/server-session';
+import MfaRequiredPage from '../forbidden/mfa/page';
 import ForbiddenPage from '../forbidden/page';
 
 export const metadata: Metadata = {
@@ -14,8 +14,11 @@ export const metadata: Metadata = {
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await currentSession();
   if (!session) redirect('/auth/sign-in?returnTo=/admin');
-  // proxy.ts already answers 403 for non-staff; this keeps the layout safe on its own.
-  if (!isStaff(session.groups)) return <ForbiddenPage />;
+  // proxy.ts already answers 403; this keeps the layout safe on its own.
+  const access = adminAccess(session);
+  if (access === 'forbidden') return <ForbiddenPage />;
+  if (access === 'mfa_required') return <MfaRequiredPage />;
+  const sections = visibleAdminSections(session.groups);
   return (
     <div className="admin-shell">
       <nav aria-label="Admin" className="admin-sidebar">
@@ -23,7 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Logo />
           <span>Admin</span>
         </div>
-        {adminSections.map((section, i) => (
+        {sections.map((section, i) => (
           <span key={section} className="nav-link" aria-current={i === 0 ? 'page' : undefined}>
             {section}
           </span>

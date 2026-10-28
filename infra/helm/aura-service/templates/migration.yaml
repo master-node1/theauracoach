@@ -1,0 +1,124 @@
+{{- if and (eq .Values.kind "node-service") .Values.migration.enabled }}
+{{- $name := include "aura.name" . -}}
+{{- $component := dict "ctx" . "component" "migrate" -}}
+{{- /*
+Pre-install/pre-upgrade hook resources run before the release's normal resources exist, so the
+migration Job brings its own ServiceAccount, Secret and NetworkPolicy as earlier hooks. The Secret
+holds only the migration user's connection string (DDL rights); the app user has DML rights only.
+*/}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.componentLabels" $component | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '-20'
+    helm.sh/hook-delete-policy: before-hook-creation
+automountServiceAccountToken: false
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.componentLabels" $component | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '-20'
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "aura.componentSelectorLabels" $component | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    {{- include "aura.datastoreEgress" (dict "ctx" . "stores" (list "postgres")) | trim | nindent 4 }}
+{{- if eq .Values.secrets.source "externalSecret" }}
+{{- $prefix := required "global.secrets.prefix is required, e.g. auracoach/prod" .Values.global.secrets.prefix }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $name }}-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.componentLabels" $component | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '-10'
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  refreshInterval: {{ .Values.global.secrets.refreshInterval }}
+  secretStoreRef:
+    kind: SecretStore
+    name: {{ .Values.global.secrets.storeName }}
+  target:
+    name: {{ $name }}-migrate
+    creationPolicy: Owner
+  data:
+    - secretKey: DATABASE_URL
+      remoteRef:
+        key: {{ printf "%s/%s" $prefix $name }}
+        property: {{ .Values.secrets.migrationKey }}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.componentLabels" $component | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '0'
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    ignore-check.kube-linter.io/no-liveness-probe: Run-to-completion Job; activeDeadlineSeconds bounds it.
+    ignore-check.kube-linter.io/no-readiness-probe: Run-to-completion Job; it serves no traffic.
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "aura.componentLabels" $component | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}-migrate
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        {{- include "aura.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: migrate
+          image: {{ include "aura.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.migration.command | nindent 12 }}
+          env:
+            # Read-only root filesystem: keep the Prisma CLI from writing caches or phoning home.
+            - name: HOME
+              value: /tmp
+            - name: CHECKPOINT_DISABLE
+              value: '1'
+            - name: PRISMA_HIDE_UPDATE_MESSAGE
+              value: '1'
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "aura.migrationSecretName" . }}
+                  key: DATABASE_URL
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          securityContext:
+            {{- include "aura.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            {{- include "aura.volumeMounts" . | nindent 12 }}
+      volumes:
+        {{- include "aura.volumes" . | nindent 8 }}
+{{- end }}

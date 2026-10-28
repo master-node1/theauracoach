@@ -4,3 +4,5 @@ export * from './events/catalog';
 export * from './auth/permissions';
 export * from './api/me';
 export * from './flags';
+export * from './api/auth';
+export * from './api/admin-roles';

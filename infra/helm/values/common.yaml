@@ -1,0 +1,38 @@
+# Shared by every release in every environment. Layered after the chart defaults (aura-service/values.yaml).
+global:
+  # Every deployable, its namespace tier and port.
+  deployables:
+    api-gateway: { tier: edge, port: 8080 }
+    web: { tier: edge, port: 3000 }
+    profile-service: { tier: services, port: 3000 }
+    workout-service: { tier: services, port: 3000 }
+    nutrition-service: { tier: services, port: 3000 }
+    progress-service: { tier: services, port: 3000 }
+    coach-service: { tier: services, port: 3000 }
+    notification-service: { tier: services, port: 3000 }
+    audit-service: { tier: services, port: 3000 }
+
+  # Allowed synchronous calls, caller -> callees: the arrows of service catalog §4 plus the web BFF's
+  # call to the gateway (AGENTS.md, Architecture). A new arrow needs an ADR update first.
+  # tools/ci/check-network-policies.mjs fails CI when this drifts from the catalog or from the
+  # rendered NetworkPolicies.
+  callGraph:
+    web: [api-gateway]
+    api-gateway:
+      - profile-service
+      - workout-service
+      - nutrition-service
+      - progress-service
+      - coach-service
+      - notification-service
+      - audit-service
+    profile-service: [workout-service, nutrition-service]
+    coach-service: [profile-service, workout-service, nutrition-service, progress-service]
+    progress-service: [workout-service]
+
+  # Deployed environments read feature flags from AWS AppConfig (environment = dev, staging or prod).
+  flags:
+    source: appconfig
+
+  otel:
+    endpoint: http://otel-collector.aura-system.svc.cluster.local:4318

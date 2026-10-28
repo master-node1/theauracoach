@@ -1,0 +1,16 @@
+{{- if or (gt (int .Values.http.replicas) 1) (and .Values.autoscaling.enabled (gt (int .Values.autoscaling.minReplicas) 1)) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "aura.name" . }}-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.componentLabels" (dict "ctx" . "component" "http") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  # A crash-looping pod must not block a node drain (weekly patch reboot, ADR-007).
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "aura.componentSelectorLabels" (dict "ctx" . "component" "http") | nindent 6 }}
+{{- end }}

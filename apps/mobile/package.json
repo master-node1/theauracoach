@@ -34,6 +34,7 @@
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
+    "@aura/dev-auth": "workspace:*",
     "@types/react": "~19.2.2",
     "vitest": "3.2.7"
   }

@@ -1,0 +1,7 @@
+# Extra example deploy inputs for prod: isolated subnet CIDRs of RDS and ElastiCache. CI only.
+global:
+  datastores:
+    postgres:
+      cidrs: [10.20.32.0/24, 10.20.33.0/24]
+    redis:
+      cidrs: [10.20.32.0/24, 10.20.33.0/24]

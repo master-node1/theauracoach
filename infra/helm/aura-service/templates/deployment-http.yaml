@@ -1,0 +1,71 @@
+{{- $name := include "aura.name" . -}}
+{{- $component := dict "ctx" . "component" "http" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.componentLabels" $component | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.http.replicas }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "aura.componentSelectorLabels" $component | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "aura.componentLabels" $component | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- include "aura.podSecurityContext" . | nindent 8 }}
+      {{- include "aura.scheduling" $component | nindent 6 }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "aura.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.http.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          env:
+            - name: SERVICE_VERSION
+              value: {{ .Values.image.tag | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ $name }}-env
+            {{- if include "aura.hasAppSecret" . }}
+            - secretRef:
+                name: {{ include "aura.appSecretName" . }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.http.resources | nindent 12 }}
+          startupProbe:
+            {{- include "aura.probe" (dict "path" .Values.http.probes.livenessPath "cfg" .Values.http.probes.startup) | nindent 12 }}
+          readinessProbe:
+            {{- include "aura.probe" (dict "path" .Values.http.probes.readinessPath "cfg" .Values.http.probes.readiness) | nindent 12 }}
+          livenessProbe:
+            {{- include "aura.probe" (dict "path" .Values.http.probes.livenessPath "cfg" .Values.http.probes.liveness) | nindent 12 }}
+          securityContext:
+            {{- include "aura.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            {{- include "aura.volumeMounts" . | nindent 12 }}
+      volumes:
+        {{- include "aura.volumes" . | nindent 8 }}

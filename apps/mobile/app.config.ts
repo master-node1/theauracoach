@@ -24,6 +24,8 @@ const config: ExpoConfig = {
     featureFlags: Object.fromEntries(
       Object.entries(process.env).filter(([k]) => k.startsWith('EXPO_PUBLIC_FEATURE_')),
     ),
+    identityEndpoint: process.env.EXPO_PUBLIC_IDENTITY_ENDPOINT,
+    identityProviders: process.env.EXPO_PUBLIC_IDENTITY_PROVIDERS,
   },
 };
 

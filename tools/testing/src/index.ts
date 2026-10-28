@@ -4,7 +4,13 @@ import type { ServiceName } from '@aura/contracts';
 import { DEV_CLIENT_ID } from '@aura/dev-auth';
 import { Client } from 'pg';
 
-export { createDevIssuer, DEV_CLIENT_ID, type DevIssuer } from '@aura/dev-auth';
+export {
+  createDevIssuer,
+  DEV_CLIENT_ID,
+  GroupStore,
+  handleGroupTarget,
+  type DevIssuer,
+} from '@aura/dev-auth';
 
 export interface TestDatabase {
   url: string;

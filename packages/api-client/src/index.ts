@@ -105,6 +105,8 @@ export interface ApiClient {
   restoreAccount(): Promise<void>;
   /** The caller's evaluated feature flags. */
   flags(): Promise<FlagsResponse>;
+  /** Signs the user out on every device (TAC-8): their current access tokens stop working too. */
+  revokeAllSessions(): Promise<void>;
 }
 
 /** Drops trailing slashes without a regex (a `/\/+$/` scan is quadratic on long slash runs). */
@@ -158,6 +160,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     deleteAccount: () => request<DeletionScheduledResponse>('/v1/me', { method: 'DELETE' }),
     restoreAccount: () => request<void>('/v1/me/restore', { method: 'POST' }),
     flags: () => request<FlagsResponse>('/v1/me/flags'),
+    revokeAllSessions: () => request<void>('/v1/me/sessions/revoke', { method: 'POST' }),
   };
 }
 
@@ -177,4 +180,5 @@ export async function loadFlags(
   }
 }
 export * from './settings';
+export * from './identity';
 export * from './privacy';

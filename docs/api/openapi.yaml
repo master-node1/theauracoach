@@ -270,6 +270,25 @@ paths:
               schema: { $ref: '#/components/schemas/FlagsResponse' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '429': { $ref: '#/components/responses/RateLimited' }
+  /v1/me/sessions/revoke:
+    post:
+      tags: [me]
+      operationId: revokeAllSessions
+      summary: Sign out of all devices
+      description: |
+        Records a per-user cut-off in Redis so every service rejects the user's access tokens
+        issued until now (401 before they expire), then calls Cognito GlobalSignOut so no device
+        can refresh. Signing in again afterwards works as usual (TAC-8).
+      responses:
+        '204': { description: Every session ended }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503':
+          description: |
+            IDENTITY_UNAVAILABLE. The cut-off holds, but Cognito could not be reached to stop the
+            refresh tokens; the app asks the user to try again.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /v1/me/exports:
     post:
       tags: [me]
@@ -1467,6 +1486,89 @@ paths:
                         items: { $ref: '#/components/schemas/AuditEntry' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /v1/admin/roles:
+    get:
+      tags: [admin]
+      operationId: adminListRoles
+      summary: Grantable roles and every current grant (permission role:grant, MFA)
+      responses:
+        '200':
+          description: Roles and grants
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [roles, grants]
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, description, permissions]
+                      properties:
+                        id: { $ref: '#/components/schemas/StaffRole' }
+                        description: { type: string }
+                        permissions: { type: array, items: { type: string } }
+                  grants: { type: array, items: { $ref: '#/components/schemas/RoleGrant' } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [admin]
+      operationId: adminGrantRole
+      summary: Grant a staff role; mirrored to Cognito groups and audited (permission role:grant, MFA)
+      description: Takes effect in the user's tokens at their next refresh (at most 15 minutes).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [role]
+              description: Exactly one of userId or email.
+              properties:
+                userId: { type: string, format: uuid }
+                email: { type: string, format: email }
+                role: { $ref: '#/components/schemas/StaffRole' }
+      responses:
+        '201':
+          description: Granted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoleGrant' }
+        '200':
+          description: The user already had the role; nothing changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoleGrant' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503':
+          description: Cognito could not be updated (IDENTITY_UNAVAILABLE); nothing was changed
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /v1/admin/roles/{userId}/{role}:
+    delete:
+      tags: [admin]
+      operationId: adminRevokeRole
+      summary: Revoke a staff role; mirrored to Cognito groups and audited (permission role:grant, MFA)
+      description: Takes effect in the user's tokens at their next refresh (at most 15 minutes).
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: role, in: path, required: true, schema: { $ref: '#/components/schemas/StaffRole' } }
+      responses:
+        '204': { description: Revoked }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503':
+          description: Cognito could not be updated (IDENTITY_UNAVAILABLE); nothing was changed
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1503,7 +1605,9 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     Forbidden:
-      description: Insufficient permission, missing consent or MFA
+      description: >-
+        Insufficient permission (FORBIDDEN), missing consent (CONSENT_REQUIRED, with a `purpose`
+        member) or, on /v1/admin routes, a sign-in without MFA (MFA_REQUIRED)
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -1531,6 +1635,18 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    StaffRole:
+      type: string
+      enum: [owner, content_editor, content_reviewer, nutrition_reviewer, safety_reviewer, support]
+    RoleGrant:
+      type: object
+      required: [userId, email, role, grantedBy, grantedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/StaffRole' }
+        grantedBy: { type: [string, 'null'], format: uuid }
+        grantedAt: { type: string, format: date-time }
     Problem:
       type: object
       required: [type, title, status, code]

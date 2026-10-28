@@ -18,7 +18,11 @@ export interface AuthenticatedUser {
   userId: string;
   email?: string;
   groups: string[];
+  /** Authentication methods from the token's `amr` claim; admin routes need MFA in it. */
+  amr: string[];
   clientId: string;
+  /** The access token's `iat`, epoch seconds; compared with the user's revocation cut-off. */
+  issuedAt: number;
   /** When the user last signed in with their credentials (epoch seconds, `auth_time`); refreshes keep it. */
   authTime?: number;
 }

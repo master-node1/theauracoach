@@ -1,0 +1,57 @@
+{{- $name := include "aura.name" . -}}
+{{- $callees := include "aura.callees" . | fromYamlArray -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-env
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.labels" . | nindent 4 }}
+data:
+  {{- if eq .Values.kind "node-service" }}
+  NODE_ENV: production
+  SERVICE_NAME: {{ $name | quote }}
+  PORT: {{ .Values.containerPort | quote }}
+  AUTH_ISSUER: {{ required "global.auth.issuer is required (deploy input)" .Values.global.auth.issuer | quote }}
+  AUTH_JWKS_URL: {{ required "global.auth.jwksUrl is required (deploy input)" .Values.global.auth.jwksUrl | quote }}
+  AUTH_CLIENT_IDS: {{ required "global.auth.clientIds is required (deploy input)" .Values.global.auth.clientIds | join "," | quote }}
+  {{- $urls := list }}
+  {{- range $callees }}
+  {{- $urls = append $urls (printf "%s=http://%s" . (include "aura.hostPortOf" (dict "ctx" $ "name" .))) }}
+  {{- end }}
+  INTERNAL_SERVICE_URLS: {{ join "," $urls | quote }}
+  {{- if .Values.cognitoAdmin }}
+  IDENTITY_ENDPOINT: {{ printf "https://cognito-idp.%s.amazonaws.com/" .Values.global.auth.region | quote }}
+  COGNITO_USER_POOL_ID: {{ required "global.auth.userPoolId is required (deploy input)" .Values.global.auth.userPoolId | quote }}
+  AWS_REGION: {{ .Values.global.auth.region | quote }}
+  {{- end }}
+  FLAGS_SOURCE: {{ .Values.global.flags.source | quote }}
+  {{- if eq .Values.global.flags.source "appconfig" }}
+  APPCONFIG_APPLICATION: {{ .Values.global.flags.appconfigApplication | quote }}
+  APPCONFIG_ENVIRONMENT: {{ .Values.environment | quote }}
+  APPCONFIG_PROFILE: {{ .Values.global.flags.appconfigProfile | quote }}
+  {{- end }}
+  {{- with .Values.global.otel.endpoint }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.global.otel.tracesSampleRatio }}
+  OTEL_TRACES_SAMPLER_ARG: {{ . | quote }}
+  {{- end }}
+  {{- else if eq .Values.kind "gateway" }}
+  {{- range $callees }}
+  {{ trimSuffix "-service" . | upper | replace "-" "_" }}_UPSTREAM: {{ include "aura.hostPortOf" (dict "ctx" $ "name" .) | quote }}
+  {{- end }}
+  {{- else if eq .Values.kind "web" }}
+  NODE_ENV: production
+  PORT: {{ .Values.containerPort | quote }}
+  {{- if has "api-gateway" $callees }}
+  API_BASE_URL: {{ printf "http://%s" (include "aura.hostPortOf" (dict "ctx" $ "name" "api-gateway")) | quote }}
+  {{- end }}
+  APP_URL: {{ required "web.appUrl is required (deploy input)" .Values.web.appUrl | quote }}
+  OIDC_ISSUER: {{ required "global.auth.issuer is required (deploy input)" .Values.global.auth.issuer | quote }}
+  OIDC_DOMAIN_URL: {{ required "web.oidcDomainUrl is required (deploy input)" .Values.web.oidcDomainUrl | quote }}
+  OIDC_CLIENT_ID: {{ required "web.oidcClientId is required (deploy input)" .Values.web.oidcClientId | quote }}
+  {{- end }}
+  {{- range $key, $value := .Values.env }}
+  {{ $key }}: {{ $value | toString | quote }}
+  {{- end }}

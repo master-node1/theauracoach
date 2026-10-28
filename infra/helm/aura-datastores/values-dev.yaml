@@ -1,0 +1,3 @@
+environment: dev
+namespacePrefix: dev-
+secretKey: auracoach/dev/datastores

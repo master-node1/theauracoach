@@ -7,6 +7,10 @@
     "./nutrition": {
       "types": "./dist/nutrition/index.d.ts",
       "default": "./dist/nutrition/index.js"
+    },
+    "./workouts": {
+      "types": "./dist/workouts/index.d.ts",
+      "default": "./dist/workouts/index.js"
     }
   },
   "files": [
@@ -16,12 +20,13 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test",
-    "test": "vitest run"
+    "test": "vitest run --coverage"
   },
   "dependencies": {
     "decimal.js": "10.6.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "3.2.7",
     "fast-check": "4.10.2",
     "vitest": "3.2.7"
   }

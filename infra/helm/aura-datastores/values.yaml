@@ -1,0 +1,35 @@
+# dev | staging. The chart refuses prod.
+environment: dev
+namespacePrefix: dev-
+namespaces:
+  services: aura-services
+
+# Secrets Manager key holding POSTGRES_PASSWORD, REDIS_PASSWORD and <SERVICE>_DB_PASSWORD per service,
+# e.g. auracoach/dev/datastores. Read through the namespace's SecretStore (aura-platform chart).
+secretKey: ''
+secretStoreName: aws-secrets-manager
+# false: a Secret named "datastores" with the same keys already exists (the k3d smoke test only).
+externalSecret: true
+
+# Services that get a database <name>_db and a login role <name>_svc owning it.
+# Each service's DATABASE_URL and MIGRATION_DATABASE_URL in Secrets Manager point at that role.
+databases: [profile, workout, nutrition, progress, coach, notification, audit]
+
+postgres:
+  image: postgres:16.10-alpine
+  storage: 10Gi
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+redis:
+  image: redis:7.4-alpine
+  storage: 1Gi
+  # Streams and BullMQ need noeviction; the cap keeps a runaway consumer from filling the node.
+  maxmemory: 96mb
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 160Mi }
+
+# Empty uses the cluster default (k3s local-path).
+storageClassName: ''

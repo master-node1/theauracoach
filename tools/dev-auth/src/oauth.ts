@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { GroupStore } from './groups';
 import type { DevIssuer } from './index';
 
 /** What an HTTP handler should send back; server.ts turns it into a response. */
@@ -12,7 +13,14 @@ export interface OAuthOptions {
   clientIds?: string[];
   accessTokenTtlSeconds?: number;
   now?: () => number;
+  /** Where group memberships live; server.ts shares it with the admin endpoints. */
+  groups?: GroupStore;
+  /** The one-time code the staff MFA step accepts. */
+  mfaCode?: string;
 }
+
+/** The dev stand-in for a TOTP code. Local only; Cognito TOTP is used in deployed environments. */
+export const DEV_MFA_CODE = '123456';
 
 interface PendingCode {
   clientId: string;
@@ -23,12 +31,23 @@ interface PendingCode {
   expiresAt: number;
 }
 
-interface DevUser {
+/** Signed in with an email; waiting for the MFA step. */
+interface PendingMfa {
+  form: URLSearchParams;
+  user: DevUser;
+  expiresAt: number;
+}
+
+export interface DevUser {
   sub: string;
   email: string;
-  groups: string[];
-  /** When this user signed in with the form (epoch seconds); refreshes keep it, like Cognito. */
-  authTime: number;
+  /** How the user signed in: ['pwd'], or ['pwd', 'mfa'] after the MFA step. */
+  amr: string[];
+  /**
+   * When the user entered credentials (epoch seconds, the `auth_time` claim). Stamped at sign-in
+   * when not set; refreshes keep it, like Cognito.
+   */
+  authTime?: number;
 }
 
 const CODE_TTL_MS = 5 * 60_000;
@@ -72,6 +91,19 @@ function json(status: number, body: unknown): OAuthResult {
   };
 }
 
+const page = (title: string, body: string): OAuthResult => ({
+  status: 200,
+  headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+  body: `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+<style>body{margin:0;font-family:Inter,system-ui,sans-serif;background:#FAFAF7;color:#16181D;display:flex;justify-content:center;padding:48px 16px}
+main{width:100%;max-width:380px}h1{font-size:24px;margin:0 0 6px}p{color:#5B606B;margin:0 0 20px;font-size:14px}.error{color:#B3261E}
+label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=email],input[type=text]{width:100%;box-sizing:border-box;height:48px;padding:0 12px;border:1px solid #DADCD6;border-radius:8px;font-size:16px}
+.check{display:flex;gap:8px;align-items:center;margin:16px 0 24px;font-weight:500}button{width:100%;height:52px;border:0;border-radius:12px;background:#0E7C66;color:#fff;font-size:16px;font-weight:600;margin-top:16px}
+button.secondary{background:transparent;color:#0E7C66;border:1px solid #DADCD6}</style>
+</head><body><main>${body}</main></body></html>`,
+});
+
 const oauthError = (error: string, description: string) =>
   json(400, { error, error_description: description });
 
@@ -91,7 +123,10 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
   const clientIds = options.clientIds ?? ['aura-dev-client'];
   const ttl = options.accessTokenTtlSeconds ?? 900;
   const now = options.now ?? Date.now;
+  const groups = options.groups ?? new GroupStore();
+  const mfaCode = options.mfaCode ?? DEV_MFA_CODE;
   const codes = new Map<string, PendingCode>();
+  const mfaTickets = new Map<string, PendingMfa>();
   const refreshTokens = new Map<string, { clientId: string; user: DevUser }>();
   /** Users removed with deleteUser. Signing up again with the same email gets a new id, as in Cognito. */
   const deleted = new Set<string>();
@@ -112,8 +147,13 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
     return null;
   }
 
-  /** Code grant: all three tokens. Refresh grant (`withRefresh` false): no new refresh token. */
-  async function issue(clientId: string, user: DevUser, nonce?: string, withRefresh = true) {
+  /**
+   * Code grant: all three tokens. Refresh grant (`withRefresh` false): no new refresh token.
+   * Groups are read now, so grants and revocations show up at the next refresh.
+   */
+  async function issue(clientId: string, signedIn: DevUser, nonce?: string, withRefresh = true) {
+    const user = { ...signedIn, authTime: signedIn.authTime ?? Math.floor(now() / 1000) };
+    const current = groups.list(user.sub);
     let refreshToken: string | undefined;
     if (withRefresh) {
       refreshToken = randomBytes(32).toString('base64url');
@@ -123,15 +163,16 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
       access_token: await dev.mintAccessToken({
         sub: user.sub,
         email: user.email,
-        groups: user.groups,
+        groups: current,
+        amr: user.amr,
+        authTime: user.authTime,
         clientId,
         expiresIn: `${ttl}s`,
-        authTime: user.authTime,
       }),
       id_token: await dev.mintIdToken({
         sub: user.sub,
         email: user.email,
-        groups: user.groups,
+        groups: current,
         clientId,
         ...(nonce ? { nonce } : {}),
       }),
@@ -141,6 +182,38 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
     };
   }
 
+  /** Finishes sign-in: a one-time code back to the app's redirect URI. */
+  function redirectWithCode(form: URLSearchParams, user: DevUser): OAuthResult {
+    const code = randomBytes(24).toString('base64url');
+    const nonce = form.get('nonce');
+    codes.set(code, {
+      clientId: form.get('client_id') as string,
+      redirectUri: form.get('redirect_uri') as string,
+      codeChallenge: form.get('code_challenge') as string,
+      ...(nonce ? { nonce } : {}),
+      user,
+      expiresAt: now() + CODE_TTL_MS,
+    });
+    const target = new URL(form.get('redirect_uri') as string);
+    target.searchParams.set('code', code);
+    const state = form.get('state');
+    if (state) target.searchParams.set('state', state);
+    return { status: 302, headers: { location: target.toString() } };
+  }
+
+  function mfaPage(ticket: string, error?: string): OAuthResult {
+    return page(
+      'AuraCoach dev MFA',
+      `<h1>Two-step verification</h1>
+<p>Staff accounts need a second step for the admin console. Locally the code is always ${mfaCode}.</p>
+${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
+<form method="post" action="/oauth2/mfa"><input type="hidden" name="ticket" value="${escapeHtml(ticket)}">
+<label for="code">Authenticator code</label><input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" autofocus>
+<button type="submit">Verify</button>
+<button class="secondary" type="submit" name="skip" value="1">Skip (no admin access)</button></form>`,
+    );
+  }
+
   return {
     authorizePage(params: URLSearchParams): OAuthResult {
       const problem = checkAuthorizeParams(params);
@@ -148,21 +221,14 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
       const hidden = [...params.entries()]
         .map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`)
         .join('');
-      return {
-        status: 200,
-        headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
-        body: `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>AuraCoach dev sign-in</title>
-<style>body{margin:0;font-family:Inter,system-ui,sans-serif;background:#FAFAF7;color:#16181D;display:flex;justify-content:center;padding:48px 16px}
-main{width:100%;max-width:380px}h1{font-size:24px;margin:0 0 6px}p{color:#5B606B;margin:0 0 20px;font-size:14px}
-label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=email]{width:100%;box-sizing:border-box;height:48px;padding:0 12px;border:1px solid #DADCD6;border-radius:8px;font-size:16px}
-.check{display:flex;gap:8px;align-items:center;margin:16px 0 24px;font-weight:500}button{width:100%;height:52px;border:0;border-radius:12px;background:#0E7C66;color:#fff;font-size:16px;font-weight:600}</style>
-</head><body><main><h1>Dev sign-in</h1><p>Local stand-in for Cognito. No password; never runs in production.</p>
+      return page(
+        'AuraCoach dev sign-in',
+        `<h1>Dev sign-in</h1><p>Local stand-in for Cognito. No password; never runs in production.</p>
 <form method="post" action="/oauth2/authorize">${hidden}
 <label for="email">Email</label><input id="email" name="email" type="email" required value="priya@example.com">
-<label class="check"><input type="checkbox" name="staff" value="admin"> Staff (admin console)</label>
-<button type="submit">Continue</button></form></main></body></html>`,
-      };
+<label class="check"><input type="checkbox" name="staff" value="owner"> Staff (admin console): sign in as an owner</label>
+<button type="submit">Continue</button></form>`,
+      );
     },
 
     authorizeSubmit(form: URLSearchParams): OAuthResult {
@@ -171,26 +237,31 @@ label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=
       const email = (form.get('email') ?? '').trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+$/.test(email))
         return { status: 400, body: 'a valid email is required' };
-      const code = randomBytes(24).toString('base64url');
-      const nonce = form.get('nonce');
-      codes.set(code, {
-        clientId: form.get('client_id') as string,
-        redirectUri: form.get('redirect_uri') as string,
-        codeChallenge: form.get('code_challenge') as string,
-        ...(nonce ? { nonce } : {}),
-        user: {
-          sub: idFor(email),
-          email,
-          groups: form.get('staff') ? ['admin'] : [],
-          authTime: Math.floor(now() / 1000),
-        },
-        expiresAt: now() + CODE_TTL_MS,
-      });
-      const target = new URL(form.get('redirect_uri') as string);
-      target.searchParams.set('code', code);
-      const state = form.get('state');
-      if (state) target.searchParams.set('state', state);
-      return { status: 302, headers: { location: target.toString() } };
+      const sub = idFor(email);
+      // Local bootstrap: the checkbox makes this person an owner, who can then grant other roles.
+      if (form.get('staff')) groups.add(sub, 'owner');
+      const user: DevUser = { sub, email, amr: ['pwd'], authTime: Math.floor(now() / 1000) };
+      if (groups.list(sub).length === 0) return redirectWithCode(form, user);
+      // Staff go through a second step, like Cognito TOTP, so the MFA_REQUIRED path can be tested.
+      const ticket = randomBytes(24).toString('base64url');
+      mfaTickets.set(ticket, { form, user, expiresAt: now() + CODE_TTL_MS });
+      return mfaPage(ticket);
+    },
+
+    mfaSubmit(form: URLSearchParams): OAuthResult {
+      const ticket = form.get('ticket') ?? '';
+      const pending = mfaTickets.get(ticket);
+      if (!pending || pending.expiresAt < now()) {
+        mfaTickets.delete(ticket);
+        return { status: 400, body: 'sign-in expired, start again' };
+      }
+      if (form.get('skip')) {
+        mfaTickets.delete(ticket);
+        return redirectWithCode(pending.form, pending.user);
+      }
+      if (form.get('code')?.trim() !== mfaCode) return mfaPage(ticket, 'That code is not right');
+      mfaTickets.delete(ticket);
+      return redirectWithCode(pending.form, { ...pending.user, amr: ['pwd', 'mfa'] });
     },
 
     async token(form: URLSearchParams): Promise<OAuthResult> {
@@ -232,16 +303,40 @@ label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input[type=
       return json(200, {});
     },
 
-    /**
-     * Like Cognito `AdminDeleteUser`: the user's refresh tokens stop working and the email can sign
-     * up again as a new user. Always 200 (deleting an unknown user is not an error here).
-     */
-    deleteUser(sub: string): OAuthResult {
-      deleted.add(sub);
+    clientAllowed(clientId: string): boolean {
+      return clientIds.includes(clientId);
+    },
+
+    /** Tokens for a user signed in through the identity API (dev-auth's InitiateAuth). */
+    issueTokens(clientId: string, user: DevUser) {
+      return issue(clientId, user);
+    },
+
+    /** GlobalSignOut: every refresh token of the user stops working. */
+    revokeAllFor(sub: string): void {
       for (const [token, entry] of refreshTokens) {
         if (entry.user.sub === sub) refreshTokens.delete(token);
       }
-      return json(200, {});
+    },
+
+    /** The id a new sign-up with this email gets (a deleted user's email gets a fresh one). */
+    idFor,
+
+    /**
+     * Cognito `AdminDeleteUser`: the user's refresh tokens and groups go, and the email can sign
+     * up again as a new user.
+     */
+    deleteUser(sub: string): void {
+      deleted.add(sub);
+      for (const group of groups.list(sub)) groups.remove(sub, group);
+      for (const [token, entry] of refreshTokens) {
+        if (entry.user.sub === sub) refreshTokens.delete(token);
+      }
+    },
+
+    /** False once deleteUser removed the user (dev-auth keeps no list of hosted-UI users). */
+    userExists(sub: string): boolean {
+      return !deleted.has(sub);
     },
 
     logout(params: URLSearchParams): OAuthResult {

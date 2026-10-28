@@ -4,14 +4,21 @@ import { expect, test, type Page } from '@playwright/test';
 const email = (label: string) =>
   `${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
 
-async function signIn(page: Page, address: string, staff = false) {
+/** `staff` signs in as an owner; `mfa` false skips dev-auth's two-step code. */
+async function signIn(page: Page, address: string, staff = false, mfa = true) {
   await page.goto('/');
   await expect(page).toHaveURL(/\/auth\/sign-in\?returnTo=%2F$/);
-  await page.getByRole('link', { name: 'Continue' }).click();
+  await page.getByRole('link', { name: 'More sign-in options' }).click();
   // dev-auth's local sign-in form stands in for Cognito managed login.
   await page.getByLabel('Email').fill(address);
   if (staff) await page.getByLabel('Staff (admin console)').check();
   await page.getByRole('button', { name: 'Continue' }).click();
+  if (staff && mfa) {
+    await page.getByLabel('Authenticator code').fill('123456');
+    await page.getByRole('button', { name: 'Verify' }).click();
+  } else if (staff) {
+    await page.getByRole('button', { name: /Skip/ }).click();
+  }
   await expect(page).toHaveURL(/\/$/);
 }
 
@@ -61,11 +68,18 @@ test('shows the admin console to staff', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Admin' })).toContainText('Audit log');
 });
 
+test('asks staff who skipped MFA to sign in again with it', async ({ page }) => {
+  await signIn(page, email('staff-no-mfa'), true, false);
+  const res = await page.goto('/admin');
+  expect(res?.status()).toBe(403);
+  await expect(page.getByRole('heading', { name: /two-step verification/ })).toBeVisible();
+});
+
 test('sign out clears the session', async ({ page, context }) => {
   await signIn(page, email('leaver'));
   // On phones sign out lives in Settings (W13); it is there on every screen size.
   await page.goto('/settings');
-  await page.getByRole('main').getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page).toHaveURL(/\/auth\/sign-in/);
   await page.goto('/');
   await expect(page).toHaveURL(/\/auth\/sign-in/);

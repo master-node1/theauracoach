@@ -1,0 +1,48 @@
+# kube-linter policy for everything rendered from infra/helm (tools/ci/helm-validate.sh).
+# The checks listed below (no implicit defaults). Exceptions are annotations on the object, with a reason.
+checks:
+  addAllBuiltIn: false
+  include:
+    - no-read-only-root-fs
+    - run-as-non-root
+    - privilege-escalation-container
+    - privileged-container
+    - drop-net-raw-capability
+    - unset-cpu-requirements
+    - unset-memory-requirements
+    - latest-tag
+    - no-liveness-probe
+    - no-readiness-probe
+    - env-var-secret
+    - host-network
+    - host-pid
+    - host-ipc
+    - sensitive-host-mounts
+    - docker-sock
+    - writable-host-mount
+    - no-anti-affinity
+    - no-rolling-update-strategy
+    - mismatching-selector
+    - dangling-service
+    - dangling-networkpolicy
+    - non-existent-service-account
+    - pdb-max-unavailable
+    - pdb-min-available
+    - pdb-unhealthy-pod-eviction-policy
+    - default-service-account
+    - deprecated-service-account-field
+    - dangling-networkpolicypeer-podselector
+    - duplicate-env-var
+    - invalid-target-ports
+    - liveness-port
+    - readiness-port
+    - startup-port
+    - privileged-ports
+    - unsafe-proc-mount
+    - unsafe-sysctls
+    - ssh-port
+    - use-namespace
+  exclude:
+    # Secrets come from External Secrets as environment variables by design (service-kit reads config
+    # from the environment and validates it at start-up); there is no file-based config path yet.
+    - read-secret-from-env-var

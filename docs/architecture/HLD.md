@@ -111,7 +111,7 @@ progress-service keeps per-user daily facts built from `WorkoutCompleted`, `Sess
 
 - Cognito user pool with Google and Apple federation; mobile uses Authorization Code + PKCE via `expo-auth-session`; web uses the same via a Next.js BFF that keeps tokens in `HttpOnly; Secure; SameSite=Lax` cookies.
 - Each service validates access tokens with `service-kit` (`jose`, JWKS cached) and uses `sub` as the user id: `User.id` equals the Cognito `sub`, created by profile-service on the first call, which also publishes `UserRegistered` ([auth LLD §3](../modules/authentication/LLD.md#3-user-identity-across-services)).
-- RBAC roles: `user`, `content_editor`, `nutrition_reviewer`, `safety_reviewer`, `ai_admin`, `support`, `owner`. profile-service owns role grants (audited) and mirrors them to Cognito groups; services read the `cognito:groups` claim and map groups to permission strings (`exercise:publish`) with the shared map in `packages/contracts`.
+- RBAC roles: `user` (implicit), `owner`, `content_editor`, `content_reviewer`, `nutrition_reviewer`, `safety_reviewer`, `support` ([auth LLD §4.1](../modules/authentication/LLD.md)); AI prompts and policies are owner-only. profile-service owns role grants (audited) and mirrors them to Cognito groups; services read the `cognito:groups` claim and map groups to permission strings (`exercise:publish`) with the shared map in `packages/contracts`.
 - Resource-level: every user-owned table has `userId`; repositories require it (`findOwned(userId, id)`) and return 404 on mismatch. A Prisma extension in `service-kit` rejects queries on owned models without a `userId` filter.
 
 ## 9. Scalability, availability, caching

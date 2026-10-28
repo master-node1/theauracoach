@@ -117,9 +117,8 @@ services:
       SERVICE_NAME: profile-service
       DATABASE_URL: postgresql://profile_svc:local-dev-only@postgres:5432/profile_db
       INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000,nutrition-service=http://nutrition:3000'
-      # Account deletion removes the sign-in from dev-auth (Cognito in AWS).
-      IDENTITY_ADMIN: dev-auth
-      DEV_AUTH_URL: http://dev-auth:4100
+      # Cognito user API on dev-auth: role-group mirroring, GlobalSignOut and account deletion.
+      IDENTITY_ENDPOINT: http://dev-auth:4100/
     ports: ['3001:3000']
     depends_on: *depends
     healthcheck:
@@ -142,10 +141,8 @@ services:
       <<: *service-env
       SERVICE_NAME: profile-service
       DATABASE_URL: postgresql://profile_svc:local-dev-only@postgres:5432/profile_db
+      IDENTITY_ENDPOINT: http://dev-auth:4100/
       INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000,nutrition-service=http://nutrition:3000'
-      # Account deletion removes the sign-in from dev-auth (Cognito in AWS).
-      IDENTITY_ADMIN: dev-auth
-      DEV_AUTH_URL: http://dev-auth:4100
     depends_on:
       profile: { condition: service_healthy }
 

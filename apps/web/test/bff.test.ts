@@ -1,6 +1,7 @@
 import { jwtVerify } from 'jose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDevIssuer, createOAuthHandlers, type DevIssuer } from '@aura/dev-auth';
+import { adminAccess, visibleAdminSections } from '../src/lib/admin-access';
 import { forwardToApi } from '../src/lib/api-proxy';
 import { callback, login, logout, refresh, type AuthDeps } from '../src/lib/auth-handlers';
 import { loadConfig, type WebConfig } from '../src/lib/config';
@@ -10,6 +11,7 @@ import type { IdClaims } from '../src/lib/oidc';
 import {
   isStaff,
   readRefreshToken,
+  sessionFromTokens,
   readSession,
   resolveSession,
   type Session,
@@ -267,6 +269,7 @@ describe('web BFF', () => {
       sub: '0b6f5c1e-8f0a-4b8e-9c47-3d2a1e5f7a90',
       email: 'priya@example.com',
       groups: [],
+      mfa: false,
     };
 
     it('attaches the bearer and forwards only safe headers', async () => {
@@ -331,12 +334,45 @@ describe('web BFF', () => {
     }
   });
 
-  it('treats any non-user role as staff', () => {
+  it('treats anyone whose roles carry an admin permission as staff', () => {
     expect(isStaff([])).toBe(false);
     expect(isStaff(['user'])).toBe(false);
-    expect(isStaff(['admin'])).toBe(true);
+    expect(isStaff(['owner'])).toBe(true);
     expect(isStaff(['support'])).toBe(true);
+    expect(isStaff(['admin'])).toBe(false); // retired role name
     expect(isStaff(['owner-of-nothing'])).toBe(false);
+  });
+
+  it('opens the admin console only to staff signed in with MFA', () => {
+    expect(adminAccess({ groups: [], mfa: true })).toBe('forbidden');
+    expect(adminAccess({ groups: ['support'], mfa: false })).toBe('mfa_required');
+    expect(adminAccess({ groups: ['support'], mfa: true })).toBe('ok');
+  });
+
+  it('shows each staff role only the admin sections its permissions use', () => {
+    expect(visibleAdminSections([])).toEqual([]);
+    expect(visibleAdminSections(['support'])).toEqual(['Dashboard', 'Feedback', 'Users']);
+    expect(visibleAdminSections(['nutrition_reviewer'])).toEqual(['Dashboard', 'Foods', 'Recipes']);
+    expect(visibleAdminSections(['owner'])).toHaveLength(13);
+  });
+
+  it('reads MFA from the access token amr when the session is made', async () => {
+    const make = async (amr: string[]) =>
+      sessionFromTokens(
+        {
+          access_token: await dev.mintAccessToken({
+            sub: '0b6f5c1e-8f0a-4b8e-9c47-3d2a1e5f7a90',
+            groups: ['owner'],
+            amr,
+          }),
+          expires_in: 900,
+          token_type: 'Bearer',
+        },
+        { sub: '0b6f5c1e-8f0a-4b8e-9c47-3d2a1e5f7a90', 'cognito:groups': ['owner'] },
+        1_000,
+      );
+    expect((await make(['pwd', 'mfa'])).mfa).toBe(true);
+    expect((await make(['pwd'])).mfa).toBe(false);
   });
 
   it('requires real settings in production', () => {

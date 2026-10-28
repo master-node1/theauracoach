@@ -1,9 +1,10 @@
 import {
   AdminDeleteUserCommand,
-  CognitoIdentityProviderClient,
   ListUsersCommand,
+  type CognitoIdentityProviderClient,
 } from '@aws-sdk/client-cognito-identity-provider';
 import type { ServiceConfig } from '../config';
+import { identityProviderClient, userPoolId } from '../identity/identity-groups';
 
 /** Removes a person's sign-in identity once their data is gone (users LLD §4). */
 export interface IdentityAdmin {
@@ -14,7 +15,7 @@ export interface IdentityAdmin {
 export const IDENTITY_ADMIN = Symbol('IDENTITY_ADMIN');
 
 /**
- * Cognito: find the user by `sub` (federated users have a username like `google_123`, not the
+ * Find the user by `sub` (federated users have a username like `google_123`, not the
  * sub), then AdminDeleteUser. Needs cognito-idp:ListUsers and AdminDeleteUser on the pool.
  */
 export class CognitoIdentityAdmin implements IdentityAdmin {
@@ -40,23 +41,6 @@ export class CognitoIdentityAdmin implements IdentityAdmin {
   }
 }
 
-/** Local stand-in: tools/dev-auth `POST /admin/delete-user`. */
-export class DevAuthIdentityAdmin implements IdentityAdmin {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly doFetch: typeof fetch = fetch,
-  ) {}
-
-  async deleteUser(userId: string): Promise<void> {
-    const res = await this.doFetch(`${this.baseUrl.replace(/\/$/, '')}/admin/delete-user`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sub: userId }),
-    });
-    if (!res.ok) throw new Error(`dev-auth delete-user returned ${res.status}`);
-  }
-}
-
 /** Unit and integration tests that do not run an identity provider. */
 export class NoIdentityAdmin implements IdentityAdmin {
   readonly deleted: string[] = [];
@@ -67,16 +51,7 @@ export class NoIdentityAdmin implements IdentityAdmin {
   }
 }
 
+/** Cognito in AWS, dev-auth locally: both speak the cognito-idp API (IDENTITY_ENDPOINT). */
 export function createIdentityAdmin(config: ServiceConfig): IdentityAdmin {
-  switch (config.IDENTITY_ADMIN) {
-    case 'cognito':
-      return new CognitoIdentityAdmin(
-        new CognitoIdentityProviderClient({ region: config.AWS_REGION }),
-        config.COGNITO_USER_POOL_ID as string,
-      );
-    case 'dev-auth':
-      return new DevAuthIdentityAdmin(config.DEV_AUTH_URL);
-    case 'none':
-      return new NoIdentityAdmin();
-  }
+  return new CognitoIdentityAdmin(identityProviderClient(config), userPoolId(config));
 }

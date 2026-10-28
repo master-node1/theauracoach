@@ -1,0 +1,27 @@
+# prod: one k3s node (t4g.xlarge, 16 GiB), RDS and ElastiCache outside the cluster (ADR-007).
+# Two http replicas per deployable so a rolling update or a crash never drops to zero; one worker each.
+# Requests add up to about 5.3 GiB and 1.95 vCPU, leaving room for surge pods and system add-ons.
+environment: prod
+global:
+  namespacePrefix: ''
+  secrets:
+    prefix: auracoach/prod
+  otel:
+    tracesSampleRatio: '0.1'
+  # Deploy inputs from Terraform: CIDRs of the isolated subnets holding RDS and ElastiCache.
+  datastores:
+    postgres:
+      cidrs: []
+    redis:
+      cidrs: []
+env:
+  LOG_LEVEL: info
+http:
+  replicas: 2
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+worker:
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 384Mi }

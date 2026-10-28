@@ -1,0 +1,15 @@
+# Stage 2 (EKS) overlay, layered after the environment file. Same chart, different platform values
+# (ADR-007 "What stays the same"): ALB ingress, HPA on, replicas spread over zones, IRSA per service
+# (role ARN annotation passed by Terraform as serviceAccount.annotations).
+stage: eks
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+networkPolicy:
+  # Pods use IRSA instead of the node role, so nothing needs the metadata endpoint.
+  awsMetadata: false
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway

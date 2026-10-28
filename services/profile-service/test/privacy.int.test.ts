@@ -56,7 +56,6 @@ beforeAll(async () => {
     }),
     OBJECT_STORAGE_DIR: storageDir,
     OBJECT_STORAGE_PUBLIC_URL: 'http://localhost/v1/me/export-files',
-    IDENTITY_ADMIN: 'none',
   });
   const verifier = new UserTokenVerifier({
     jwksUrl: config.AUTH_JWKS_URL,
@@ -65,7 +64,11 @@ beforeAll(async () => {
     keySource: dev.keySource,
   });
   const ref = await Test.createTestingModule({
-    imports: [AppModule.register(config, verifier, undefined, { identityAdmin: identity })],
+    imports: [
+      AppModule.register(config, verifier, undefined, undefined, undefined, {
+        identityAdmin: identity,
+      }),
+    ],
   }).compile();
   app = configureHttpApp(ref.createNestApplication());
   await app.init();

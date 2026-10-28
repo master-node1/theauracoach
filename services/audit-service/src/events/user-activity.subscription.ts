@@ -39,7 +39,29 @@ export const profileChanged = subscribe<'ProfileChanged@1', Prisma.TransactionCl
   },
 );
 
-export const subscriptions = [consentChanged, profileChanged];
+/** Admin actions from every service (admin LLD §5), stored as sent: producers already redact them. */
+export const auditEvent = subscribe<'AuditEvent@1', Prisma.TransactionClient>(
+  'AuditEvent@1',
+  async (event, tx) => {
+    const { actorId, actorRole, action, entityType, entityId, before, after, requestId } =
+      event.data;
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        actorRole,
+        action,
+        entityType,
+        entityId,
+        before: (before ?? undefined) as Prisma.InputJsonValue | undefined,
+        after: (after ?? undefined) as Prisma.InputJsonValue | undefined,
+        requestId,
+        createdAt: new Date(event.occurredAt),
+      },
+    });
+  },
+);
+
+export const subscriptions = [consentChanged, profileChanged, auditEvent];
 
 /**
  * Data-subject requests (export, deletion, restore, purge) are audited by action only, from the

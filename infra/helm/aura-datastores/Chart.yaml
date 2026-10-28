@@ -1,0 +1,10 @@
+apiVersion: v2
+name: aura-datastores
+description: >-
+  Non-prod only: PostgreSQL 16 (one database and login role per service) and Redis 7 as StatefulSets
+  in <prefix>aura-data, standing in for RDS and ElastiCache on the shared k3s node (ADR-007).
+  Synthetic data only. Prod uses the managed services and never installs this chart.
+type: application
+version: 0.1.0
+appVersion: '16'
+kubeVersion: '>=1.30.0-0'

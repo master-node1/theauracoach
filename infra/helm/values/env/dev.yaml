@@ -1,0 +1,16 @@
+# dev: namespaces on the shared non-prod k3s node (t4g.large), synthetic data, one replica each.
+environment: dev
+global:
+  namespacePrefix: dev-
+  secrets:
+    prefix: auracoach/dev
+  otel:
+    tracesSampleRatio: '1'
+  # Postgres and Redis run in dev-aura-data (aura-datastores chart).
+  datastores:
+    postgres:
+      podLabels: { app.kubernetes.io/name: postgres, app.kubernetes.io/instance: datastores-dev }
+    redis:
+      podLabels: { app.kubernetes.io/name: redis, app.kubernetes.io/instance: datastores-dev }
+env:
+  LOG_LEVEL: debug
