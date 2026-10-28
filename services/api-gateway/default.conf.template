@@ -2,7 +2,16 @@
 # It does no authentication: every service verifies tokens itself. /internal/* is never routed.
 # Upstream addresses come from the environment (envsubst at container start).
 
-limit_req_zone $binary_remote_addr zone=per_ip:10m rate=${GATEWAY_RATE_PER_SECOND}r/s;
+# The viewer's address. CloudFront sets CloudFront-Viewer-Address ("ip:port", IPv6 without brackets)
+# itself, and only Traefik (or the ALB) and web, which passes it on, reach the gateway (NetworkPolicy).
+# Without it (local stack) the peer address. Keys the per-IP limit here and, as the only
+# X-Forwarded-For entry, the services' per-IP limit (deployment.md "Edge routing").
+map $http_cloudfront_viewer_address $aura_client_ip {
+  "~^(?<viewer>.+):[0-9]+$" $viewer;
+  default                   $remote_addr;
+}
+
+limit_req_zone $aura_client_ip zone=per_ip:10m rate=${GATEWAY_RATE_PER_SECOND}r/s;
 limit_req_status 429;
 
 map $http_x_request_id $aura_request_id {
@@ -35,7 +44,7 @@ server {
   proxy_set_header Connection "";
   proxy_set_header Host $host;
   proxy_set_header X-Request-Id $aura_request_id;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-For $aura_client_ip;
   proxy_set_header X-Forwarded-Proto $scheme;
   proxy_hide_header X-Powered-By;
   proxy_connect_timeout 2s;

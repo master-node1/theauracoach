@@ -17,6 +17,8 @@ http:
 # Kubernetes sets HOSTNAME to the pod name; the Next.js standalone server binds to it, so pin all interfaces.
 env:
   HOSTNAME: 0.0.0.0
+  # The viewer address CloudFront sets (deployment.md "Edge routing"); keys the auth rate limit.
+  CLIENT_IP_HEADER: cloudfront-viewer-address
 worker:
   enabled: false
 migration:

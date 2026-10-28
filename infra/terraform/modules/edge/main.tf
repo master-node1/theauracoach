@@ -4,7 +4,8 @@
 # but forwards the viewer Host (AllViewer), so the TLS SNI and Host the node sees
 # are the public hosts (app.<env>., api.<env>.): Traefik's IngressRoutes match
 # them and the cert-manager certificate covers them (deployment.md "Edge
-# routing"). CloudFront adds a secret X-Origin-Verify header that Traefik
+# routing"). It also adds CloudFront-Viewer-Address, the viewer's ip:port, which
+# web and the gateway key per-IP limits on. CloudFront adds a secret X-Origin-Verify header that Traefik
 # requires. content-media is a second origin through origin access control.
 # WAF (managed rules + rate limits) is attached in prod.
 
@@ -12,11 +13,8 @@ locals {
   # One web and one api host per environment; the first environment's web host names the certificate.
   aliases = flatten([for e in sort(keys(var.public_hosts)) : [var.public_hosts[e].web, var.public_hosts[e].api]])
   # AWS managed policies.
-  cache_disabled  = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # CachingDisabled
-  cache_optimized = "658327ea-f89d-4fab-a63d-7e88639e58f6" # CachingOptimized
-  # Forwards every viewer header including Host. tools/ci/check-edge-routing.mjs fails if this changes,
-  # because the IngressRoutes and the origin certificate are built for the viewer hosts.
-  origin_all_viewer      = "216adef6-5c7f-47e4-b989-5492eafa07d3" # AllViewer
+  cache_disabled         = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # CachingDisabled
+  cache_optimized        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # CachingOptimized
   traefik_origin_id      = "k3s-traefik"
   content_media_originid = "content-media"
 }
@@ -239,6 +237,27 @@ resource "aws_cloudfront_origin_access_control" "content_media" {
   signing_protocol                  = "sigv4"
 }
 
+# Every viewer header, Host included, plus the viewer address. tools/ci/check-edge-routing.mjs fails if
+# a behavior to the k3s origin stops using it: the IngressRoutes and the origin certificate are built
+# for the viewer hosts, and the per-IP limits read CloudFront-Viewer-Address.
+resource "aws_cloudfront_origin_request_policy" "k3s" {
+  name    = "${var.name_prefix}-viewer"
+  comment = "All viewer headers (Host included), cookies and query strings, plus CloudFront-Viewer-Address"
+
+  cookies_config {
+    cookie_behavior = "all"
+  }
+  headers_config {
+    header_behavior = "allViewerAndWhitelistCloudFront"
+    headers {
+      items = ["CloudFront-Viewer-Address"]
+    }
+  }
+  query_strings_config {
+    query_string_behavior = "all"
+  }
+}
+
 # CachingOptimized plus Host in the cache key: the origin routes by Host, and environments that share
 # the distribution (dev, staging) must never be served each other's build assets.
 resource "aws_cloudfront_cache_policy" "static_by_host" {
@@ -335,7 +354,7 @@ resource "aws_cloudfront_distribution" "this" {
     allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
     cached_methods             = ["GET", "HEAD"]
     cache_policy_id            = local.cache_disabled
-    origin_request_policy_id   = local.origin_all_viewer
+    origin_request_policy_id   = aws_cloudfront_origin_request_policy.k3s.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
     compress                   = true
   }
@@ -347,7 +366,7 @@ resource "aws_cloudfront_distribution" "this" {
     allowed_methods            = ["GET", "HEAD"]
     cached_methods             = ["GET", "HEAD"]
     cache_policy_id            = aws_cloudfront_cache_policy.static_by_host.id
-    origin_request_policy_id   = local.origin_all_viewer
+    origin_request_policy_id   = aws_cloudfront_origin_request_policy.k3s.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
     compress                   = true
   }

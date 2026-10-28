@@ -74,7 +74,11 @@ CloudFront forwards the viewer `Host` to the node (origin request policy **AllVi
 
 - **One map.** Each account stack defines `local.hosts` once; it sets the distribution's aliases and ACM certificate (`modules/edge`, `public_hosts`) and the `helm_inputs.public_hosts` output. `deploy-inputs.mjs` turns it into `global.hosts` for the routes and `environments.<env>.hosts` for the certificate, and fails if a host is not in `cloudfront_aliases`.
 - **Dev and staging share the non-prod node and distribution** but no host: each environment's routes and certificate name only its own hosts, the edge module rejects a host shared by two environments, and Traefik's `sniStrict` refuses an SNI no certificate covers. `/_next/static/*` is cached per `Host`, so the two never get each other's build assets.
-- **Headers.** The BFF and gateway see the public `Host`; Traefik adds `X-Forwarded-Host` and `X-Forwarded-Proto: https`. The web app builds redirects from `web.appUrl`, not from the request. The client IP is not yet carried through Traefik (§7, [TAC-47](https://harisireddi7776.atlassian.net/browse/TAC-47)).
+- **Headers.** The BFF and gateway see the public `Host`; Traefik adds `X-Forwarded-Host` and `X-Forwarded-Proto: https`. The web app builds redirects from `web.appUrl`, not from the request.
+- **Client address** ([TAC-47](https://harisireddi7776.atlassian.net/browse/TAC-47)). Traefik trusts no forwarded headers, so the `X-Forwarded-For` it passes on holds only the CloudFront edge, and a client-sent one is dropped. The viewer's address comes instead from `CloudFront-Viewer-Address` (`ip:port`), which the origin request policy has CloudFront add and which it sets itself:
+  - web (`CLIENT_IP_HEADER=cloudfront-viewer-address`) keys the auth rate limit on it and passes it to the gateway with `/api/v1/*`;
+  - the gateway keys `limit_req` on it and sends it to the services as the only `X-Forwarded-For` entry, so their per-IP limit (`trust proxy 1`) sees the viewer;
+  - without the header (local stack) both fall back to the peer address. Only Traefik (or the ALB in Stage 2) and web can reach the gateway (NetworkPolicy), and only CloudFront can reach Traefik (security group), so nobody else can set it. `services/api-gateway/check-routes.mjs` checks the gateway half.
 - **Stage 2** renders ALB `Ingress` rules for the same hosts.
 
 `tools/ci/check-edge-routing.mjs` proves this in CI (§6).
@@ -228,7 +232,7 @@ The `Helm charts` job runs on changes to `infra/helm/`, `infra/k3s/`, `tools/dep
 | `kubeconform -strict` (Kubernetes 1.36, k3s `v1.36.5+k3s1`) | Every object against the API schemas, CRDs (ExternalSecret, IngressRoute, Certificate, HelmChartConfig) from the datree CRDs catalog |
 | `kube-linter` with `infra/helm/.kube-linter.yaml` | Non-root, read-only root filesystem, resources set, probes, anti-affinity, PDBs, no host access. Exceptions are annotations with a reason |
 | `tools/ci/check-network-policies.mjs` | Call graph equals the catalog; rendered policies, `INTERNAL_SERVICE_URLS` and gateway upstreams match it; migration hook and probes everywhere; no secret in any values file |
-| `tools/ci/check-edge-routing.mjs` | [Edge routing](#edge-routing): every CloudFront behavior to the k3s origin forwards `Host`; from example `terraform output` files (`infra/helm/ci/terraform-outputs-*.json`) through `deploy-inputs.mjs`, web and api-gateway route exactly their public host (k3s and EKS), the origin certificate in the same namespace covers exactly those hosts, all are CloudFront aliases, and no two environments share one |
+| `tools/ci/check-edge-routing.mjs` | [Edge routing](#edge-routing): every CloudFront behavior to the k3s origin forwards `Host` and adds `CloudFront-Viewer-Address`; from example `terraform output` files (`infra/helm/ci/terraform-outputs-*.json`) through `deploy-inputs.mjs`, web and api-gateway route exactly their public host (k3s and EKS), the origin certificate in the same namespace covers exactly those hosts, all are CloudFront aliases, and no two environments share one |
 
 Run it locally with the same tools on `PATH` (helm 3, kubeconform, kube-linter, yq v4): `tools/ci/helm-validate.sh` (add `--addons` if the chart repositories are reachable).
 
@@ -241,7 +245,6 @@ Run it locally with the same tools on `PATH` (helm 3, kubeconform, kube-linter, 
 | Gap | Owner |
 |---|---|
 | coach-service will need the AI provider key in `auracoach/<env>/coach-service` and in `secrets.keys` | TAC-25 |
-| Traefik trusts no forwarded headers, so web's auth rate limit and the gateway's `limit_req` key on a proxy address instead of the viewer's; must be fixed before the first deploy | [TAC-47](https://harisireddi7776.atlassian.net/browse/TAC-47) |
 | No staged canary (10% → 50% → 100%): MVP uses Helm `--atomic` plus the smoke gate, as the deployment architecture allows | Stage 2 (Argo Rollouts) |
 | Playwright and Maestro E2E on dev after each deploy, k6 load suite, live AI eval | TAC-40, TAC-28 |
 | The `X-Origin-Verify` value sits in the IngressRoute object; anyone who can read IngressRoutes in `aura-edge` can read it. Cluster access is limited to the deploy role and operators (SSM) | accepted for beta |

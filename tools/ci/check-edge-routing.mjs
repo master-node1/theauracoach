@@ -2,7 +2,8 @@
 // Checks that CloudFront, the ingress routes and the origin certificate agree on the hosts each
 // environment answers on (deployment.md "Edge routing", TAC-46). CloudFront forwards the viewer Host,
 // so the node sees app.<env>. and api.<env>., never origin.<domain>:
-//   1. Every CloudFront behavior to the k3s origin forwards the viewer Host (modules/edge), and each
+//   1. Every CloudFront behavior to the k3s origin forwards the viewer Host and adds
+//      CloudFront-Viewer-Address, the address web and the gateway rate-limit on (modules/edge), and each
 //      account stack feeds the distribution and helm_inputs.public_hosts from the same map.
 //   2. For dev, staging and prod, starting from example `terraform output -json` files run through
 //      tools/deploy/deploy-inputs.mjs (as the deploy job does): web routes only the web host and
@@ -17,7 +18,6 @@ import { join } from 'node:path';
 import { deployInputs } from '../deploy/deploy-inputs.mjs';
 
 const ENV_ACCOUNT = { dev: 'nonprod', staging: 'nonprod', prod: 'prod' };
-const ALL_VIEWER = '216adef6-5c7f-47e4-b989-5492eafa07d3'; // AWS managed origin request policy
 const TAG = '0'.repeat(40);
 const K8S_VERSION = process.env.K8S_VERSION ?? '1.36.0';
 const failures = [];
@@ -25,7 +25,7 @@ const fail = (msg) => failures.push(msg);
 const show = (xs) => `[${[...xs].sort().join(', ')}]`;
 const sameSet = (a, b) => a.length === b.length && show(a) === show(b);
 
-// --- 1. CloudFront forwards the viewer Host ---------------------------------------------------
+// --- 1. CloudFront forwards the viewer Host and address ---------------------------------------------------
 /** Bodies of the top-level `name {` blocks inside an HCL text, by brace matching. */
 function blocks(text, name) {
   const found = [];
@@ -44,8 +44,15 @@ function blocks(text, name) {
 const attr = (body, key) => new RegExp(`^\\s*${key}\\s*=\\s*(.+?)\\s*(#.*)?$`, 'm').exec(body)?.[1];
 
 const edge = readFileSync('infra/terraform/modules/edge/main.tf', 'utf8');
-if (attr(edge, 'origin_all_viewer') !== `"${ALL_VIEWER}"`) {
-  fail(`modules/edge: local.origin_all_viewer is not the AllViewer policy ${ALL_VIEWER}`);
+const [policy] = blocks(edge, 'resource "aws_cloudfront_origin_request_policy" "k3s"');
+const [headersConfig] = blocks(policy ?? '', 'headers_config');
+if (
+  attr(headersConfig ?? '', 'header_behavior') !== '"allViewerAndWhitelistCloudFront"' ||
+  !/"CloudFront-Viewer-Address"/.test(headersConfig)
+) {
+  fail(
+    'modules/edge: origin request policy k3s must forward all viewer headers (Host) plus CloudFront-Viewer-Address',
+  );
 }
 const [distribution] = blocks(edge, 'resource "aws_cloudfront_distribution" "this"');
 if (!distribution) throw new Error('modules/edge: aws_cloudfront_distribution.this not found');
@@ -61,9 +68,9 @@ const behaviors = [
 ].filter((b) => attr(b, 'target_origin_id') === 'local.traefik_origin_id');
 if (behaviors.length === 0) fail('modules/edge: no cache behavior targets the k3s origin');
 for (const b of behaviors) {
-  if (attr(b, 'origin_request_policy_id') !== 'local.origin_all_viewer') {
+  if (attr(b, 'origin_request_policy_id') !== 'aws_cloudfront_origin_request_policy.k3s.id') {
     fail(
-      `modules/edge: behavior ${attr(b, 'path_pattern') ?? '(default)'} to the k3s origin does not forward the viewer Host (AllViewer)`,
+      `modules/edge: behavior ${attr(b, 'path_pattern') ?? '(default)'} to the k3s origin does not use the k3s origin request policy (Host, viewer address)`,
     );
   }
 }
