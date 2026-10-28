@@ -488,6 +488,9 @@ importers:
       '@aura/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@aura/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@aura/service-kit':
         specifier: workspace:*
         version: link:../../packages/service-kit

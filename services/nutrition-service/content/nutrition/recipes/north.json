@@ -83,7 +83,7 @@
     { "slug": "chana-dal-fry", "name": "Chana dal fry", "cuisine": "north_indian", "slots": ["LUNCH", "DINNER"], "serves": 4, "yield": 850, "prep": 60, "cook": 30, "cost": 1,
       "ing": [["chana-dal", 160], ["onion", 70], ["tomato", 100], ["sunflower-oil", 15], ["ghee", 5], ["garlic", 6], ["ginger", 5], ["cumin-seeds", 2], ["turmeric", 1], ["red-chilli-powder", 2], ["garam-masala", 2], ["salt", 6]],
       "steps": ["Soak chana dal and pressure-cook until soft but whole.", "Fry onion, ginger, garlic and tomato with spices.", "Combine and simmer, finish with ghee."] },
-    { "slug": "masoor-dal", "name": "Masoor dal", "local": ["lal dal"], "cuisine": "north_indian", "slots": ["LUNCH", "DINNER"], "serves": 4, "yield": 850, "prep": 5, "cook": 20, "cost": 1,
+    { "slug": "masoor-dal-tadka", "name": "Masoor dal", "local": ["lal dal"], "cuisine": "north_indian", "slots": ["LUNCH", "DINNER"], "serves": 4, "yield": 850, "prep": 5, "cook": 20, "cost": 1,
       "ing": [["masoor-dal", 150], ["onion", 60], ["tomato", 100], ["sunflower-oil", 15], ["garlic", 6], ["cumin-seeds", 2], ["turmeric", 1], ["red-chilli-powder", 2], ["salt", 6]],
       "steps": ["Boil masoor dal with turmeric until it breaks down.", "Fry cumin, garlic, onion and tomato.", "Stir into the dal and simmer."] },
     { "slug": "kala-chana-curry", "name": "Kala chana curry", "cuisine": "north_indian", "slots": ["LUNCH", "DINNER"], "serves": 4, "yield": 900, "prep": 480, "cook": 40, "cost": 1,
