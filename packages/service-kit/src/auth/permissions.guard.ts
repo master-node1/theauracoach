@@ -13,10 +13,18 @@ import type { AuthenticatedUser } from './decorators';
 import { isAdminPath, routePath } from './routes';
 
 export const REQUIRED_PERMISSIONS = 'aura:permissions';
+export const ANY_PERMISSIONS = 'aura:any-permissions';
 
 /** The caller needs every listed permission, mapped from the token's `cognito:groups` (auth LLD §4). */
 export const Permissions = (...permissions: Permission[]) =>
   SetMetadata(REQUIRED_PERMISSIONS, permissions);
+
+/**
+ * The caller needs at least one of the listed permissions, e.g. a review queue both editors and
+ * reviewers read. Checked in addition to any @Permissions on the same route.
+ */
+export const AnyPermission = (...permissions: Permission[]) =>
+  SetMetadata(ANY_PERMISSIONS, permissions);
 
 const forbidden = (title = 'You do not have permission for this action') =>
   new ProblemException(HttpStatus.FORBIDDEN, 'FORBIDDEN', title);
@@ -53,19 +61,22 @@ export class AdminMfaGuard implements CanActivate {
 }
 
 /**
- * Global guard. Routes with @Permissions(...) need every listed permission. Admin routes that
- * declare none are refused, so a forgotten decorator fails closed.
+ * Global guard. Routes with @Permissions(...) need every listed permission, routes with
+ * @AnyPermission(...) at least one. Admin routes that declare neither are refused, so a forgotten
+ * decorator fails closed.
  */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const required = this.reflector.getAllAndOverride<Permission[] | undefined>(
-      REQUIRED_PERMISSIONS,
-      [context.getHandler(), context.getClass()],
-    );
-    if (!required?.length) {
+    const targets = [context.getHandler(), context.getClass()];
+    const required =
+      this.reflector.getAllAndOverride<Permission[] | undefined>(REQUIRED_PERMISSIONS, targets) ??
+      [];
+    const anyOf =
+      this.reflector.getAllAndOverride<Permission[] | undefined>(ANY_PERMISSIONS, targets) ?? [];
+    if (required.length === 0 && anyOf.length === 0) {
       if (isAdminRoute(context)) throw forbidden();
       return true;
     }
@@ -73,6 +84,7 @@ export class PermissionsGuard implements CanActivate {
     if (!user) throw forbidden();
     const granted = permissionsFor(user.groups);
     if (!required.every((p) => granted.has(p))) throw forbidden();
+    if (anyOf.length > 0 && !anyOf.some((p) => granted.has(p))) throw forbidden();
     return true;
   }
 }
