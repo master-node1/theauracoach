@@ -73,3 +73,49 @@ describe('audit of user consent and profile changes', () => {
     expect(rows[0]!.createdAt.toISOString()).toBe('2026-10-26T10:00:00.000Z');
   });
 });
+
+describe('audit of admin actions', () => {
+  it('stores AuditEvent once, with actor, entity and before/after', async () => {
+    const consumer = new StreamConsumer(prisma, redis, {
+      group: 'audit-service',
+      consumerName: 'test',
+      subscriptions,
+    });
+    await consumer.ensureGroups();
+    const actorId = randomUUID();
+    const targetId = randomUUID();
+    const event = JSON.stringify({
+      id: randomUUID(),
+      type: 'AuditEvent',
+      version: 1,
+      occurredAt: '2026-10-27T11:00:00.000Z',
+      producer: 'profile-service',
+      userId: targetId,
+      traceparent: null,
+      data: {
+        actorId,
+        actorRole: 'owner',
+        action: 'role.grant',
+        entityType: 'user_role',
+        entityId: `${targetId}:support`,
+        before: null,
+        after: { userId: targetId, role: 'support' },
+        requestId: null,
+      },
+    });
+    await redis.xadd(streamKey('AuditEvent', 1), '*', 'event', event);
+    await redis.xadd(streamKey('AuditEvent', 1), '*', 'event', event);
+    await consumer.pollOnce(100);
+
+    const rows = await prisma.auditLog.findMany({ where: { actorId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      actorRole: 'owner',
+      action: 'role.grant',
+      entityType: 'user_role',
+      entityId: `${targetId}:support`,
+      before: null,
+      after: { userId: targetId, role: 'support' },
+    });
+  });
+});

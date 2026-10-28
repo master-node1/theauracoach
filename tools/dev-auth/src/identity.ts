@@ -156,7 +156,7 @@ export function createIdentityHandlers(
       const salt = randomBytes(16);
       const sub = devUserId(email);
       accounts.set(email, {
-        user: { sub, email, groups: [] },
+        user: { sub, email, amr: ['pwd'] },
         salt,
         hash: hashPassword(password, salt),
         confirmed: false,

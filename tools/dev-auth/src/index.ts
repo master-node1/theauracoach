@@ -16,6 +16,8 @@ export interface DevIssuer {
     sub?: string;
     email?: string;
     groups?: string[];
+    /** Authentication methods (RFC 8176), e.g. ['pwd', 'mfa'] after the staff MFA step. */
+    amr?: string[];
     clientId?: string;
     expiresIn?: string;
     tokenUse?: 'access' | 'id';
@@ -53,6 +55,7 @@ export async function createDevIssuer(issuer = 'http://localhost:4100'): Promise
         'cognito:groups': input.groups ?? [],
       };
       if (input.email) claims.email = input.email;
+      if (input.amr) claims.amr = input.amr;
       return new SignJWT(claims)
         .setProtectedHeader({ alg: 'RS256', kid })
         .setSubject(input.sub ?? randomUUID())
@@ -81,5 +84,12 @@ export async function createDevIssuer(issuer = 'http://localhost:4100'): Promise
   };
 }
 
-export { createOAuthHandlers, devUserId, type DevUser, type OAuthResult } from './oauth';
+export {
+  createOAuthHandlers,
+  devUserId,
+  DEV_MFA_CODE,
+  type DevUser,
+  type OAuthResult,
+} from './oauth';
 export { createIdentityHandlers, MAX_CODE_FAILURES, MAX_CODES_PER_WINDOW } from './identity';
+export { GroupStore, GROUP_NAME, handleGroupTarget } from './groups';

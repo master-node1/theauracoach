@@ -11,6 +11,8 @@ import type { ServiceName } from '@aura/contracts';
 import { Redis } from 'ioredis';
 import { AuthGuard } from './auth/auth.guard';
 import { RedisSessionRevocations, SESSION_REVOCATIONS } from './auth/session-revocations';
+import { ConsentGuard } from './auth/consent.guard';
+import { AdminMfaGuard, PermissionsGuard } from './auth/permissions.guard';
 import { UserTokenVerifier } from './auth/user-token.verifier';
 import { parseServiceUrls, type BaseConfig } from './config/config';
 import { createFeatureFlags, FeatureFlags } from './flags/feature-flags';
@@ -87,9 +89,14 @@ export class ServiceKitModule implements OnApplicationShutdown {
         ? { provide: FeatureFlags, useValue: options.flags }
         : { provide: FeatureFlags, useFactory: () => createFeatureFlags(config) },
       HealthRegistry,
+      // Global guards run in this order: who is calling, rate limit, feature flag, MFA on admin
+      // routes, permissions, consent.
       { provide: APP_GUARD, useClass: AuthGuard },
       { provide: APP_GUARD, useClass: RateLimitGuard },
       { provide: APP_GUARD, useClass: FeatureFlagGuard },
+      { provide: APP_GUARD, useClass: AdminMfaGuard },
+      { provide: APP_GUARD, useClass: PermissionsGuard },
+      { provide: APP_GUARD, useClass: ConsentGuard },
       { provide: APP_FILTER, useClass: ProblemDetailsFilter },
     ];
     return {

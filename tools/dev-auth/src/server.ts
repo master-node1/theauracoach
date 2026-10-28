@@ -4,6 +4,8 @@ import {
   createDevIssuer,
   createIdentityHandlers,
   createOAuthHandlers,
+  GroupStore,
+  handleGroupTarget,
   type OAuthResult,
 } from './index';
 
@@ -11,10 +13,11 @@ import {
  * Local Cognito stand-in for docker compose.
  *   GET  /.well-known/jwks.json
  *   POST /token  {"sub":"…","email":"…","groups":["admin"]}  -> {"access_token":"…"}
- *   GET  /oauth2/authorize, POST /oauth2/token, POST /oauth2/revoke, GET /logout
- *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints)
- *   POST /  X-Amz-Target: AWSCognitoIdentityProviderService.SignUp (and the other email-flow
- *        actions, shaped like Cognito's cognito-idp API)
+ *   GET  /oauth2/authorize, POST /oauth2/mfa, POST /oauth2/token, POST /oauth2/revoke, GET /logout
+ *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints; staff get an MFA step)
+ *   POST /  X-Amz-Target: AWSCognitoIdentityProviderService.AdminAddUserToGroup (also
+ *        AdminRemoveUserFromGroup, AdminListGroupsForUser): profile-service role grants
+ *        Also the email-flow actions (SignUp, ConfirmSignUp, ForgotPassword, InitiateAuth, …)
  *   GET  /test/codes?email=…  -> {"signUp":"123456","reset":"654321"} (codes are never emailed)
  * Keys and sessions live in memory and are lost on restart.
  */
@@ -39,8 +42,11 @@ async function main() {
   const port = Number(process.env.PORT ?? 4100);
   const issuer = process.env.DEV_AUTH_ISSUER ?? `http://localhost:${port}`;
   const dev = await createDevIssuer(issuer);
+  const groups = new GroupStore();
   const oauth = createOAuthHandlers(dev, {
     accessTokenTtlSeconds: Number(process.env.DEV_AUTH_ACCESS_TOKEN_TTL ?? 900),
+    groups,
+    ...(process.env.DEV_AUTH_MFA_CODE ? { mfaCode: process.env.DEV_AUTH_MFA_CODE } : {}),
   });
   const identity = createIdentityHandlers(dev, oauth);
   createServer(async (req, res) => {
@@ -60,18 +66,6 @@ async function main() {
         res
           .writeHead(200, { 'content-type': 'application/json' })
           .end(JSON.stringify({ access_token: token }));
-        return;
-      }
-      if (url.pathname === '/' && req.method === 'POST') {
-        const raw = await readBody(req);
-        const target = req.headers['x-amz-target'];
-        send(
-          res,
-          await identity.handle(
-            typeof target === 'string' ? target : undefined,
-            raw ? JSON.parse(raw) : {},
-          ),
-        );
         return;
       }
       if (url.pathname === '/' && req.method === 'OPTIONS') {
@@ -96,6 +90,19 @@ async function main() {
       }
       if (url.pathname === '/oauth2/authorize' && req.method === 'POST') {
         send(res, oauth.authorizeSubmit(new URLSearchParams(await readBody(req))));
+        return;
+      }
+      if (url.pathname === '/oauth2/mfa' && req.method === 'POST') {
+        send(res, oauth.mfaSubmit(new URLSearchParams(await readBody(req))));
+        return;
+      }
+      if (url.pathname === '/' && req.method === 'POST') {
+        // Cognito's cognito-idp JSON API: admin group calls (role grants) or the email flows.
+        const target = req.headers['x-amz-target'];
+        const action = typeof target === 'string' ? target : undefined;
+        const raw = await readBody(req);
+        const body = raw ? JSON.parse(raw) : {};
+        send(res, handleGroupTarget(groups, action, body) ?? (await identity.handle(action, body)));
         return;
       }
       if (url.pathname === '/oauth2/token' && req.method === 'POST') {

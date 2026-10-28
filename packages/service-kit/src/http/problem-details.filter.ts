@@ -23,6 +23,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     if (exception instanceof ProblemException) {
       const status = exception.getStatus();
       return {
+        ...exception.extensions,
         type: problemType(exception.code),
         title: String(exception.message),
         status,

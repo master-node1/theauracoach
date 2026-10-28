@@ -1,6 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { configureHttpApp, UserTokenVerifier } from '@aura/service-kit';
+import {
+  configureHttpApp,
+  describeRoutes,
+  guardMatrixViolations,
+  SERVICE_KIT_PUBLIC_ROUTES,
+  UserTokenVerifier,
+} from '@aura/service-kit';
 import {
   createDevIssuer,
   createTestDatabase,
@@ -42,6 +48,12 @@ afterAll(async () => {
 });
 
 describe('nutrition-service', () => {
+  it('guards every route: public only if reviewed, internal under /internal/v1, admin with permissions', () => {
+    expect(
+      guardMatrixViolations(describeRoutes(app), { publicRoutes: SERVICE_KIT_PUBLIC_ROUTES }),
+    ).toEqual([]);
+  });
+
   it('is ready once its database and Redis answer', async () => {
     const res = await request(app.getHttpServer()).get('/health/ready').expect(200);
     expect(res.body).toEqual({ status: 'ok', checks: { database: 'up', redis: 'up' } });

@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { config as webConfig } from './lib/config';
 import { SESSION_COOKIE } from './lib/cookies';
 import { idTokenVerifier } from './lib/oidc';
-import { isStaff, resolveSession } from './lib/session';
+import { adminAccess } from './lib/admin-access';
+import { resolveSession } from './lib/session';
 
 /**
  * Runs before every page and /api/v1 request: refreshes the session when the access token has
- * under 60 s left, sends signed-out visitors to sign-in, and keeps non-staff out of /admin.
+ * under 60 s left, sends signed-out visitors to sign-in, keeps non-staff out of /admin and asks
+ * staff who signed in without MFA to sign in again with it.
  */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const cfg = webConfig();
@@ -31,8 +33,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   let response: NextResponse | undefined;
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-    if (!isStaff(state.session.groups)) {
-      response = NextResponse.rewrite(new URL('/forbidden', request.url), { status: 403 });
+    const access = adminAccess(state.session);
+    if (access !== 'ok') {
+      const page = access === 'forbidden' ? '/forbidden' : '/forbidden/mfa';
+      response = NextResponse.rewrite(new URL(page, request.url), { status: 403 });
     }
   }
   if (state.kind === 'refreshed') {

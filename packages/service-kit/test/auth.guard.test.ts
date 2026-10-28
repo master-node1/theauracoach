@@ -91,7 +91,12 @@ describe('AuthGuard', () => {
 
   it('accepts a valid access token and exposes the user', async () => {
     const sub = '0b6f5c1e-8f0a-4b8e-9c47-3d2a1e5f7a90';
-    const token = await dev.mintAccessToken({ sub, email: 'a@example.com', groups: ['trainer'] });
+    const token = await dev.mintAccessToken({
+      sub,
+      email: 'a@example.com',
+      groups: ['content_editor'],
+      amr: ['pwd'],
+    });
     const res = await request(app.getHttpServer())
       .get('/v1/me')
       .set('authorization', `Bearer ${token}`)
@@ -99,7 +104,8 @@ describe('AuthGuard', () => {
     expect(res.body).toEqual({
       userId: sub,
       email: 'a@example.com',
-      groups: ['trainer'],
+      groups: ['content_editor'],
+      amr: ['pwd'],
       clientId: DEV_CLIENT_ID,
       issuedAt: expect.any(Number),
     });

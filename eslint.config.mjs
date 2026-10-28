@@ -33,6 +33,36 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/domain/src/**/*.ts'],
+    rules: {
+      // Domain engines are pure (ADR-004): no framework, database, Node or sibling-package imports.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['node:*'], message: 'Domain code does no I/O.' },
+            {
+              group: ['@nestjs/*', '@prisma/*', '@aura/*'],
+              message: 'Domain code imports nothing outside itself.',
+            },
+          ],
+          paths: [
+            'fs',
+            'path',
+            'crypto',
+            'http',
+            'https',
+            'os',
+            'child_process',
+            'events',
+            'stream',
+            'util',
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/test/**/*.ts', '**/*.test.ts', 'tests/**/*.ts', 'tools/**/*.ts'],
     rules: { 'no-console': 'off', '@typescript-eslint/no-non-null-assertion': 'off' },
   },
