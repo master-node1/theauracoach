@@ -119,3 +119,9 @@ variable "state_kms_key_arn" {
   description = "State key from the bootstrap stack."
   type        = string
 }
+
+variable "prod_account_id" {
+  description = "Prod account ID, allowed to pull images from this registry to promote releases (TAC-37). Empty until prod exists."
+  type        = string
+  default     = ""
+}

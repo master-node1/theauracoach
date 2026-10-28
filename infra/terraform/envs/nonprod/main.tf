@@ -57,6 +57,7 @@ module "ecr" {
   repository_prefix = "auracoach"
   repositories      = local.deployables
   kms_key_arn       = module.kms.key_arn
+  pull_account_ids  = var.prod_account_id == "" ? [] : [var.prod_account_id]
 }
 
 module "secrets" {
@@ -158,14 +159,15 @@ module "dns_firewall" {
 }
 
 module "github_oidc" {
-  source               = "../../modules/github-oidc"
-  name_prefix          = local.name_prefix
-  create_oidc_provider = var.create_github_oidc_provider
-  deploy_environments  = local.environments
-  ecr_repository_arns  = module.ecr.repository_arns
-  kms_key_arn          = module.kms.key_arn
-  k3s_instance_arn     = module.k3s_node.instance_arn
-  state_bucket         = var.state_bucket
-  lock_table           = var.lock_table
-  state_kms_key_arn    = var.state_kms_key_arn
+  source                   = "../../modules/github-oidc"
+  name_prefix              = local.name_prefix
+  create_oidc_provider     = var.create_github_oidc_provider
+  deploy_environments      = local.environments
+  ecr_repository_arns      = module.ecr.repository_arns
+  origin_verify_secret_arn = module.edge.origin_verify_secret_arn
+  kms_key_arn              = module.kms.key_arn
+  k3s_instance_arn         = module.k3s_node.instance_arn
+  state_bucket             = var.state_bucket
+  lock_table               = var.lock_table
+  state_kms_key_arn        = var.state_kms_key_arn
 }
