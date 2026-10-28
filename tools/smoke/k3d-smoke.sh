@@ -113,7 +113,8 @@ probe() { # label expected
     kubectl -n "$EDGE_NS" wait --for=jsonpath='{.status.phase}'=Failed "pod/$name" --timeout 30s >/dev/null 2>&1 || true
   local phase code
   phase=$(kubectl -n "$EDGE_NS" get "pod/$name" -o jsonpath='{.status.phase}')
-  code=$(kubectl -n "$EDGE_NS" logs "pod/$name" 2>/dev/null || true)
+  # Last line: curl prints the status code after any retry messages.
+  code=$(kubectl -n "$EDGE_NS" logs "pod/$name" 2>/dev/null | tail -n 1 || true)
   echo "$1 -> phase=$phase http=$code"
   if [[ "$2" == allow && ( "$phase" != Succeeded || "$code" != 200 ) ]]; then
     echo "expected $1 to reach $SERVICE"
