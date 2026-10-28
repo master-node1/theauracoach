@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -32,6 +32,10 @@ describe('LocalObjectStorage', () => {
   it('stores and reads objects', async () => {
     await storage.put('user-private/u1/exports/r1/a.json', '{"a":1}', 'application/json');
     expect((await storage.get('user-private/u1/exports/r1/a.json')).toString()).toBe('{"a":1}');
+    // Personal data: only the service's own user can read it.
+    const file = await stat(join(dir, 'user-private/u1/exports/r1/a.json'));
+    expect(file.mode & 0o777).toBe(0o600);
+    expect((await stat(join(dir, 'user-private/u1/exports/r1'))).mode & 0o777).toBe(0o700);
   });
 
   it('refuses keys that escape the directory', async () => {

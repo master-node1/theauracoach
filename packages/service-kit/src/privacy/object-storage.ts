@@ -148,11 +148,14 @@ export class LocalObjectStorage implements ObjectStorage {
     return path;
   }
 
-  /** The content type is not kept: downloads are always served as attachments. */
+  /**
+   * The content type is not kept: downloads are always served as attachments. Files are readable
+   * by the service's own user only, since they hold personal data.
+   */
   async put(key: string, body: Uint8Array | string, _contentType?: string): Promise<void> {
     const path = this.path(key);
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, body);
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+    await writeFile(path, body, { mode: 0o600 });
   }
 
   async get(key: string): Promise<Buffer> {
