@@ -1,0 +1,10 @@
+apiVersion: v2
+name: aura-platform
+description: >-
+  Per-cluster AuraCoach platform objects: namespaces for each environment with Pod Security labels,
+  default-deny NetworkPolicies, the External Secrets SecretStore and the origin certificate, plus the
+  cluster's ACME issuer. Installed once per cluster, after the add-ons in infra/k3s.
+type: application
+version: 0.1.0
+appVersion: '0.0.0'
+kubeVersion: '>=1.30.0-0'

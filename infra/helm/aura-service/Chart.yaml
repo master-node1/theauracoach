@@ -1,0 +1,10 @@
+apiVersion: v2
+name: aura-service
+description: >-
+  Generic chart for one AuraCoach deployable: a NestJS service (http and worker deployments,
+  migration hook), the nginx api-gateway or the Next.js web app. Same chart on k3s (Stage 1) and EKS
+  (Stage 2), ADR-007.
+type: application
+version: 0.1.0
+appVersion: '0.0.0'
+kubeVersion: '>=1.30.0-0'

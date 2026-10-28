@@ -1,0 +1,17 @@
+# staging: release candidates, E2E and load tests. Namespaces on the shared non-prod node, synthetic data.
+environment: staging
+global:
+  namespacePrefix: staging-
+  secrets:
+    prefix: auracoach/staging
+  otel:
+    tracesSampleRatio: '1'
+  # Postgres and Redis run in staging-aura-data (aura-datastores chart).
+  datastores:
+    postgres:
+      podLabels:
+        { app.kubernetes.io/name: postgres, app.kubernetes.io/instance: datastores-staging }
+    redis:
+      podLabels: { app.kubernetes.io/name: redis, app.kubernetes.io/instance: datastores-staging }
+env:
+  LOG_LEVEL: info

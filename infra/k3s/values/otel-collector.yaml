@@ -1,0 +1,82 @@
+# One collector per node (DaemonSet): receives OTLP from the services and tails pod logs, then sends
+# traces, metrics and logs to Grafana Cloud over OTLP. Replaces a separate Grafana agent: one process
+# does both on a single node. Service name otel-collector matches global.otel.endpoint in
+# infra/helm/values/common.yaml.
+fullnameOverride: otel-collector
+mode: daemonset
+image:
+  repository: otel/opentelemetry-collector-contrib
+presets:
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false
+  kubernetesAttributes:
+    enabled: true
+service:
+  enabled: true
+  internalTrafficPolicy: Local
+ports:
+  otlp:
+    enabled: false
+  otlp-http:
+    enabled: true
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 384Mi }
+# Grafana Cloud OTLP endpoint and credentials come from the otel-grafana-cloud Secret, synced by
+# External Secrets from auracoach/<cluster>/platform (aura-platform chart).
+extraEnvsFrom:
+  - secretRef:
+      name: otel-grafana-cloud
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc: null
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch: {}
+    # Health data must never leave in telemetry: drop request bodies and auth headers if a span carries them.
+    attributes/redact:
+      actions:
+        - { key: http.request.header.authorization, action: delete }
+        - { key: http.request.header.cookie, action: delete }
+        - { key: http.request.body, action: delete }
+  extensions:
+    basicauth/grafana:
+      client_auth:
+        username: ${env:GRAFANA_CLOUD_INSTANCE_ID}
+        password: ${env:GRAFANA_CLOUD_API_TOKEN}
+  exporters:
+    otlphttp/grafana:
+      endpoint: ${env:GRAFANA_CLOUD_OTLP_ENDPOINT}
+      auth:
+        authenticator: basicauth/grafana
+  service:
+    extensions: [health_check, basicauth/grafana]
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, attributes/redact, batch]
+        exporters: [otlphttp/grafana]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlphttp/grafana]
+      logs:
+        receivers: [otlp, filelog]
+        processors: [memory_limiter, batch]
+        exporters: [otlphttp/grafana]

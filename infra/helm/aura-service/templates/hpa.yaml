@@ -1,0 +1,24 @@
+{{- if .Values.autoscaling.enabled }}
+{{- $min := int .Values.autoscaling.minReplicas -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "aura.name" . }}-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.componentLabels" (dict "ctx" . "component" "http") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "aura.name" . }}-http
+  minReplicas: {{ $min }}
+  maxReplicas: {{ max $min (int .Values.autoscaling.maxReplicas) }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

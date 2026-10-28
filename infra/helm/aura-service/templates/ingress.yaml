@@ -1,0 +1,70 @@
+{{- if .Values.ingress.enabled }}
+{{- $name := include "aura.name" . -}}
+{{- $host := required "ingress.host is required (deploy input)" .Values.ingress.host -}}
+{{- $verify := .Values.ingress.originVerify -}}
+{{- if $verify.enabled }}
+{{- $_ := required "ingress.originVerify.value is required (deploy input from Secrets Manager, passed with set_sensitive)" $verify.value }}
+{{- end }}
+{{- if eq .Values.stage "k3s" }}
+{{- /* k3s ships Traefik; CloudFront is the only client (ADR-007). */}}
+{{- $paths := list }}
+{{- range .Values.ingress.paths }}
+{{- $paths = append $paths (printf "PathPrefix(`%s`)" .) }}
+{{- end }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.labels" . | nindent 4 }}
+spec:
+  entryPoints: [websecure]
+  routes:
+    - kind: Rule
+      match: {{ printf "Host(`%s`) && (%s)%s" $host (join " || " $paths) (ternary (printf " && Header(`%s`, `%s`)" $verify.header $verify.value) "" $verify.enabled) | quote }}
+      {{- with .Values.ingress.priority }}
+      priority: {{ . }}
+      {{- end }}
+      services:
+        - name: {{ $name }}
+          port: {{ include "aura.servicePort" . }}
+  tls:
+    secretName: {{ .Values.ingress.tlsSecretName }}
+{{- else }}
+{{- /* Stage 2: AWS Load Balancer Controller. The ALB forwards only requests carrying the header. */}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aura.labels" . | nindent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/group.name: auracoach-{{ .Values.environment }}
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    {{- with .Values.ingress.priority }}
+    alb.ingress.kubernetes.io/group.order: {{ sub 1000 . | quote }}
+    {{- end }}
+    {{- if $verify.enabled }}
+    alb.ingress.kubernetes.io/conditions.{{ $name }}: {{ list (dict "field" "http-header" "httpHeaderConfig" (dict "httpHeaderName" $verify.header "values" (list $verify.value))) | toJson | quote }}
+    {{- end }}
+spec:
+  ingressClassName: alb
+  rules:
+    - host: {{ $host }}
+      http:
+        paths:
+          {{- range .Values.ingress.paths }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: http
+          {{- end }}
+{{- end }}
+{{- end }}

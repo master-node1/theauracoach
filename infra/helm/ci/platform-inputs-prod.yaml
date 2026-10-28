@@ -1,0 +1,10 @@
+# Example deploy inputs for the aura-platform chart (prod cluster). CI only; none of these values is real.
+acme:
+  email: platform@example.test
+  hostedZoneId: Z0000000000EXAMPLE
+environments:
+  prod:
+    secretsRoleArn: arn:aws:iam::210987654321:role/auracoach-prod-secrets-reader
+    originHost: origin.example.test
+system:
+  secretsRoleArn: arn:aws:iam::210987654321:role/auracoach-prod-platform-secrets-reader

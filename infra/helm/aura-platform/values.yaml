@@ -1,0 +1,37 @@
+# nonprod (dev and staging on one node) or prod. ADR-007.
+cluster: nonprod
+
+# Namespaces of one environment, without the prefix.
+namespaces:
+  edge: aura-edge
+  services: aura-services
+  data: aura-data
+
+# Environments hosted on this cluster, keyed by name (dev | staging | prod).
+#   namespacePrefix  "dev-", "staging-", or "" in prod
+#   inClusterData    true when Postgres and Redis run in <prefix>aura-data (non-prod, aura-datastores chart)
+#   secretsRoleArn   deploy input: IAM role External Secrets assumes, allowed to read auracoach/<name>/* only
+#   originHost       deploy input: host CloudFront forwards to, e.g. origin.auracoach.app
+environments: {}
+
+region: ap-south-1
+
+# Where DNS lives, for the NetworkPolicy that lets every pod resolve names.
+dns:
+  namespace: kube-system
+  podLabels:
+    k8s-app: kube-dns
+
+# Let's Encrypt via Route 53 DNS-01 (cert-manager uses the node role in Stage 1).
+acme:
+  enabled: true
+  # Deploy inputs.
+  email: ''
+  hostedZoneId: ''
+  server: https://acme-v02.api.letsencrypt.org/directory
+
+# Cluster-wide secrets for add-ons in aura-system (Grafana Cloud credentials for the collector),
+# read from auracoach/<cluster>/platform with a role limited to that key. Deploy input: the role ARN.
+system:
+  namespace: aura-system
+  secretsRoleArn: ''

@@ -58,6 +58,7 @@ Recommendations (proposals) live in coach-service because both the coach and eng
 
 ```mermaid
 flowchart LR
+  webapp[web] -->|BFF: /api/v1/*| gw
   gw[api-gateway] --> prof[profile-service]
   gw --> wo[workout-service]
   gw --> nu[nutrition-service]
@@ -74,7 +75,7 @@ flowchart LR
   pr -->|dashboard: today's session| wo
 ```
 
-Any new arrow needs an ADR update. Cycles are not allowed.
+Any new arrow needs an ADR update. Cycles are not allowed. The Helm values (`global.callGraph` in `infra/helm/values/common.yaml`) mirror these arrows; they generate `INTERNAL_SERVICE_URLS`, the gateway's upstreams and the Kubernetes NetworkPolicies, and CI (`tools/ci/check-network-policies.mjs`) fails when the two differ. The `web` arrow is the Next.js BFF forwarding to the gateway (ADR-002); the mobile app reaches the gateway from outside the cluster.
 
 ## 5. Data stores
 

@@ -1,0 +1,11 @@
+# nutrition-service: foods, targets, logs, meal plans. Looks up barcodes on Open Food Facts over 443.
+# Layered after values/common.yaml and values/env/<env>.yaml. Service catalog: docs/architecture/service-catalog.md
+kind: node-service
+image:
+  repository: auracoach/nutrition-service
+secrets:
+  keys: [DATABASE_URL, REDIS_URL]
+  sharedKeys: [INTERNAL_TOKEN_SECRET]
+networkPolicy:
+  internetEgress: true
+  awsMetadata: false
