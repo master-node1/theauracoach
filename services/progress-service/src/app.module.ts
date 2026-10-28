@@ -1,5 +1,11 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { ServiceKitModule, type UserTokenVerifier } from '@aura/service-kit';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import {
+  ACCOUNT_STATE_DB,
+  AccountStateInterceptor,
+  ServiceKitModule,
+  type UserTokenVerifier,
+} from '@aura/service-kit';
 import type { ServiceConfig } from './config';
 import { PrismaService } from './prisma.service';
 
@@ -11,7 +17,12 @@ export class AppModule {
       module: AppModule,
       imports: [ServiceKitModule.forRoot({ config, ...(verifier ? { verifier } : {}) })],
       controllers: [],
-      providers: [PrismaService],
+      providers: [
+        PrismaService,
+        // Pending-deletion users get 423 on user routes (replica kept by the worker).
+        { provide: ACCOUNT_STATE_DB, useExisting: PrismaService },
+        { provide: APP_INTERCEPTOR, useClass: AccountStateInterceptor },
+      ],
     };
   }
 }

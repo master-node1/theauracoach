@@ -54,6 +54,7 @@ The deploy job reads these from the account's Terraform outputs on every run (`t
 | `image.tag` | aura-service | Git SHA the CD workflow built and pushed |
 | `global.imageRegistry` | aura-service | ECR registry of the account |
 | `global.auth.issuer`, `global.auth.jwksUrl`, `global.auth.clientIds`, `global.auth.userPoolId` | aura-service | Cognito user pool and app clients (the pool id only for profile-service, which mirrors role grants to Cognito groups) |
+| `global.objectStorage.bucket`, `global.objectStorage.kmsKeyId` (optional) | aura-service | Storage module `bucket_names.user_private`, where every node service writes its part of a data export; the key defaults to the bucket's SSE-KMS key |
 | `web.appUrl`, `web.oidcDomainUrl`, `web.oidcClientId` | aura-service (web) | Public domain, Cognito hosted UI domain, web app client |
 | `ingress.host` | aura-service (api-gateway, web) | `origin.<domain>` |
 | `ingress.originVerify.value` | aura-service (api-gateway, web) | Secrets Manager, passed with `set_sensitive` |
@@ -93,7 +94,7 @@ Each namespace's `SecretStore` assumes the environment's role, which the node ro
 Every environment namespace starts as deny-all with DNS allowed. Each release then opens exactly:
 
 - **Ingress** to its http pods from the deployables that call it in `global.callGraph`, and for `api-gateway` and `web` from Traefik.
-- **Egress** to its callees, to Postgres and Redis (RDS and ElastiCache CIDRs in prod, the `aura-data` pods in non-prod), to the collector on 4318, and where its values say so, to public addresses on 443 (`internetEgress`) and to the instance metadata endpoint (`awsMetadata`, Stage 1 only).
+- **Egress** to its callees, to Postgres and Redis (RDS and ElastiCache CIDRs in prod, the `aura-data` pods in non-prod), to the collector on 4318, and where its values say so, to public addresses on 443 (`internetEgress`) and to the instance metadata endpoint (`awsMetadata`, Stage 1 only). Every node service needs both for S3, since each writes its part of a data export to the user-private bucket.
 
 | Deployable | Internet 443 | Metadata (node role) | Why |
 |---|---|---|---|

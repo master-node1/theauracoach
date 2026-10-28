@@ -1,5 +1,12 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { CONSENT_STATE, ServiceKitModule, type UserTokenVerifier } from '@aura/service-kit';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import {
+  ACCOUNT_STATE_DB,
+  AccountStateInterceptor,
+  CONSENT_STATE,
+  ServiceKitModule,
+  type UserTokenVerifier,
+} from '@aura/service-kit';
 import type { ServiceConfig } from './config';
 import { ConsentStateService } from './consents/consent-state';
 import { PrismaService } from './prisma.service';
@@ -16,6 +23,9 @@ export class AppModule {
         PrismaService,
         ConsentStateService,
         { provide: CONSENT_STATE, useExisting: ConsentStateService },
+        // Pending-deletion users get 423 on user routes (replica kept by the worker).
+        { provide: ACCOUNT_STATE_DB, useExisting: PrismaService },
+        { provide: APP_INTERCEPTOR, useClass: AccountStateInterceptor },
       ],
     };
   }

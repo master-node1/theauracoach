@@ -49,6 +49,8 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   /** Ends every session of the user (TAC-8). False when the API could not do it. */
   signOutEverywhere: () => Promise<boolean>;
+  /** Signs in again (account deletion needs a recent sign-in); false when the user backs out. */
+  reauthenticate: () => Promise<boolean>;
   /** A fresh access token, refreshing first when under 60 s remain; null when signed out. */
   getAccessToken: () => Promise<string | null>;
 }
@@ -137,6 +139,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [store],
   );
 
+  /** The hosted page must ask for the password again, even when signed in (users LLD §4). */
+  const reauthenticate = useCallback(async () => {
+    const request = new AuthSession.AuthRequest({
+      clientId,
+      redirectUri,
+      scopes,
+      usePKCE: true,
+      prompt: AuthSession.Prompt.Login,
+      extraParams: { max_age: '0' },
+    });
+    const response = await request.promptAsync(discovery);
+    const code = response.type === 'success' ? response.params.code : undefined;
+    if (!code || !request.codeVerifier) return false;
+    try {
+      const result = await AuthSession.exchangeCodeAsync(
+        { clientId, code, redirectUri, extraParams: { code_verifier: request.codeVerifier } },
+        discovery,
+      );
+      await store(fromTokenResult(result, tokens.current?.refreshToken ?? null));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [store]);
+
   const completeSignIn = useCallback(
     async (next: StoredTokens) => {
       setError(null);
@@ -183,9 +210,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       emailFlows,
       signOut,
       signOutEverywhere,
+      reauthenticate,
       getAccessToken,
     }),
-    [status, error, signIn, completeSignIn, signOut, signOutEverywhere, getAccessToken],
+    [
+      status,
+      error,
+      signIn,
+      completeSignIn,
+      signOut,
+      signOutEverywhere,
+      reauthenticate,
+      getAccessToken,
+    ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

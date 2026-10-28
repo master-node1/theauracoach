@@ -79,19 +79,20 @@ function signInError(config: WebConfig, error: string, setCookies: string[] = []
 
 /**
  * GET /api/auth/login?returnTo=/path[&provider=Google]: starts Authorization Code + PKCE, on the
- * hosted page or (with a configured provider) straight at Google or Apple.
+ * hosted page or (with a configured provider) straight at Google or Apple. `reauth=1` asks for
+ * the password again even when signed in (before deleting the account).
  */
 export async function login(request: Request, deps: AuthDeps): Promise<Response> {
   const { config } = deps;
   const limited = deps.limiter?.check(request, config);
   if (limited) return limited;
-  const requested = new URL(request.url).searchParams.get('provider');
-  const provider = config.identityProviders.find((p) => p === requested);
+  const params = new URL(request.url).searchParams;
+  const provider = config.identityProviders.find((p) => p === params.get('provider'));
   const flow: Flow = {
     state: randomToken(),
     nonce: randomToken(),
     verifier: randomToken(48),
-    returnTo: safeReturnTo(new URL(request.url).searchParams.get('returnTo')),
+    returnTo: safeReturnTo(params.get('returnTo')),
   };
   const sealed = await seal({ ...flow }, config.sessionSecret, FLOW_MAX_AGE);
   const target = authorizeUrl(config, {
@@ -99,6 +100,7 @@ export async function login(request: Request, deps: AuthDeps): Promise<Response>
     nonce: flow.nonce,
     codeChallenge: await pkceChallenge(flow.verifier),
     ...(provider ? { provider } : {}),
+    reauth: params.get('reauth') === '1',
   });
   return redirect(target, [serializeCookie(FLOW_COOKIE, sealed, FLOW_MAX_AGE)]);
 }
