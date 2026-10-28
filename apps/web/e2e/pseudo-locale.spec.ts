@@ -57,7 +57,8 @@ test('renders the shell and Settings in en-XA without hard-coded text or layout 
   page,
 }, testInfo) => {
   await page.goto('/');
-  await page.getByRole('link', { name: 'Continue' }).click();
+  await page.getByRole('link', { name: 'More sign-in options' }).click();
+  // dev-auth's local sign-in form stands in for Cognito managed login.
   await page.getByLabel('Email').fill(email());
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page).toHaveURL(/\/$/);
@@ -87,5 +88,21 @@ test('ignores the pseudo-locale cookie for locales it does not offer', async ({ 
     .addCookies([{ name: 'aura-locale', value: 'fr-FR', url: new URL(page.url()).origin }]);
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-IN');
-  await expect(page.getByRole('link', { name: 'Continue' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Create an account' })).toBeVisible();
+});
+
+test('renders the email sign-in and sign-up screens in en-XA', async ({ page }, testInfo) => {
+  await page.goto('/auth/sign-in');
+  await usePseudoLocale(page);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(PSEUDO);
+  await expect(page.getByRole('button', { name: PSEUDO })).toBeVisible();
+  expect(await layoutProblems(page)).toEqual([]);
+  await snapshot(page, testInfo, 'sign-in-en-XA');
+
+  await page.goto('/auth/sign-up');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(PSEUDO);
+  await page.locator('input[type=password]').fill('short');
+  await expect(page.locator('.auth-hint')).toHaveText(PSEUDO);
+  expect(await layoutProblems(page)).toEqual([]);
+  await snapshot(page, testInfo, 'sign-up-en-XA');
 });
