@@ -1,0 +1,25 @@
+{
+  "cloudfront_aliases": { "value": ["app.auracoach.example", "api.auracoach.example"] },
+  "oidc": {
+    "value": {
+      "issuer": "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLEPRD",
+      "jwks_url": "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLEPRD/.well-known/jwks.json",
+      "hosted_ui_url": "https://auth.auracoach.example",
+      "web_client_id": "example-prod-web",
+      "mobile_client_id": "example-prod-mobile"
+    }
+  },
+  "helm_inputs": {
+    "value": {
+      "image_registry": "210987654321.dkr.ecr.ap-south-1.amazonaws.com",
+      "public_hosts": {
+        "prod": { "web": "app.auracoach.example", "api": "api.auracoach.example" }
+      },
+      "secrets_role_arns": { "prod": "arn:aws:iam::210987654321:role/auracoach-prod-secrets-prod" },
+      "platform_secrets_role_arn": "arn:aws:iam::210987654321:role/auracoach-prod-secrets-platform",
+      "hosted_zone_id": "Z0000000000EXAMPLE",
+      "datastore_cidrs": ["10.20.32.0/24", "10.20.33.0/24"],
+      "web_app_url": "https://app.auracoach.example"
+    }
+  }
+}

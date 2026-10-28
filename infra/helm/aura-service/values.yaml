@@ -30,6 +30,11 @@ global:
     system: aura-system
   # Deploy input: <account>.dkr.ecr.ap-south-1.amazonaws.com
   imageRegistry: ''
+  # Deploy input: the environment's public hosts, the CloudFront aliases. CloudFront forwards the
+  # viewer Host, so the ingress matches these, never origin.<domain> (deployment.md "Edge routing").
+  hosts:
+    web: ''
+    api: ''
   # Every deployable, the namespace tier it runs in and its port. Set in values/common.yaml.
   deployables: {}
   # Synchronous calls allowed between deployables (service catalog §4). Set in values/common.yaml.
@@ -199,13 +204,13 @@ web:
 
 ingress:
   enabled: false
-  # Deploy input: the origin host CloudFront forwards to, e.g. origin.auracoach.app.
-  host: ''
+  # Which of global.hosts this deployable answers on: web (app.<env>.) or api (api.<env>.).
+  publicHost: ''
   # Path prefixes routed to this deployable.
   paths: ['/']
   # Higher wins when two routes match (api-gateway /v1 over web /).
   priority: 0
-  # Name of the TLS Secret issued by cert-manager in the ingress namespace (infra/k3s).
+  # TLS Secret cert-manager issues in the edge namespace for global.hosts (aura-platform).
   tlsSecretName: origin-tls
   # Reject requests without CloudFront's secret X-Origin-Verify header. The value is a deploy input
   # read from Secrets Manager by Terraform and passed with set_sensitive; it is never in a values file.

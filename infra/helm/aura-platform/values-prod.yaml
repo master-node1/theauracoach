@@ -1,9 +1,9 @@
 # Prod k3s node: one environment; data stores are RDS and ElastiCache (ADR-007).
-# secretsRoleArn and originHost are deploy inputs (Terraform, TAC-36).
+# secretsRoleArn and hosts are deploy inputs (Terraform, TAC-36).
 cluster: prod
 environments:
   prod:
     namespacePrefix: ''
     inClusterData: false
     secretsRoleArn: ''
-    originHost: ''
+    hosts: []

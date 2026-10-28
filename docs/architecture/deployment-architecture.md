@@ -75,7 +75,7 @@ flowchart TB
   svcs -. gateway endpoint .-> s3[(S3)]
 ```
 
-- **Inbound.** The node's security group allows 443 only from the CloudFront origin-facing managed prefix list. Traefik serves a cert-manager certificate for `origin.<domain>` and drops requests that lack the `X-Origin-Verify` header value (stored in Secrets Manager, rotated with the CloudFront config). No port 22 or 6443 is open.
+- **Inbound.** The node's security group allows 443 only from the CloudFront origin-facing managed prefix list. CloudFront connects to `origin.<domain>` but forwards the viewer `Host`, so Traefik routes on the public hosts and serves a cert-manager certificate for them, one per environment ([deployment, Edge routing](../operations/deployment.md#edge-routing)). It drops requests that lack the `X-Origin-Verify` header value (stored in Secrets Manager, rotated with the CloudFront config). No port 22 or 6443 is open.
 - **Outbound.** The node has a public IP, so there is no NAT gateway. Its security group allows 443 to the internet, 5432 and 6379 to the data-store security groups, and DNS/NTP to the VPC resolver. Route 53 Resolver DNS Firewall allows only listed domains (AWS service endpoints, ECR, the AI provider, Open Food Facts, Expo Push, Let's Encrypt, Grafana Cloud, Sentry, GitHub) and blocks the rest. DNS Firewall does not stop connections to raw IP addresses, so the NetworkPolicy egress rules in §2 are the second layer.
 - **S3** through a gateway VPC endpoint (free). Secrets Manager over its public endpoint with TLS; interface endpoints are a Stage 2 item.
 - The non-prod VPC has the same shape without WAF, with in-cluster Postgres and Redis instead of the isolated subnets.

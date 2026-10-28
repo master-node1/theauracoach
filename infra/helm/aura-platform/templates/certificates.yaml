@@ -1,7 +1,9 @@
 {{- if .Values.acme.enabled }}
 {{- range $envName, $env := .Values.environments }}
 ---
-# TLS for the origin host. CloudFront terminates public TLS and re-encrypts to this certificate (ADR-007).
+# Origin TLS. CloudFront terminates public TLS and re-encrypts to this certificate (ADR-007). It forwards
+# the viewer Host, so it checks the certificate against the public hosts; it covers all of this
+# environment's and lives in the edge namespace next to the IngressRoutes that use it.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -12,7 +14,10 @@ metadata:
     environment: {{ $envName }}
 spec:
   secretName: origin-tls
-  dnsNames: [{{ $env.originHost | quote }}]
+  dnsNames:
+    {{- range $env.hosts }}
+    - {{ . | quote }}
+    {{- end }}
   privateKey:
     algorithm: ECDSA
     size: 256

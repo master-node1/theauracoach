@@ -24,12 +24,28 @@ export function deployInputs(env, outputs, { acmeEmail = '' } = {}) {
   if (!oidc) throw new Error(`terraform output oidc has no entry for ${env}`);
   const appUrl = account === 'prod' ? helm.web_app_url : helm.web_app_urls?.[env];
   if (!appUrl) throw new Error(`terraform output helm_inputs has no web app URL for ${env}`);
+  // CloudFront forwards the viewer Host, so the ingress and the origin certificate use the public
+  // hosts, which must be on the distribution (deployment.md "Edge routing").
+  const hostsOf = (e) => {
+    const h = helm.public_hosts?.[e];
+    if (!h?.web || !h?.api) {
+      throw new Error(`terraform output helm_inputs.public_hosts has no web and api host for ${e}`);
+    }
+    const missing = [h.web, h.api].filter((x) => !value('cloudfront_aliases').includes(x));
+    if (missing.length) {
+      throw new Error(
+        `${missing.join(', ')} not on the CloudFront distribution (cloudfront_aliases)`,
+      );
+    }
+    return { web: h.web, api: h.api };
+  };
   // The issuer is https://cognito-idp.<region>.amazonaws.com/<user pool id>.
   const userPoolId = new URL(oidc.issuer).pathname.replace(/^\/+|\/+$/g, '');
 
   const service = {
     global: {
       imageRegistry: helm.image_registry,
+      hosts: hostsOf(env),
       auth: {
         issuer: oidc.issuer,
         jwksUrl: oidc.jwks_url,
@@ -38,7 +54,6 @@ export function deployInputs(env, outputs, { acmeEmail = '' } = {}) {
       },
     },
     web: { appUrl, oidcDomainUrl: oidc.hosted_ui_url, oidcClientId: oidc.web_client_id },
-    ingress: { host: helm.origin_host },
   };
   if (account === 'prod') {
     service.global.datastores = {
@@ -52,7 +67,7 @@ export function deployInputs(env, outputs, { acmeEmail = '' } = {}) {
       .filter(([, a]) => a === account)
       .map(([e]) => [
         e,
-        { secretsRoleArn: helm.secrets_role_arns[e], originHost: helm.origin_host },
+        { secretsRoleArn: helm.secrets_role_arns[e], hosts: Object.values(hostsOf(e)) },
       ]),
   );
   const platform = {
