@@ -4,7 +4,7 @@ Service: **workout-service** · see the [service catalog](../../architecture/ser
 
 ## 1. Responsibilities
 
-Exercise library (read side), templates, plan generation, weekly adaptation, session logging, substitutions, PRs. Engines are pure functions in `packages/domain/workouts`; workout-service wraps them with persistence, authz and events. It keeps `UserTrainingProfile` (from `ProfileChanged` / `OnboardingCompleted`) and `RecoverySignal` (from `CheckInSaved`) so plan generation and adaptation never call another service.
+Exercise library (read side), templates, plan generation, weekly adaptation, session logging, substitutions, PRs. Engines are pure functions in `packages/domain/src/workouts` (`@aura/domain/workouts`); workout-service wraps them with persistence, authz and events. It keeps `UserTrainingProfile` (from `ProfileChanged` / `OnboardingCompleted`) and `RecoverySignal` (from `CheckInSaved`) so plan generation and adaptation never call another service.
 
 ## 2. Structure
 
@@ -16,8 +16,9 @@ services/workout-service/src/
   infrastructure/ workouts.repository.ts exercise-cache.ts
   events/ publishers (WorkoutCompleted, PlanWeekReady…) consumers (ProfileChanged, OnboardingCompleted, CheckInSaved…)
   internal/ plans.internal.controller.ts proposals.internal.controller.ts users.internal.controller.ts
-packages/domain/workouts/
-  generate-plan.ts progress-week.ts substitute.ts validate-plan.ts e1rm.ts types.ts
+packages/domain/src/workouts/
+  generate-plan.ts progress-week.ts substitute.ts validate-plan.ts metrics.ts reschedule.ts
+  policy.ts eligibility.ts load.ts types.ts
 ```
 
 ```mermaid
@@ -130,7 +131,58 @@ Errors: `404 NOT_FOUND` (also for others' resources), `409 SESSION_CLOSED`, `422
 
 Exercise library list and detail: Redis 1 h + `ETag`, invalidated by `ContentPublished(exercise)`. Current plan week: Redis 5 min per user, invalidated on session change or adaptation.
 
-## 9. Tests
+## 9. Engine contract and codes
+
+The engines take plain data (exercise and template rows mapped by the service, a `WorkoutPolicy` loaded from the policy rows) and return plain data. They never read the clock, the network or the database, so results are reproducible and the onboarding saga can retry. Loads are computed in hundredths of a kilogram and rounded to the equipment increment.
+
+Implementation notes on the rules above:
+
+- Training days are the profile's 0–6 day indexes; n and n+1, and 6 and 0, are consecutive. Sessions are placed to minimise shared primary muscles on consecutive days; when that is impossible (e.g. full body on Mon/Tue) the week carries `SCHEDULE_BACK_TO_BACK`.
+- Volume is fitted down, never up: each session gets ⌊(`sessionMinutes` − 8) / 2.5⌋ sets, then weekly sets per primary muscle are capped at the experience minimum (fat loss, general fitness) or maximum (other goals). The upper bound is a validation rule; the lower bound is a target, because short sessions cannot always reach it.
+- Rep ranges: strength 3–6 on compounds and 8–12 on isolation, muscle gain 8–12, endurance 12–20; fat loss and general fitness keep the template's range. Target RPE is clamped to 6–7 (beginner) or 7–8.
+- If the selected template's week fails validation, the engine rebuilds from the policy's safe default template (`safe-default-full-body`), returns `fallback: true` and the rejected issues, and the service logs `plan_validation_fallback`. With no matching template the safe default is used directly.
+- Deload keeps 55% of the week's sets (largest-remainder split across exercises, so a 9-set week keeps 5), load unchanged, RPE −2. The week after a deload resumes the last normal week's prescriptions.
+- Rule 6 inside a week: `rescheduleMissed` moves only the highest-priority missed session (most compound sets) to the first free day offered by the caller; the others are dropped, never stacked.
+- PRs: `e1rm`, `max_load`, `max_reps` per set and `max_volume` (Σ load × reps) per session must beat the previous best strictly.
+
+**Rationale codes** (`RationaleCode`, stored in `WorkoutPlanWeek.rationale` as `{ code, exerciseId?, dayOfWeek?, detail? }`):
+
+| Code | Emitted by | Meaning |
+|---|---|---|
+| `TEMPLATE_SELECTED` | generatePlan | Template matched goal, experience, days and location |
+| `TEMPLATE_FALLBACK_LOCATION` | generatePlan | Same goal, other location |
+| `TEMPLATE_FALLBACK_GENERAL` | generatePlan | General fitness template (or the safe default) used |
+| `PLAN_VALIDATION_FALLBACK` | generatePlan | Selected template's week failed validation; safe default used |
+| `EXERCISE_RESOLVED` | generatePlan | Template exercise replaced (equipment, difficulty, contraindication, duplicate, hinge limit) |
+| `SLOT_DROPPED` | generatePlan | No eligible exercise for a slot |
+| `VOLUME_FITTED_TO_TIME` | generatePlan | Sets cut to fit `sessionMinutes` |
+| `VOLUME_CAPPED` | generatePlan | Weekly sets for a muscle capped |
+| `INTENSITY_CAP_LOW` | generatePlan | RPE ≤ 6, no 1–5 rep work, no plyometrics |
+| `HINGE_FREQUENCY_LIMITED` | generatePlan | Beginner heavy hinge replaced after 2 sessions |
+| `SCHEDULE_BACK_TO_BACK` | generatePlan | Same muscles on consecutive days could not be avoided |
+| `START_LIGHT` | generatePlan | Dumbbell load hint shown, labelled "start light" |
+| `PROGRESS_LOAD` | progressWeek | Load + increment, reps back to `repMin` |
+| `PROGRESS_ADD_SET` | progressWeek | Load cannot rise; one set added (max +2) |
+| `PROGRESS_EXERCISE` | progressWeek | Moved to `Exercise.progression` |
+| `HOLD_REPS` | progressWeek | Same load, target +1 rep |
+| `HOLD_INCOMPLETE` | progressWeek | Not every set done; same load |
+| `HOLD_NOT_PERFORMED` | progressWeek | Exercise not logged |
+| `HOLD_MAX_REACHED` | progressWeek | No load, set or progression available |
+| `HOLD_MISSED` | progressWeek | ≥ 2 missed sessions; prescriptions unchanged |
+| `HOLD_RECOVERY` | progressWeek | Sleep < 6 h or energy ≤ 2; no increases |
+| `REGRESS_LOAD` | progressWeek | < 50% of reps or first set RPE ≥ 9.5; load −10% |
+| `PAIN_REGRESSION` | progressWeek | Pain reported; swapped to the regression |
+| `PAIN_LOAD_REDUCED` | progressWeek | Pain reported, no usable regression; load −10% |
+| `DELOAD_FATIGUE` | progressWeek | Fatigue two weeks running |
+| `DELOAD_SCHEDULED` | progressWeek | Every 6th week (intermediate, advanced) |
+| `RESUME_AFTER_DELOAD` | progressWeek | Back to the last normal week |
+| `MISSED_RESCHEDULED` | rescheduleMissed | Missed session moved to a free day |
+
+**Recommendations** (proposals the user accepts or declines): `PROFESSIONAL_ADVICE` (second pain report in 14 days), `REDUCE_TRAINING_DAYS` (≥ 2 missed sessions three weeks running, never below 2 days).
+
+**Validation rules** (`validatePlan` issues): `UNKNOWN_EXERCISE`, `EXERCISE_NOT_PUBLISHED`, `EQUIPMENT_UNAVAILABLE`, `DIFFICULTY_ABOVE_EXPERIENCE`, `CONTRAINDICATED_EXERCISE`, `INVALID_PRESCRIPTION`, `RPE_ABOVE_CAP`, `LOW_CAP_HEAVY_REPS`, `INVALID_DAY`, `SESSIONS_SAME_DAY`, `SESSION_TOO_LONG`, `WEEKLY_VOLUME_ABOVE_MAX`, `BEGINNER_HINGE_FREQUENCY`.
+
+## 10. Tests
 
 - Unit (domain): table-driven tests for every progression rule, deload triggers, contraindication filtering, substitution ranking, time budgeting; property tests (fast-check) that generated plans always pass `validatePlan` for random valid inputs.
 - Integration: generate → log → complete → adapt cycle on Testcontainers Postgres; idempotent set upsert; cross-user 404.

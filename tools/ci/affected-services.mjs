@@ -3,7 +3,7 @@
 // (deployment architecture §4, change detection). Usage: affected-services.mjs <base-ref> [head-ref]
 // Turborepo's --affected already narrows lint, type checks and tests; this list drives Docker builds.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
 const [base = 'origin/main', head = 'HEAD'] = process.argv.slice(2);
 const changed = execFileSync('git', ['diff', '--name-only', `${base}...${head}`], {
@@ -32,10 +32,17 @@ const everything = [
   /^\.dockerignore$/,
 ];
 
+// Domain engines rebuild only the services that declare @aura/domain.
+const domainUsers = nodeServices.filter((d) => {
+  const pkg = JSON.parse(readFileSync(`services/${d}/package.json`, 'utf8'));
+  return Boolean({ ...pkg.dependencies, ...pkg.devDependencies }['@aura/domain']);
+});
+
 const selected = new Set();
 for (const file of changed) {
   if (everything.some((r) => r.test(file))) deployables.forEach((d) => selected.add(d));
   else if (shared.some((r) => r.test(file))) nodeServices.forEach((d) => selected.add(d));
+  else if (/^packages\/domain\//.test(file)) domainUsers.forEach((d) => selected.add(d));
   else {
     const m = /^services\/([^/]+)\//.exec(file);
     if (m && deployables.includes(m[1])) selected.add(m[1]);
