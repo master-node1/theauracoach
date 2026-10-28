@@ -1,7 +1,6 @@
 import type { AdminFoodPatch, AdminRecipePatch, FoodSource, HouseholdUnit } from '@aura/contracts';
 import { compatibleDiets, type FoodFlag } from '@aura/domain/nutrition';
 import type { Prisma, PrismaClient } from '../generated/prisma';
-import type { CompositeResult } from './composite';
 export { recipeDerived } from './composite';
 import { fromRows, toRows, type NutrientValues } from './nutrients';
 import type { FoodRecord, RecipeDerived, RecipeRecord } from './records';
@@ -26,9 +25,9 @@ export interface PlannedChange {
   fields: string[];
 }
 
+/** Links a composite dish to the recipe it is computed from. */
 export interface CompositeLink {
   recipeSlug: string;
-  composite: CompositeResult;
 }
 
 export interface ImportInput {

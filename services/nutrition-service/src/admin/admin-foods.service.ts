@@ -90,16 +90,7 @@ export class AdminFoodsService {
   async patch(actor: AuthenticatedUser, id: string, patch: AdminFoodPatch, requestId?: string) {
     await this.prisma.$transaction(async (tx) => {
       const row = await this.load(tx, id, true);
-      if (
-        patch.source !== undefined &&
-        !REFERENCE_SOURCES.concat('CURATED_INGREDIENT').includes(row.source)
-      ) {
-        throw new ProblemException(
-          HttpStatus.UNPROCESSABLE_ENTITY,
-          'SOURCE_FIXED',
-          'This food’s source cannot change',
-        );
-      }
+      notARecipeDish(row);
       await this.checkRawEquivalent(tx, patch.rawEquivalentId ?? null, id);
       if (editTarget(row) === 'item') {
         await applyPatch(tx, id, patch);
@@ -131,9 +122,10 @@ export class AdminFoodsService {
     requestId?: string,
     note?: string,
   ): Promise<AdminFood> {
-    let published = false;
+    let changedCatalogue = false;
     await this.prisma.$transaction(async (tx) => {
       const row = await this.load(tx, id, true);
+      if (action !== 'archive') notARecipeDish(row);
       const step = workflowStep(row, action);
       const permission =
         action === 'submit' ? 'food:write' : action === 'reject' ? 'food:review' : 'food:publish';
@@ -162,13 +154,13 @@ export class AdminFoodsService {
           version,
           publishedBy: actor.userId,
         });
-        published = true;
+        changedCatalogue = true;
       } else if (action === 'archive') {
         await tx.foodItem.update({
           where: { id },
           data: { status: 'ARCHIVED', pendingRevision: Prisma.DbNull, revisionStatus: null },
         });
-        published = true;
+        changedCatalogue = true;
       } else if (step.target === 'revision') {
         await tx.foodItem.update({ where: { id }, data: { revisionStatus: step.to } });
       } else {
@@ -186,7 +178,7 @@ export class AdminFoodsService {
         requestId,
       });
     });
-    if (published) await this.search.invalidate();
+    if (changedCatalogue) await this.search.invalidate();
     return this.get(id);
   }
 
@@ -212,6 +204,17 @@ export class AdminFoodsService {
         'rawEquivalentId must be another catalogue food in its RAW state',
       );
     }
+  }
+}
+
+/** A recipe's dish is regenerated on every recipe publish, so it is edited through the recipe. */
+function notARecipeDish(row: FoodDetailRow) {
+  if (row.source === 'CURATED_RECIPE') {
+    throw new ProblemException(
+      HttpStatus.CONFLICT,
+      'RECIPE_DISH',
+      'This dish is computed from its recipe: edit and publish the recipe instead',
+    );
   }
 }
 

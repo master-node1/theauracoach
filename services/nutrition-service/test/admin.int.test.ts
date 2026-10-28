@@ -280,6 +280,10 @@ describe('/v1/admin/recipes', () => {
     // (150 × 348 + 15 × 900 + 2 × 375) / 900 g × 100
     expect(dish.body.nutrients.energyKcal).toBeCloseTo(73.83, 1);
 
+    await as('owner')
+      .patch(`/v1/admin/foods/${published.body.foodId}`, { name: 'Edited dish' })
+      .expect(409);
+
     const events = await h.prisma.outboxEvent.findMany({ where: { type: 'ContentPublished' } });
     const types = events.map(
       (e) => (e.payload as { data: { contentType: string; contentId: string } }).data,

@@ -38,7 +38,7 @@ export function importInput(options: ImportOptions): {
           recipes: records.recipes,
           composites: [...records.composites.entries()].map(([recipeSlug, c]) => ({
             food: c.food,
-            link: { recipeSlug, composite: c.composite },
+            link: { recipeSlug },
           })),
           newStatus: 'IN_REVIEW',
         },
