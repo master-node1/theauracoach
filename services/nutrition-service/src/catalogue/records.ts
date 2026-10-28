@@ -1,4 +1,5 @@
 import type { Confidence, FoodFlag, FoodSource, FoodState, HouseholdUnit } from '@aura/contracts';
+import type { DietType } from '@aura/domain/nutrition';
 import type { NutrientValues } from './nutrients';
 
 /**
@@ -48,4 +49,14 @@ export interface RecipeRecord {
   substitutions: { ingredientRef: string; alternatives: string[]; note: string | null }[];
   units: HouseholdUnit[];
   reviewRequired: string | null;
+  /** Derived from the ingredients by the composite engine; never hand-entered. */
+  derived?: RecipeDerived;
+}
+
+export interface RecipeDerived {
+  dietTags: DietType[];
+  allergens: string[];
+  flags: FoodFlag[];
+  fastingOk: boolean;
+  oilG: number;
 }

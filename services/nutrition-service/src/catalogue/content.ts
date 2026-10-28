@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { ALLERGENS, FOOD_FLAGS, MEAL_SLOTS, REGIONS, type HouseholdUnit } from '@aura/contracts';
 import { z } from 'zod';
-import { buildComposite, type CompositeResult } from './composite';
+import { buildComposite, recipeDerived, type CompositeResult } from './composite';
 import type { NutrientValues } from './nutrients';
 import type { FoodRecord, RecipeRecord } from './records';
 
@@ -304,7 +304,6 @@ export function curatedRecords(content: CuratedContent): CuratedRecords {
       units,
       reviewRequired: pending,
     };
-    recipes.push(record);
     const composite = buildComposite({
       ingredients: r.ing.map(([ref, grams]) => {
         const f = bySlug.get(ref)!;
@@ -314,6 +313,8 @@ export function curatedRecords(content: CuratedContent): CuratedRecords {
       yieldMeasured: false,
       restaurantStyle: r.restaurant,
     });
+    record.derived = recipeDerived(composite);
+    recipes.push(record);
     composites.set(r.slug, { composite, food: compositeFoodRecord(record, composite) });
   }
   return { foods, recipes, composites };

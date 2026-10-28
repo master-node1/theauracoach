@@ -1,5 +1,10 @@
-import type { DietType, FoodFlag } from '@aura/contracts';
-import { compositeRecipe, type CompositeRecipe } from '@aura/domain/nutrition';
+import {
+  compositeRecipe,
+  type CompositeRecipe,
+  type DietType,
+  type FoodFlag,
+} from '@aura/domain/nutrition';
+import type { RecipeDerived } from './records';
 import { round3, type NutrientValues } from './nutrients';
 
 export interface CompositeIngredient {
@@ -58,5 +63,16 @@ export function buildComposite(input: {
     dietTags: result.compatibleDiets,
     fastingOk: result.fastingOk,
     oilG: Math.round(result.oilG.toNumber() * 10) / 10,
+  };
+}
+
+/** Composite facts copied onto the recipe row when its dish is (re)computed. */
+export function recipeDerived(composite: CompositeResult): RecipeDerived {
+  return {
+    dietTags: composite.dietTags,
+    allergens: composite.allergens,
+    flags: composite.flags,
+    fastingOk: composite.fastingOk,
+    oilG: composite.oilG,
   };
 }
