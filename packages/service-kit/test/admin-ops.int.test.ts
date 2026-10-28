@@ -23,6 +23,7 @@ const owner: AuthenticatedUser = {
   groups: ['owner'],
   amr: ['pwd', 'mfa'],
   clientId: 'test',
+  issuedAt: 0,
 };
 
 beforeAll(async () => {
