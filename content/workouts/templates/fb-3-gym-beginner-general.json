@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "fb-3-gym-beginner-general",
+      "name": "Gym basics: full body, 3 days",
+      "goal": "GENERAL_FITNESS",
+      "experience": "BEGINNER",
+      "location": "GYM",
+      "split": "full_body",
+      "daysPerWeek": 3,
+      "days": [
+        {
+          "name": "Full body A",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "goblet-squat",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-bench-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "seated-cable-row",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-rdl",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "plank",
+              "sets": 2,
+              "repMin": 30,
+              "repMax": 45,
+              "targetRpe": 6,
+              "restSec": 45
+            }
+          ]
+        },
+        {
+          "name": "Full body B",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "leg-press",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "lat-pulldown",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-shoulder-press",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-hip-thrust",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dead-bug",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 45
+            }
+          ]
+        },
+        {
+          "name": "Full body C",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "dumbbell-reverse-lunge",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "machine-chest-press",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-row",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "leg-curl",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 60
+            },
+            {
+              "exercise": "side-plank",
+              "sets": 2,
+              "repMin": 20,
+              "repMax": 30,
+              "targetRpe": 6,
+              "restSec": 45
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

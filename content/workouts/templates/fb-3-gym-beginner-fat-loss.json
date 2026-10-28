@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "fb-3-gym-beginner-fat-loss",
+      "name": "Gym fat loss: full body, 3 days",
+      "goal": "FAT_LOSS",
+      "experience": "BEGINNER",
+      "location": "GYM",
+      "split": "full_body",
+      "daysPerWeek": 3,
+      "days": [
+        {
+          "name": "Full body A",
+          "focus": "full body and cardio",
+          "exercises": [
+            {
+              "exercise": "goblet-squat",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-bench-press",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "seated-cable-row",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "stationary-bike",
+              "sets": 2,
+              "repMin": 300,
+              "repMax": 480,
+              "targetRpe": 6,
+              "restSec": 60
+            }
+          ]
+        },
+        {
+          "name": "Full body B",
+          "focus": "full body and cardio",
+          "exercises": [
+            {
+              "exercise": "leg-press",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "lat-pulldown",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "kettlebell-deadlift",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "rowing-machine",
+              "sets": 2,
+              "repMin": 240,
+              "repMax": 360,
+              "targetRpe": 6,
+              "restSec": 60
+            }
+          ]
+        },
+        {
+          "name": "Full body C",
+          "focus": "full body and cardio",
+          "exercises": [
+            {
+              "exercise": "dumbbell-reverse-lunge",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "push-up",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "machine-row",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-rdl",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "incline-treadmill-walk",
+              "sets": 2,
+              "repMin": 300,
+              "repMax": 600,
+              "targetRpe": 6,
+              "restSec": 60
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

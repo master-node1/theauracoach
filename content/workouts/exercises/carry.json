@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "exercises": [
+    {
+      "slug": "farmers-carry",
+      "name": "Farmer carry",
+      "movementPattern": "carry",
+      "mechanics": "compound",
+      "difficulty": "BEGINNER",
+      "tracking": "time",
+      "primaryMuscles": ["forearms", "traps"],
+      "secondaryMuscles": ["core", "glutes"],
+      "equipment": ["dumbbell"],
+      "instructions": [
+        "Pick up a heavy dumbbell in each hand.",
+        "Stand tall and walk with short, controlled steps.",
+        "Set the weights down with a flat back at the end."
+      ],
+      "cues": ["Tall posture", "Shoulders back", "Grip hard"],
+      "commonMistakes": ["Leaning to one side", "Shrugging", "Rounding to pick up the weights"],
+      "contraindications": [],
+      "contraindicationsReviewed": true,
+      "regression": null,
+      "progression": null,
+      "defaultRestSec": 60,
+      "loadIncrementKg": 2.0,
+      "metValue": 5.0,
+      "illustrationKey": "placeholder/carry",
+      "media": []
+    },
+    {
+      "slug": "kettlebell-farmers-carry",
+      "name": "Kettlebell farmer carry",
+      "movementPattern": "carry",
+      "mechanics": "compound",
+      "difficulty": "BEGINNER",
+      "tracking": "time",
+      "primaryMuscles": ["forearms", "traps"],
+      "secondaryMuscles": ["core"],
+      "equipment": ["kettlebell"],
+      "instructions": [
+        "Pick up a kettlebell in each hand.",
+        "Walk tall with steady steps.",
+        "Put the bells down with a flat back."
+      ],
+      "cues": ["Stand tall", "Short steps", "Squeeze the handles"],
+      "commonMistakes": ["Leaning", "Shrugging", "Rushing"],
+      "contraindications": [],
+      "contraindicationsReviewed": true,
+      "regression": null,
+      "progression": null,
+      "defaultRestSec": 60,
+      "loadIncrementKg": 4.0,
+      "metValue": 5.0,
+      "illustrationKey": "placeholder/carry",
+      "media": []
+    },
+    {
+      "slug": "suitcase-carry",
+      "name": "Suitcase carry",
+      "movementPattern": "carry",
+      "mechanics": "compound",
+      "difficulty": "BEGINNER",
+      "tracking": "time",
+      "primaryMuscles": ["obliques", "forearms"],
+      "secondaryMuscles": ["core"],
+      "equipment": ["dumbbell"],
+      "instructions": [
+        "Hold one heavy dumbbell at your side.",
+        "Walk without leaning towards the weight.",
+        "Switch hands halfway."
+      ],
+      "cues": ["Stay level", "Brace the side", "Tall posture"],
+      "commonMistakes": ["Leaning to the weight", "Shrugging", "Twisting"],
+      "contraindications": [],
+      "contraindicationsReviewed": true,
+      "regression": null,
+      "progression": null,
+      "defaultRestSec": 60,
+      "loadIncrementKg": 2.0,
+      "metValue": 4.5,
+      "illustrationKey": "placeholder/carry",
+      "media": []
+    }
+  ]
+}
