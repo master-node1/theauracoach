@@ -346,7 +346,9 @@ export default function SettingsScreen() {
                   <Text style={[styles.small, muted]}>{t('common.comingSoon')}</Text>
                 </View>
                 <View style={row}>
-                  <Text style={[styles.label, { color: p.danger }]}>{t('settings.deleteAccount')}</Text>
+                  <Text style={[styles.label, { color: p.danger }]}>
+                    {t('settings.deleteAccount')}
+                  </Text>
                   <Text style={[styles.small, muted]}>{t('common.comingSoon')}</Text>
                 </View>
               </>

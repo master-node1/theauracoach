@@ -76,6 +76,6 @@ describe('account deletion with a fresh sign-in', () => {
       () => Promise.reject(new TypeError('Network request failed')),
       vi.fn(),
     );
-    expect(outcome).toEqual({ kind: 'error', text: expect.stringMatching(/connection/) });
+    expect(outcome).toEqual({ kind: 'error', reason: 'failed' });
   });
 });

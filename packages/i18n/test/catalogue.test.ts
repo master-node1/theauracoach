@@ -25,6 +25,9 @@ const SAMPLE_VALUES = {
   period: 'morning',
   min: 10,
   minutes: 15,
+  days: 30,
+  date: '26 November 2026',
+  word: 'DELETE',
   list: '10 characters and a number',
   strong: (chunks: unknown) => chunks,
 };

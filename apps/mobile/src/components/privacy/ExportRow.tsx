@@ -7,6 +7,7 @@ import {
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApi } from '../../api';
+import { useTranslations } from '../../i18n';
 import { usePalette } from '../../theme';
 
 /**
@@ -17,7 +18,8 @@ export function ExportRow({ style }: { style?: object }) {
   const p = usePalette();
   const api = useApi();
   const [latest, setLatest] = useState<DataRequestResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const t = useTranslations('privacy.export');
   const state = exportState(latest);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function ExportRow({ style }: { style?: object }) {
   }, [api, latest, state.busy]);
 
   const start = async () => {
-    setError(null);
+    setFailed(false);
     try {
       setLatest(await api.requestExport());
     } catch (err) {
@@ -61,7 +63,7 @@ export function ExportRow({ style }: { style?: object }) {
         if (running) setLatest(running);
         return;
       }
-      setError('Could not start the export. Check your connection and try again.');
+      setFailed(true);
     }
   };
 
@@ -69,9 +71,9 @@ export function ExportRow({ style }: { style?: object }) {
   return (
     <View style={[styles.row, style]}>
       <View style={styles.flex}>
-        <Text style={[styles.label, { color: p.text }]}>Export my data</Text>
+        <Text style={[styles.label, { color: p.text }]}>{t('title')}</Text>
         <Text accessibilityLiveRegion="polite" style={[styles.small, { color: p['text-muted'] }]}>
-          {error ?? state.label}
+          {failed ? t('failed') : t(`states.${state.key}`)}
         </Text>
       </View>
       <Pressable
@@ -82,7 +84,7 @@ export function ExportRow({ style }: { style?: object }) {
         style={[styles.button, { borderColor: p.border }]}
       >
         <Text style={{ color: p.primary, fontWeight: '600' }}>
-          {download ? 'Download' : state.busy ? 'Preparing…' : 'Export'}
+          {download ? t('download') : state.busy ? t('busy') : t('start')}
         </Text>
       </Pressable>
     </View>
