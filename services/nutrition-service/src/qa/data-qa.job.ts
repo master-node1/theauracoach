@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { REDIS } from '@aura/service-kit';
 import type { Redis } from 'ioredis';
 import { energyCheck, fromRows } from '../catalogue/nutrients';

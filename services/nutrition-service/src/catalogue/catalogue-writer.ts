@@ -291,7 +291,10 @@ export class CatalogueWriter {
     refById: Map<string, string>,
   ) {
     if (!stored) return { kind: 'create' as const, fields: [] };
-    const fields = diff(recipeSnapshot(record), recipeSnapshot(storedRecipeRecord(stored, refById)));
+    const fields = diff(
+      recipeSnapshot(record),
+      recipeSnapshot(storedRecipeRecord(stored, refById)),
+    );
     if (fields.length === 0) return { kind: 'unchanged' as const, fields };
     if (stored.status !== 'PUBLISHED') return { kind: 'update' as const, fields };
     const pending = stored.pendingRevision as { importFields?: string[] } | null;
@@ -384,7 +387,12 @@ export class CatalogueWriter {
   }
 
   private async writeRecipe(
-    c: { kind: ChangeKind; record: RecipeRecord; stored: StoredRecipe | undefined; fields: string[] },
+    c: {
+      kind: ChangeKind;
+      record: RecipeRecord;
+      stored: StoredRecipe | undefined;
+      fields: string[];
+    },
     ids: Map<string, string>,
     newStatus: ImportInput['newStatus'],
   ) {
@@ -516,7 +524,12 @@ function recipePatch(
 /** Prints a plan the way `--dry-run` shows it. */
 export function formatPlan(plan: ImportPlan, verbose = false): string {
   const lines: string[] = [];
-  const mark: Record<ChangeKind, string> = { create: '+', update: '~', revise: '?', unchanged: '=' };
+  const mark: Record<ChangeKind, string> = {
+    create: '+',
+    update: '~',
+    revise: '?',
+    unchanged: '=',
+  };
   for (const c of plan.changes) {
     if (c.kind === 'unchanged' && !verbose) continue;
     const fields = c.fields.length ? ` (${c.fields.join(', ')})` : '';

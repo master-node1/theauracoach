@@ -9,3 +9,5 @@ test-results
 playwright-report
 .expo
 infra/helm/*/templates
+# Curated nutrition content is hand-formatted one record per line; CI validates it with Zod.
+services/nutrition-service/content

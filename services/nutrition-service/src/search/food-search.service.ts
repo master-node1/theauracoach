@@ -148,7 +148,10 @@ export class FoodSearchService {
     const key = `nutrition:search:v1:${gen}:${createHash('sha1').update(q).digest('hex')}`;
     const cached = await this.redis.get(key);
     if (cached) return JSON.parse(cached) as Candidate[];
-    const candidates = await this.query(q, Prisma.sql`f.status = 'PUBLISHED' AND f.source <> 'USER'`);
+    const candidates = await this.query(
+      q,
+      Prisma.sql`f.status = 'PUBLISHED' AND f.source <> 'USER'`,
+    );
     await this.redis.set(key, JSON.stringify(candidates), 'EX', SEARCH_CACHE_TTL_S);
     return candidates;
   }
@@ -233,12 +236,7 @@ export function defaultUnit(
 }
 
 export function normaliseQuery(q: string): string {
-  return q
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  return q.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function groupBy<T>(items: T[], key: (t: T) => string): Map<string, T[]> {

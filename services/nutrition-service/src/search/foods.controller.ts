@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   foodSearchQuerySchema,
   internalFoodSearchSchema,
@@ -43,13 +53,17 @@ export class FoodsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<FoodDetail> {
-    const row = await this.prisma.foodItem.findUnique({ where: { id }, include: foodDetailInclude });
+    const row = await this.prisma.foodItem.findUnique({
+      where: { id },
+      include: foodDetailInclude,
+    });
     const visible =
       row &&
       (row.source === 'USER'
         ? row.createdById === user.userId && row.status !== 'ARCHIVED'
         : row.status === 'PUBLISHED');
-    if (!visible) throw new ProblemException(HttpStatus.NOT_FOUND, 'FOOD_NOT_FOUND', 'No such food');
+    if (!visible)
+      throw new ProblemException(HttpStatus.NOT_FOUND, 'FOOD_NOT_FOUND', 'No such food');
     return toFoodDetail(row);
   }
 }

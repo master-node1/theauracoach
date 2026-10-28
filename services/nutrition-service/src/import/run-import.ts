@@ -1,5 +1,10 @@
 import type { PrismaClient } from '../generated/prisma';
-import { CatalogueWriter, formatPlan, type ImportInput, type ImportPlan } from '../catalogue/catalogue-writer';
+import {
+  CatalogueWriter,
+  formatPlan,
+  type ImportInput,
+  type ImportPlan,
+} from '../catalogue/catalogue-writer';
 import { curatedRecords, loadCuratedContent } from '../catalogue/content';
 import { fdcRecords, readFdcDirectory } from './fdc';
 import { readIfctFile } from './ifct';
@@ -20,7 +25,10 @@ export interface ImportOutcome {
   report: string;
 }
 
-export function importInput(options: ImportOptions): { input: ImportInput; skipped: ImportOutcome['skipped'] } {
+export function importInput(options: ImportOptions): {
+  input: ImportInput;
+  skipped: ImportOutcome['skipped'];
+} {
   switch (options.source) {
     case 'curated': {
       const records = curatedRecords(loadCuratedContent(options.path));

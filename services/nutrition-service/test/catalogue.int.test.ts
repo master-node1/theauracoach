@@ -69,9 +69,17 @@ describe('importers', () => {
       where: { slug: 'idli' },
       include: { food: { include: { nutrients: true } }, ingredients: true },
     });
-    expect(idli).toMatchObject({ status: 'IN_REVIEW', reviewRequired: 'nutrition', region: 'south' });
+    expect(idli).toMatchObject({
+      status: 'IN_REVIEW',
+      reviewRequired: 'nutrition',
+      region: 'south',
+    });
     expect(idli.dietTags).toContain('VEGAN');
-    expect(idli.food).toMatchObject({ source: 'CURATED_RECIPE', state: 'COOKED', status: 'IN_REVIEW' });
+    expect(idli.food).toMatchObject({
+      source: 'CURATED_RECIPE',
+      state: 'COOKED',
+      status: 'IN_REVIEW',
+    });
     expect(idli.food!.nutrients.length).toBeGreaterThanOrEqual(5);
     const cooked = await h.prisma.foodItem.findUniqueOrThrow({
       where: { slug: 'rice-white-cooked' },
@@ -185,16 +193,49 @@ describe('GET /v1/foods', () => {
     expect(detail.body).toMatchObject({ recipeSlug: 'idli', state: 'COOKED' });
     expect(detail.body.units.length).toBeGreaterThan(0);
     const draft = await h.prisma.foodItem.create({
-      data: { name: 'Hidden', source: 'CURATED_INGREDIENT', confidence: 'LOW', state: 'RAW', status: 'DRAFT' },
+      data: {
+        name: 'Hidden',
+        source: 'CURATED_INGREDIENT',
+        confidence: 'LOW',
+        state: 'RAW',
+        status: 'DRAFT',
+      },
     });
     await http().get(`/v1/foods/${draft.id}`).set('authorization', `Bearer ${anyone}`).expect(404);
   });
 
   it('meets p95 < 150 ms on the seeded catalogue, uncached', async () => {
     const queries = [
-      'dal', 'roti', 'paneer tikka', 'idli', 'dosa', 'rice', 'chicken', 'poha', 'chai', 'sambar',
-      'rajma', 'chole', 'upma', 'egg', 'paratha', 'biryani', 'curd', 'banana', 'khichdi', 'aloo',
-      'masala', 'paneer', 'fish', 'oats', 'ladoo', 'kheer', 'pulao', 'sabzi', 'chutney', 'vada',
+      'dal',
+      'roti',
+      'paneer tikka',
+      'idli',
+      'dosa',
+      'rice',
+      'chicken',
+      'poha',
+      'chai',
+      'sambar',
+      'rajma',
+      'chole',
+      'upma',
+      'egg',
+      'paratha',
+      'biryani',
+      'curd',
+      'banana',
+      'khichdi',
+      'aloo',
+      'masala',
+      'paneer',
+      'fish',
+      'oats',
+      'ladoo',
+      'kheer',
+      'pulao',
+      'sabzi',
+      'chutney',
+      'vada',
     ];
     const timings: number[] = [];
     for (let round = 0; round < 3; round++) {
@@ -224,7 +265,9 @@ describe('POST /internal/v1/foods/search', () => {
       .send({ q: 'biryani', dietType: 'VEGETARIAN' })
       .expect(200);
     expect(res.body.items.length).toBeGreaterThan(0);
-    expect(res.body.items.every((i: { dietTags: string[] }) => i.dietTags.includes('VEGETARIAN'))).toBe(true);
+    expect(
+      res.body.items.every((i: { dietTags: string[] }) => i.dietTags.includes('VEGETARIAN')),
+    ).toBe(true);
   });
 });
 
@@ -238,7 +281,9 @@ describe('nightly data QA', () => {
     const job = new DataQaJob(h.prisma, h.app.get<Redis>(REDIS));
     const result = await job.run();
     expect(result.flagged).toBeGreaterThanOrEqual(1);
-    const flagged = await h.prisma.foodItem.findMany({ where: { qaFlags: { has: 'ENERGY_MISMATCH' } } });
+    const flagged = await h.prisma.foodItem.findMany({
+      where: { qaFlags: { has: 'ENERGY_MISMATCH' } },
+    });
     expect(flagged.map((f) => f.slug)).toContain('ghee');
     expect(flagged.filter((f) => f.source.startsWith('CURATED'))).toHaveLength(1);
 

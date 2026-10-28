@@ -13,7 +13,14 @@ describe('curated nutrition content', () => {
 
   it('covers every region and the diets users pick', () => {
     const regions = new Set(content.recipes.map((r) => r.region));
-    expect([...regions].sort()).toEqual(['east', 'north', 'northeast', 'pan_indian', 'south', 'west']);
+    expect([...regions].sort()).toEqual([
+      'east',
+      'north',
+      'northeast',
+      'pan_indian',
+      'south',
+      'west',
+    ]);
     const diets = (d: string) =>
       [...records.composites.values()].filter((c) => c.composite.dietTags.includes(d as never))
         .length;
@@ -53,7 +60,9 @@ describe('curated nutrition content', () => {
   it('derives allergens from ingredients', () => {
     const kadai = records.composites.get('kadai-paneer')!.composite;
     expect(kadai.allergens).toContain('milk');
-    expect(records.composites.get('chicken-biryani')!.composite.dietTags).not.toContain('VEGETARIAN');
+    expect(records.composites.get('chicken-biryani')!.composite.dietTags).not.toContain(
+      'VEGETARIAN',
+    );
     expect(records.composites.get('idli')!.composite.dietTags).toContain('VEGAN');
   });
 

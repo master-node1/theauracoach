@@ -66,13 +66,17 @@ export function classify(group: string, description: string): FoodClass {
     flags.add('FISH');
     allergens.add('shellfish');
   }
-  if (has(d, /\b(wheat|barley|rye|semolina|maida|atta|bread|pasta|noodle)/)) allergens.add('gluten');
+  if (has(d, /\b(wheat|barley|rye|semolina|maida|atta|bread|pasta|noodle)/))
+    allergens.add('gluten');
   if (has(d, /\bsoy|tofu/)) allergens.add('soy');
   if (has(d, /\bhoney\b/)) flags.add('HONEY');
   if (has(d, /\bonions?\b|shallot|leek|spring onion|scallion/)) flags.add('ONION');
   if (has(d, /\bgarlic/)) flags.add('GARLIC');
   if (
-    has(d, /\b(potato|sweet potato|carrot|beet|radish|turnip|yam|colocasia|taro|ginger|tapioca|cassava)/)
+    has(
+      d,
+      /\b(potato|sweet potato|carrot|beet|radish|turnip|yam|colocasia|taro|ginger|tapioca|cassava)/,
+    )
   ) {
     flags.add('ROOT_VEGETABLE');
   }

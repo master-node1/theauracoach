@@ -17,7 +17,7 @@
     "test:int": "vitest run test/*.int.test.ts",
     "start:http": "node dist/main.http.js",
     "start:worker": "node dist/main.worker.js",
-    "import": "node dist/import/cli.js"
+    "catalogue:import": "node dist/import/cli.js"
   },
   "dependencies": {
     "@aura/contracts": "workspace:*",

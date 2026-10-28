@@ -28,10 +28,10 @@ export interface WorkflowRow {
 }
 
 export type WorkflowStep =
-  | { target: 'item'; to: ContentStatus }
-  | { target: 'revision'; to: ContentStatus };
+  { target: 'item'; to: ContentStatus } | { target: 'revision'; to: ContentStatus };
 
-const hasRevision = (row: WorkflowRow) => row.pendingRevision !== null && row.revisionStatus !== null;
+const hasRevision = (row: WorkflowRow) =>
+  row.pendingRevision !== null && row.revisionStatus !== null;
 
 export function workflowState(row: WorkflowRow): ContentWorkflowState {
   return {
@@ -115,7 +115,13 @@ export function audit(tx: Prisma.TransactionClient, input: AuditInput) {
 
 export function contentPublished(
   tx: Prisma.TransactionClient,
-  input: { contentType: ContentType; contentId: string; slug: string | null; version: number; publishedBy: string },
+  input: {
+    contentType: ContentType;
+    contentId: string;
+    slug: string | null;
+    version: number;
+    publishedBy: string;
+  },
 ) {
   return writeOutbox(tx, {
     producer: 'nutrition-service',

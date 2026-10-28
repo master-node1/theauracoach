@@ -41,10 +41,22 @@ describe('USDA FDC importer', () => {
   });
 
   it('tags diets, allergens, state and portions', () => {
-    expect(byRef.get('170567')).toMatchObject({ allergens: ['peanut'], state: 'RAW', category: 'nut' });
+    expect(byRef.get('170567')).toMatchObject({
+      allergens: ['peanut'],
+      state: 'RAW',
+      category: 'nut',
+    });
     expect(byRef.get('170567')!.units).toEqual([{ code: 'cup', label: 'cup', grams: 146 }]);
-    expect(byRef.get('171287')).toMatchObject({ flags: ['EGG'], allergens: ['egg'], category: 'egg' });
-    expect(byRef.get('171477')).toMatchObject({ flags: ['MEAT'], state: 'COOKED', category: 'meat' });
+    expect(byRef.get('171287')).toMatchObject({
+      flags: ['EGG'],
+      allergens: ['egg'],
+      category: 'egg',
+    });
+    expect(byRef.get('171477')).toMatchObject({
+      flags: ['MEAT'],
+      state: 'COOKED',
+      category: 'meat',
+    });
     expect(byRef.get('169756')!.units.map((u) => u.code)).toEqual(['cup']);
     expect(byRef.get('169756')).toMatchObject({ source: 'USDA_FDC', confidence: 'HIGH' });
   });

@@ -14,7 +14,14 @@ import { energyCheck, fromRows, toRows, type NutrientValues } from '../catalogue
 import { PrismaService } from '../prisma.service';
 import { FoodSearchService } from '../search/food-search.service';
 import { foodDetailInclude, toFoodDetail, type FoodDetailRow } from '../search/food-view';
-import { audit, contentPublished, stateOf, workflowState, workflowStep, editTarget } from './content-workflow';
+import {
+  audit,
+  contentPublished,
+  stateOf,
+  workflowState,
+  workflowStep,
+  editTarget,
+} from './content-workflow';
 
 type Tx = Prisma.TransactionClient;
 
@@ -83,8 +90,15 @@ export class AdminFoodsService {
   async patch(actor: AuthenticatedUser, id: string, patch: AdminFoodPatch, requestId?: string) {
     await this.prisma.$transaction(async (tx) => {
       const row = await this.load(tx, id, true);
-      if (patch.source !== undefined && !REFERENCE_SOURCES.concat('CURATED_INGREDIENT').includes(row.source)) {
-        throw new ProblemException(HttpStatus.UNPROCESSABLE_ENTITY, 'SOURCE_FIXED', 'This food’s source cannot change');
+      if (
+        patch.source !== undefined &&
+        !REFERENCE_SOURCES.concat('CURATED_INGREDIENT').includes(row.source)
+      ) {
+        throw new ProblemException(
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          'SOURCE_FIXED',
+          'This food’s source cannot change',
+        );
       }
       await this.checkRawEquivalent(tx, patch.rawEquivalentId ?? null, id);
       if (editTarget(row) === 'item') {
@@ -187,7 +201,10 @@ export class AdminFoodsService {
 
   private async checkRawEquivalent(db: Tx, rawId: string | null, selfId: string | null) {
     if (!rawId) return;
-    const raw = await db.foodItem.findUnique({ where: { id: rawId }, select: { state: true, source: true } });
+    const raw = await db.foodItem.findUnique({
+      where: { id: rawId },
+      select: { state: true, source: true },
+    });
     if (!raw || raw.source === 'USER' || raw.state !== 'RAW' || rawId === selfId) {
       throw new ProblemException(
         HttpStatus.UNPROCESSABLE_ENTITY,
@@ -199,7 +216,8 @@ export class AdminFoodsService {
 }
 
 function scalarData(input: AdminFoodPatch) {
-  const data: Prisma.FoodItemUncheckedUpdateInput & Prisma.FoodItemUncheckedCreateInput = {} as never;
+  const data: Prisma.FoodItemUncheckedUpdateInput & Prisma.FoodItemUncheckedCreateInput =
+    {} as never;
   const keys = [
     'name',
     'localNames',
@@ -225,7 +243,9 @@ function scalarData(input: AdminFoodPatch) {
 async function applyPatch(tx: Tx, id: string, patch: AdminFoodPatch) {
   if (patch.nutrients) {
     await tx.foodNutrient.deleteMany({ where: { foodId: id } });
-    await tx.foodNutrient.createMany({ data: toRows(patch.nutrients).map((r) => ({ ...r, foodId: id })) });
+    await tx.foodNutrient.createMany({
+      data: toRows(patch.nutrients).map((r) => ({ ...r, foodId: id })),
+    });
   }
   if (patch.units) {
     await tx.foodUnit.deleteMany({ where: { foodId: id } });

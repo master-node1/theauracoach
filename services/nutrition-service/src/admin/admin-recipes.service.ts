@@ -15,7 +15,14 @@ import { buildComposite, recipeDerived, type CompositeResult } from '../catalogu
 import { energyCheck, fromRows, toRows } from '../catalogue/nutrients';
 import { PrismaService } from '../prisma.service';
 import { FoodSearchService } from '../search/food-search.service';
-import { audit, contentPublished, editTarget, stateOf, workflowState, workflowStep } from './content-workflow';
+import {
+  audit,
+  contentPublished,
+  editTarget,
+  stateOf,
+  workflowState,
+  workflowStep,
+} from './content-workflow';
 
 type Tx = Prisma.TransactionClient;
 
@@ -75,7 +82,11 @@ export class AdminRecipesService {
   async create(actor: AuthenticatedUser, input: AdminRecipeInput, requestId?: string) {
     const id = await this.prisma.$transaction(async (tx) => {
       if (await tx.recipe.findUnique({ where: { slug: input.slug }, select: { id: true } })) {
-        throw new ProblemException(HttpStatus.CONFLICT, 'SLUG_TAKEN', 'A recipe already uses this slug');
+        throw new ProblemException(
+          HttpStatus.CONFLICT,
+          'SLUG_TAKEN',
+          'A recipe already uses this slug',
+        );
       }
       await checkIngredients(tx, input.ingredients, input.substitutions);
       const { ingredients, ...rest } = input;
@@ -116,7 +127,8 @@ export class AdminRecipesService {
       if (editTarget(row) === 'item') {
         await applyPatch(tx, id, patch);
       } else {
-        const { importFields: _ignored, ...pending } = (row.pendingRevision as Revision | null) ?? {};
+        const { importFields: _ignored, ...pending } =
+          (row.pendingRevision as Revision | null) ?? {};
         await tx.recipe.update({
           where: { id },
           data: {
@@ -152,7 +164,11 @@ export class AdminRecipesService {
         const row = await this.load(tx, id, true);
         const step = workflowStep(row, action);
         const permission =
-          action === 'submit' ? 'recipe:write' : action === 'reject' ? 'recipe:review' : 'recipe:publish';
+          action === 'submit'
+            ? 'recipe:write'
+            : action === 'reject'
+              ? 'recipe:review'
+              : 'recipe:publish';
 
         if (action === 'publish') {
           await this.publish(tx, actor, row, step.target === 'revision');
@@ -211,7 +227,11 @@ export class AdminRecipesService {
       );
     }
     if (!(recipe.cookedYieldG > 0)) {
-      throw new ProblemException(HttpStatus.UNPROCESSABLE_ENTITY, 'YIELD_REQUIRED', 'Set the cooked yield');
+      throw new ProblemException(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'YIELD_REQUIRED',
+        'Set the cooked yield',
+      );
     }
     const composite: CompositeResult = buildComposite({
       ingredients: recipe.ingredients.map((i) => {
@@ -258,7 +278,10 @@ export class AdminRecipesService {
     const existing = await tx.foodItem.findFirst({
       where: { OR: [{ recipeId: row.id }, { source: 'CURATED_RECIPE', sourceRef: row.slug }] },
     });
-    const slugOwner = await tx.foodItem.findUnique({ where: { slug: row.slug }, select: { id: true } });
+    const slugOwner = await tx.foodItem.findUnique({
+      where: { slug: row.slug },
+      select: { id: true },
+    });
     const foodData = {
       slug: !slugOwner || slugOwner.id === existing?.id ? row.slug : null,
       name: recipe.name,
@@ -321,7 +344,8 @@ export class AdminRecipesService {
   private async load(db: Tx, id: string, lock = false): Promise<RecipeRow> {
     if (lock) await db.$queryRaw`SELECT id FROM "Recipe" WHERE id = ${id}::uuid FOR UPDATE`;
     const row = await db.recipe.findUnique({ where: { id }, include: recipeInclude });
-    if (!row) throw new ProblemException(HttpStatus.NOT_FOUND, 'RECIPE_NOT_FOUND', 'No such recipe');
+    if (!row)
+      throw new ProblemException(HttpStatus.NOT_FOUND, 'RECIPE_NOT_FOUND', 'No such recipe');
     return row;
   }
 }

@@ -73,7 +73,8 @@ export function readFdcDirectory(dir: string): FdcFood[] {
 }
 
 function fromCsv(dir: string): FdcFood[] {
-  const read = (f: string) => (existsSync(join(dir, f)) ? parseCsv(readFileSync(join(dir, f), 'utf8')) : []);
+  const read = (f: string) =>
+    existsSync(join(dir, f)) ? parseCsv(readFileSync(join(dir, f), 'utf8')) : [];
   const categories = new Map(read('food_category.csv').map((c) => [c.id!, c.description!]));
   const foods = new Map<string, FdcFood>();
   for (const row of read('food.csv')) {
@@ -119,27 +120,25 @@ interface FdcJsonFood {
 function fromJson(doc: { FoundationFoods?: FdcJsonFood[]; SRLegacyFoods?: FdcJsonFood[] }) {
   return [...(doc.FoundationFoods ?? []), ...(doc.SRLegacyFoods ?? [])]
     .filter((f) => DATA_TYPES.has(f.dataType))
-    .map(
-      (f): FdcFood => ({
-        fdcId: String(f.fdcId),
-        dataType: f.dataType,
-        description: f.description,
-        category: f.foodCategory?.description ?? '',
-        nutrients: new Map(
-          (f.foodNutrients ?? [])
-            .filter((n) => n.nutrient?.id !== undefined && n.amount !== undefined)
-            .map((n) => [n.nutrient!.id!, n.amount!]),
-        ),
-        portions: (f.foodPortions ?? [])
-          .filter((p) => p.gramWeight && (p.portionDescription || p.modifier))
-          .map((p) => ({
-            label: (p.portionDescription && p.portionDescription !== 'Quantity not specified'
-              ? p.portionDescription
-              : p.modifier)!,
-            grams: p.gramWeight! / (p.amount || 1),
-          })),
-      }),
-    );
+    .map((f): FdcFood => ({
+      fdcId: String(f.fdcId),
+      dataType: f.dataType,
+      description: f.description,
+      category: f.foodCategory?.description ?? '',
+      nutrients: new Map(
+        (f.foodNutrients ?? [])
+          .filter((n) => n.nutrient?.id !== undefined && n.amount !== undefined)
+          .map((n) => [n.nutrient!.id!, n.amount!]),
+      ),
+      portions: (f.foodPortions ?? [])
+        .filter((p) => p.gramWeight && (p.portionDescription || p.modifier))
+        .map((p) => ({
+          label: (p.portionDescription && p.portionDescription !== 'Quantity not specified'
+            ? p.portionDescription
+            : p.modifier)!,
+          grams: p.gramWeight! / (p.amount || 1),
+        })),
+    }));
 }
 
 const first = (m: Map<number, number>, ids: number[]) =>

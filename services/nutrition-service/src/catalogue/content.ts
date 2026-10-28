@@ -73,7 +73,10 @@ const recipeSchema = z.strictObject({
   cook: z.number().int().min(0).max(1440),
   cost: z.number().int().min(1).max(3),
   restaurant: z.boolean().default(false),
-  ing: z.array(z.tuple([slug, z.number().positive().max(10000)])).min(1).max(40),
+  ing: z
+    .array(z.tuple([slug, z.number().positive().max(10000)]))
+    .min(1)
+    .max(40),
   steps: z.array(z.string().trim().min(3).max(400)).min(1).max(20),
   subs: z
     .array(z.tuple([slug, z.array(slug).min(1).max(5), z.string().trim().max(120)]))
@@ -129,7 +132,12 @@ export function loadCuratedContent(dir = DEFAULT_CONTENT_DIR): CuratedContent {
       'ingredients.json',
       problems,
     )?.ingredients ?? [];
-  const unitsFile = parse(unitsFileSchema, readJson(join(dir, 'units.json')), 'units.json', problems);
+  const unitsFile = parse(
+    unitsFileSchema,
+    readJson(join(dir, 'units.json')),
+    'units.json',
+    problems,
+  );
   const cooked =
     parse(
       z.object({ cooked: z.array(cookedSchema) }),
@@ -139,9 +147,12 @@ export function loadCuratedContent(dir = DEFAULT_CONTENT_DIR): CuratedContent {
     )?.cooked ?? [];
   const recipes: RecipeContent[] = [];
   const recipeDir = join(dir, 'recipes');
-  for (const file of readdirSync(recipeDir).filter((f) => f.endsWith('.json')).sort()) {
+  for (const file of readdirSync(recipeDir)
+    .filter((f) => f.endsWith('.json'))
+    .sort()) {
     const parsed = parse(recipeFileSchema, readJson(join(recipeDir, file)), file, problems);
-    for (const r of parsed?.recipes ?? []) recipes.push({ ...r, region: r.region ?? parsed!.region });
+    for (const r of parsed?.recipes ?? [])
+      recipes.push({ ...r, region: r.region ?? parsed!.region });
   }
 
   const unitLabels = new Map((unitsFile?.units ?? []).map((u) => [u.code, u.label]));

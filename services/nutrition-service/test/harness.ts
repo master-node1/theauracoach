@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { configureHttpApp, UserTokenVerifier } from '@aura/service-kit';
+import { configureHttpApp, REDIS, UserTokenVerifier } from '@aura/service-kit';
 import {
   createDevIssuer,
   createTestDatabase,
@@ -9,6 +9,7 @@ import {
   type DevIssuer,
   type TestDatabase,
 } from '@aura/testing';
+import type { Redis } from 'ioredis';
 import { resolve } from 'node:path';
 import { AppModule } from '../src/app.module';
 import { loadServiceConfig } from '../src/config';
@@ -41,6 +42,8 @@ export async function bootApp(label: string, redisDb: number): Promise<Harness> 
   const app = configureHttpApp(ref.createNestApplication());
   await app.init();
   const prisma = app.get(PrismaService);
+  // Search results cached by an earlier run point at another scratch database.
+  await app.get<Redis>(REDIS).flushdb();
   return {
     app,
     db,

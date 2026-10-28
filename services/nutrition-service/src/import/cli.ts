@@ -12,7 +12,7 @@ Needs DATABASE_URL. --dry-run prints the diff without writing. Re-running is saf
 async function main(argv: string[]): Promise<number> {
   const [source, ...rest] = argv;
   if (!source || !['curated', 'fdc', 'ifct'].includes(source) || rest.includes('--help')) {
-    console.error(USAGE);
+    process.stderr.write(`${USAGE}\n`);
     return source ? 2 : 1;
   }
   const flag = (name: string) => {
@@ -20,7 +20,7 @@ async function main(argv: string[]): Promise<number> {
     return i >= 0 ? rest[i + 1] : undefined;
   };
   if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL is not set');
+    process.stderr.write('DATABASE_URL is not set\n');
     return 1;
   }
   const db = new PrismaClient();
@@ -31,7 +31,7 @@ async function main(argv: string[]): Promise<number> {
       dryRun: rest.includes('--dry-run'),
       verbose: rest.includes('--verbose'),
     });
-    console.log(outcome.report);
+    process.stdout.write(`${outcome.report}\n`);
     return 0;
   } finally {
     await db.$disconnect();
@@ -41,7 +41,7 @@ async function main(argv: string[]): Promise<number> {
 main(process.argv.slice(2)).then(
   (code) => process.exit(code),
   (err: unknown) => {
-    console.error(err instanceof Error ? err.message : err);
+    process.stderr.write(`${err instanceof Error ? err.message : err}\n`);
     process.exit(1);
   },
 );
