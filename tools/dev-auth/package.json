@@ -2,7 +2,7 @@
   "name": "@aura/dev-auth",
   "version": "0.1.0",
   "private": true,
-  "description": "Local stand-in for Cognito: JWKS, test tokens and the Authorization Code + PKCE sign-in flow. Development and tests only.",
+  "description": "Local stand-in for Cognito: JWKS, test tokens, the Authorization Code + PKCE sign-in flow and the email sign-up/reset API. Development and tests only.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -16,12 +16,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aura/contracts": "workspace:*",
     "jose": "5.10.0"
   },
   "files": [
     "dist"
   ],
   "devDependencies": {
+    "@aura/api-client": "workspace:*",
     "vitest": "3.2.7"
   }
 }

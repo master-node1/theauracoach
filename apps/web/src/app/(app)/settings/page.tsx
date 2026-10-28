@@ -1,14 +1,19 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { CURRENT_POLICY_VERSION } from '@aura/api-client';
-import { SignOutButton } from '@/components/SignOutButton';
+import { SignOutButton, SignOutEverywhereButton } from '@/components/SignOutButton';
 import { currentFlags, currentMe, currentSession, serverApi } from '@/lib/server-session';
 import { SettingsForm } from './SettingsForm';
 
 export const metadata: Metadata = { title: 'Settings' };
 export const dynamic = 'force-dynamic';
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   if (!(await currentFlags()).settings_v1) notFound();
   const session = await currentSession();
   const me = await currentMe();
@@ -31,11 +36,19 @@ export default async function SettingsPage() {
           <p>Check your connection and refresh the page.</p>
         </section>
       )}
+      {error === 'sign-out-all' ? (
+        <section className="card warning" role="alert">
+          <p>We couldn&apos;t sign out your other devices. Try again in a moment.</p>
+        </section>
+      ) : null}
       <section className="settings-group" aria-labelledby="about-heading">
         <h2 id="about-heading">About</h2>
         <div className="settings-list">
           <div className="settings-row">
             <SignOutButton />
+          </div>
+          <div className="settings-row">
+            <SignOutEverywhereButton />
           </div>
         </div>
         <p className="fine-print settings-footer">

@@ -38,7 +38,7 @@ const channel = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'and
 export default function SettingsScreen() {
   const p = usePalette();
   const api = useApi();
-  const { signOut } = useAuth();
+  const { signOut, signOutEverywhere } = useAuth();
   const { me, failed, setTheme, reload } = useMe();
   const [status, setStatus] = useState<SaveStatus>(null);
   const [name, setName] = useState('');
@@ -326,6 +326,21 @@ export default function SettingsScreen() {
           <View style={list}>
             <Pressable accessibilityRole="button" onPress={signOut} style={[row, styles.firstRow]}>
               <Text style={[styles.label, { color: p.primary }]}>Sign out</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint="Signs you out on every phone and browser"
+              onPress={async () => {
+                if (!(await signOutEverywhere())) {
+                  setStatus({
+                    kind: 'error',
+                    text: "We couldn't sign out your other devices. Try again in a moment.",
+                  });
+                }
+              }}
+              style={row}
+            >
+              <Text style={[styles.label, { color: p.primary }]}>Sign out of all devices</Text>
             </Pressable>
           </View>
         </Section>

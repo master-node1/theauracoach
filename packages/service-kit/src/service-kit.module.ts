@@ -10,6 +10,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import type { ServiceName } from '@aura/contracts';
 import { Redis } from 'ioredis';
 import { AuthGuard } from './auth/auth.guard';
+import { RedisSessionRevocations, SESSION_REVOCATIONS } from './auth/session-revocations';
 import { ConsentGuard } from './auth/consent.guard';
 import { AdminMfaGuard, PermissionsGuard } from './auth/permissions.guard';
 import { UserTokenVerifier } from './auth/user-token.verifier';
@@ -39,7 +40,7 @@ export class ServiceKitModule implements OnApplicationShutdown {
 
   /**
    * Wires config, logging, problem details, the global guards (auth, then rate limits, then
-   * feature flags; Nest runs them in this order), health, Redis, feature flags and the internal client.
+   * feature flags; Nest runs them in this order), health, Redis, session revocations, feature flags and the internal client.
    */
   static forRoot(options: ServiceKitOptions): DynamicModule {
     const { config } = options;
@@ -68,6 +69,11 @@ export class ServiceKitModule implements OnApplicationShutdown {
           return redis;
         },
         inject: [HealthRegistry],
+      },
+      {
+        provide: SESSION_REVOCATIONS,
+        useFactory: (redis: Redis) => new RedisSessionRevocations(redis),
+        inject: [REDIS],
       },
       {
         provide: InternalClient,
@@ -101,6 +107,7 @@ export class ServiceKitModule implements OnApplicationShutdown {
       exports: [
         SERVICE_KIT_CONFIG,
         REDIS,
+        SESSION_REVOCATIONS,
         InternalClient,
         HealthRegistry,
         UserTokenVerifier,

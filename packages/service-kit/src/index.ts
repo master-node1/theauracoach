@@ -12,6 +12,7 @@ export * from './http/logging';
 export * from './health/health';
 export * from './auth/decorators';
 export * from './auth/user-token.verifier';
+export * from './auth/session-revocations';
 export * from './auth/service-token';
 export * from './auth/auth.guard';
 export * from './auth/routes';

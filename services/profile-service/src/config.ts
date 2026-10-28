@@ -8,7 +8,7 @@ export const configSchema = baseEnvSchema
   .extend({
     /**
      * Cognito's user API, e.g. https://cognito-idp.ap-south-1.amazonaws.com/ (dev-auth locally).
-     * Role grants mirror to Cognito groups through it.
+     * Role grants mirror to Cognito groups through it; sign out of all devices calls GlobalSignOut.
      */
     IDENTITY_ENDPOINT: z.url().optional(),
     /** The user pool whose groups mirror role grants. dev-auth ignores it. */

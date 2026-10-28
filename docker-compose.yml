@@ -100,7 +100,7 @@ services:
       SERVICE_NAME: profile-service
       DATABASE_URL: postgresql://profile_svc:local-dev-only@postgres:5432/profile_db
       INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000,nutrition-service=http://nutrition:3000'
-      # Role grants mirror to dev-auth's groups (the Cognito AdminAddUserToGroup API).
+      # Cognito user API on dev-auth: role-group mirroring and GlobalSignOut.
       IDENTITY_ENDPOINT: http://dev-auth:4100/
     ports: ['3001:3000']
     depends_on: *depends
@@ -124,6 +124,7 @@ services:
       <<: *service-env
       SERVICE_NAME: profile-service
       DATABASE_URL: postgresql://profile_svc:local-dev-only@postgres:5432/profile_db
+      IDENTITY_ENDPOINT: http://dev-auth:4100/
       INTERNAL_SERVICE_URLS: 'workout-service=http://workout:3000,nutrition-service=http://nutrition:3000'
     depends_on:
       profile: { condition: service_healthy }

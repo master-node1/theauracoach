@@ -1,15 +1,21 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { ServiceKitModule, type FeatureFlags, type UserTokenVerifier } from '@aura/service-kit';
-import type { ServiceConfig } from './config';
+import { DEV_IDENTITY_ENDPOINT, type ServiceConfig } from './config';
 import { ConsentsController } from './consents/consents.controller';
 import { ConsentsService } from './consents/consents.service';
 import { FlagsController } from './flags/flags.controller';
+import {
+  CognitoIdentityProvider,
+  IDENTITY_PROVIDER,
+  type IdentityProvider,
+} from './identity/identity-provider';
 import {
   CognitoIdentityGroups,
   IDENTITY_GROUPS,
   type IdentityGroups,
 } from './identity/identity-groups';
 import { MeController } from './identity/me.controller';
+import { SessionsController } from './identity/sessions.controller';
 import { UserProvisioningService } from './identity/user-provisioning.service';
 import { UserContextController } from './internal/user-context.controller';
 import { PrismaService } from './prisma.service';
@@ -26,6 +32,7 @@ export class AppModule {
     verifier?: UserTokenVerifier,
     flags?: FeatureFlags,
     identityGroups?: IdentityGroups,
+    identity?: IdentityProvider,
   ): DynamicModule {
     return {
       module: AppModule,
@@ -38,6 +45,7 @@ export class AppModule {
       ],
       controllers: [
         MeController,
+        SessionsController,
         ProfileController,
         ConsentsController,
         FlagsController,
@@ -53,6 +61,12 @@ export class AppModule {
         {
           provide: IDENTITY_GROUPS,
           useValue: identityGroups ?? new CognitoIdentityGroups(config),
+        },
+        {
+          provide: IDENTITY_PROVIDER,
+          useValue:
+            identity ??
+            new CognitoIdentityProvider(config.IDENTITY_ENDPOINT ?? DEV_IDENTITY_ENDPOINT),
         },
       ],
     };

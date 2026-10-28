@@ -23,6 +23,10 @@ function RootStack() {
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />
+          <Stack.Screen name="sign-up" />
+          <Stack.Screen name="verify" />
+          <Stack.Screen name="forgot" />
+          <Stack.Screen name="reset" />
         </Stack.Protected>
       </Stack>
     </>

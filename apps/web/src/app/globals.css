@@ -511,3 +511,57 @@ fieldset.settings-row legend {
 .danger-text {
   color: var(--color-danger);
 }
+
+/* Email sign-up, sign-in and reset (TAC-8) */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-field label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.auth-field .input {
+  min-height: 48px;
+  font-size: 16px;
+}
+.auth-hint {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.auth-error {
+  font-size: 14px;
+  color: var(--color-danger);
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--color-border);
+}
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  font-size: 14px;
+}
+.auth-links a,
+.auth-links .link-button {
+  color: var(--color-primary);
+  font-weight: 600;
+}

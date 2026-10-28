@@ -2,6 +2,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import {
   createDevIssuer,
+  createIdentityHandlers,
   createOAuthHandlers,
   GroupStore,
   handleGroupTarget,
@@ -16,6 +17,8 @@ import {
  *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints; staff get an MFA step)
  *   POST /  X-Amz-Target: AWSCognitoIdentityProviderService.AdminAddUserToGroup (also
  *        AdminRemoveUserFromGroup, AdminListGroupsForUser): profile-service role grants
+ *        Also the email-flow actions (SignUp, ConfirmSignUp, ForgotPassword, InitiateAuth, …)
+ *   GET  /test/codes?email=…  -> {"signUp":"123456","reset":"654321"} (codes are never emailed)
  * Keys and sessions live in memory and are lost on restart.
  */
 function readBody(req: IncomingMessage): Promise<string> {
@@ -45,6 +48,7 @@ async function main() {
     groups,
     ...(process.env.DEV_AUTH_MFA_CODE ? { mfaCode: process.env.DEV_AUTH_MFA_CODE } : {}),
   });
+  const identity = createIdentityHandlers(dev, oauth);
   createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', issuer);
     try {
@@ -64,6 +68,22 @@ async function main() {
           .end(JSON.stringify({ access_token: token }));
         return;
       }
+      if (url.pathname === '/' && req.method === 'OPTIONS') {
+        res
+          .writeHead(204, {
+            'access-control-allow-origin': '*',
+            'access-control-allow-methods': 'POST',
+            'access-control-allow-headers': 'content-type, x-amz-target',
+          })
+          .end();
+        return;
+      }
+      if (url.pathname === '/test/codes' && req.method === 'GET') {
+        res
+          .writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+          .end(JSON.stringify(identity.pendingCodes(url.searchParams.get('email') ?? '')));
+        return;
+      }
       if (url.pathname === '/oauth2/authorize' && req.method === 'GET') {
         send(res, oauth.authorizePage(url.searchParams));
         return;
@@ -77,14 +97,12 @@ async function main() {
         return;
       }
       if (url.pathname === '/' && req.method === 'POST') {
+        // Cognito's cognito-idp JSON API: admin group calls (role grants) or the email flows.
         const target = req.headers['x-amz-target'];
+        const action = typeof target === 'string' ? target : undefined;
         const raw = await readBody(req);
-        const result = handleGroupTarget(
-          groups,
-          typeof target === 'string' ? target : undefined,
-          raw ? JSON.parse(raw) : {},
-        );
-        send(res, result ?? { status: 400, body: '{"__type":"UnknownOperationException"}' });
+        const body = raw ? JSON.parse(raw) : {};
+        send(res, handleGroupTarget(groups, action, body) ?? (await identity.handle(action, body)));
         return;
       }
       if (url.pathname === '/oauth2/token' && req.method === 'POST') {

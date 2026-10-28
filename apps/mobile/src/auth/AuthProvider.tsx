@@ -9,7 +9,9 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createApiClient, createIdentityClient } from '@aura/api-client';
 import { appConfig } from '../config';
+import { createEmailFlows, type EmailFlows, type IdentityProviderName } from './email-flows';
 import { clearTokens, loadTokens, saveTokens } from './storage';
 import { fromTokenResult, needsRefresh, singleFlight, type StoredTokens } from './tokens';
 
@@ -31,11 +33,22 @@ const signedOutUri = AuthSession.makeRedirectUri({ scheme: 'auracoach', path: 's
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
 
+/** Email flows talk to Cognito (or dev-auth) directly; one instance keeps sign-up sessions. */
+const emailFlows = createEmailFlows(
+  createIdentityClient({ endpoint: appConfig.identityEndpoint, clientId }),
+);
+
 interface AuthContextValue {
   status: Status;
   error: string | null;
-  signIn: () => Promise<void>;
+  /** Hosted sign-in; with a provider it goes straight to Google or Apple. */
+  signIn: (provider?: IdentityProviderName) => Promise<void>;
+  /** Stores tokens from an email flow (sign-in, or verify after sign-up). */
+  completeSignIn: (tokens: StoredTokens) => Promise<void>;
+  emailFlows: EmailFlows;
   signOut: () => Promise<void>;
+  /** Ends every session of the user (TAC-8). False when the API could not do it. */
+  signOutEverywhere: () => Promise<boolean>;
   /** A fresh access token, refreshing first when under 60 s remain; null when signed out. */
   getAccessToken: () => Promise<string | null>;
 }
@@ -46,11 +59,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
   const tokens = useRef<StoredTokens | null>(null);
-
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    { clientId, redirectUri, scopes, usePKCE: true },
-    discovery,
-  );
 
   const store = useCallback(async (next: StoredTokens | null) => {
     tokens.current = next;
@@ -67,25 +75,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => setStatus('signedOut'));
   }, []);
-
-  // The authorization response: exchange the code (with the PKCE verifier) for tokens.
-  useEffect(() => {
-    if (!response || !request) return;
-    if (response.type === 'error') {
-      setError('Sign-in failed. Please try again.');
-      return;
-    }
-    if (response.type !== 'success') return;
-    const code = response.params.code;
-    if (!code || !request.codeVerifier) return;
-    AuthSession.exchangeCodeAsync(
-      { clientId, code, redirectUri, extraParams: { code_verifier: request.codeVerifier } },
-      discovery,
-    )
-      .then((result) => store(fromTokenResult(result, null)))
-      .then(() => setError(null))
-      .catch(() => setError('We could not finish signing you in. Please try again.'));
-  }, [response, request, store]);
 
   const refresh = useMemo(
     () =>
@@ -116,10 +105,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return (await refresh())?.accessToken ?? null;
   }, [refresh]);
 
-  const signIn = useCallback(async () => {
-    setError(null);
-    await promptAsync();
-  }, [promptAsync]);
+  /** Authorization Code + PKCE in the system browser, then the code exchange. */
+  const signIn = useCallback(
+    async (provider?: IdentityProviderName) => {
+      setError(null);
+      const request = new AuthSession.AuthRequest({
+        clientId,
+        redirectUri,
+        scopes,
+        usePKCE: true,
+        ...(provider ? { extraParams: { identity_provider: provider } } : {}),
+      });
+      const response = await request.promptAsync(discovery);
+      if (response.type === 'error') {
+        setError('Sign-in failed. Please try again.');
+        return;
+      }
+      if (response.type !== 'success') return;
+      const code = response.params.code;
+      if (!code || !request.codeVerifier) return;
+      try {
+        const result = await AuthSession.exchangeCodeAsync(
+          { clientId, code, redirectUri, extraParams: { code_verifier: request.codeVerifier } },
+          discovery,
+        );
+        await store(fromTokenResult(result, null));
+      } catch {
+        setError('We could not finish signing you in. Please try again.');
+      }
+    },
+    [store],
+  );
+
+  const completeSignIn = useCallback(
+    async (next: StoredTokens) => {
+      setError(null);
+      await store(next);
+    },
+    [store],
+  );
 
   const signOut = useCallback(async () => {
     const current = tokens.current;
@@ -139,9 +163,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await WebBrowser.openAuthSessionAsync(logout, signedOutUri).catch(() => undefined);
   }, [store]);
 
+  const signOutEverywhere = useCallback(async () => {
+    const api = createApiClient({ baseUrl: appConfig.apiBaseUrl, getAccessToken });
+    try {
+      await api.revokeAllSessions();
+    } catch {
+      return false;
+    }
+    await signOut();
+    return true;
+  }, [getAccessToken, signOut]);
+
   const value = useMemo(
-    () => ({ status, error, signIn, signOut, getAccessToken }),
-    [status, error, signIn, signOut, getAccessToken],
+    () => ({
+      status,
+      error,
+      signIn,
+      completeSignIn,
+      emailFlows,
+      signOut,
+      signOutEverywhere,
+      getAccessToken,
+    }),
+    [status, error, signIn, completeSignIn, signOut, signOutEverywhere, getAccessToken],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -4,6 +4,7 @@
     "/v1/me": "profile",
     "/v1/me/profile": "profile",
     "/v1/me/exports/123": "profile",
+    "/v1/me/sessions/revoke": "profile",
     "/v1/onboarding/complete": "profile",
     "/v1/admin/roles": "profile",
     "/v1/me/flags": "profile",

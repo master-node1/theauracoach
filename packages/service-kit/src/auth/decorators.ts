@@ -21,6 +21,8 @@ export interface AuthenticatedUser {
   /** Authentication methods from the token's `amr` claim; admin routes need MFA in it. */
   amr: string[];
   clientId: string;
+  /** The access token's `iat`, epoch seconds; compared with the user's revocation cut-off. */
+  issuedAt: number;
 }
 
 export interface ServiceCaller {

@@ -59,6 +59,7 @@ export class UserTokenVerifier {
       groups: strings(groups),
       amr: strings(amr),
       clientId,
+      issuedAt: typeof payload.iat === 'number' ? payload.iat : 0,
     };
   }
 }

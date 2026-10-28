@@ -257,6 +257,25 @@ paths:
               schema: { $ref: '#/components/schemas/FlagsResponse' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '429': { $ref: '#/components/responses/RateLimited' }
+  /v1/me/sessions/revoke:
+    post:
+      tags: [me]
+      operationId: revokeAllSessions
+      summary: Sign out of all devices
+      description: |
+        Records a per-user cut-off in Redis so every service rejects the user's access tokens
+        issued until now (401 before they expire), then calls Cognito GlobalSignOut so no device
+        can refresh. Signing in again afterwards works as usual (TAC-8).
+      responses:
+        '204': { description: Every session ended }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503':
+          description: |
+            IDENTITY_UNAVAILABLE. The cut-off holds, but Cognito could not be reached to stop the
+            refresh tokens; the app asks the user to try again.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /v1/me/exports:
     post:
       tags: [me]

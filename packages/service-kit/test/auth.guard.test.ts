@@ -10,10 +10,12 @@ import {
   CurrentUser,
   InternalOnly,
   INTERNAL_TOKEN_HEADER,
+  MemorySessionRevocations,
   mintServiceToken,
   ProblemDetailsFilter,
   Public,
   SERVICE_KIT_CONFIG,
+  SESSION_REVOCATIONS,
   UserTokenVerifier,
   type AuthenticatedUser,
   type ServiceCaller,
@@ -43,6 +45,7 @@ class TestController {
 
 let dev: DevIssuer;
 let app: INestApplication;
+const revocations = new MemorySessionRevocations();
 
 beforeAll(async () => {
   dev = await createDevIssuer();
@@ -62,6 +65,7 @@ beforeAll(async () => {
           keySource: dev.keySource,
         }),
       },
+      { provide: SESSION_REVOCATIONS, useValue: revocations },
       { provide: APP_GUARD, useClass: AuthGuard },
       { provide: APP_FILTER, useClass: ProblemDetailsFilter },
     ],
@@ -103,7 +107,25 @@ describe('AuthGuard', () => {
       groups: ['content_editor'],
       amr: ['pwd'],
       clientId: DEV_CLIENT_ID,
+      issuedAt: expect.any(Number),
     });
+  });
+
+  it('rejects tokens issued before the user signed out of all devices', async () => {
+    const sub = '6a3e1f0c-2b4d-4e8f-9a1b-7c5d3e2f1a00';
+    const other = '6a3e1f0c-2b4d-4e8f-9a1b-7c5d3e2f1a01';
+    const old = await dev.mintAccessToken({ sub });
+    const unaffected = await dev.mintAccessToken({ sub: other });
+    await revocations.revokeAll(sub, Math.floor(Date.now() / 1000));
+    const get = (token: string) =>
+      request(app.getHttpServer()).get('/v1/me').set('authorization', `Bearer ${token}`);
+    await get(old).expect(401);
+    await get(unaffected).expect(200);
+    // A later cut-off never moves back.
+    await revocations.revokeAll(sub, 1);
+    expect(await revocations.revokedBefore(sub)).toBeGreaterThan(1);
+    await new Promise((r) => setTimeout(r, 1100));
+    await get(await dev.mintAccessToken({ sub })).expect(200);
   });
 
   it('rejects ID tokens, unknown clients, expired tokens and non-UUID subjects', async () => {

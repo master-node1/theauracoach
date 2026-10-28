@@ -33,6 +33,9 @@ export default defineConfig({
       OIDC_DOMAIN_URL: process.env.OIDC_DOMAIN_URL ?? 'http://localhost:4100',
       OIDC_ISSUER: process.env.OIDC_ISSUER ?? 'http://localhost:4100',
       OIDC_CLIENT_ID: 'aura-dev-client',
+      IDENTITY_ENDPOINT: `${process.env.OIDC_DOMAIN_URL ?? 'http://localhost:4100'}/`,
+      // Every test signs in from 127.0.0.1; the 10/min limit itself is covered by unit tests.
+      AUTH_RATE_LIMIT_PER_MINUTE: '1000',
       // Test-only key for the throwaway session cookies of this run.
       SESSION_SECRET: process.env.SESSION_SECRET ?? 'playwright-only-session-key-0123456789',
     },

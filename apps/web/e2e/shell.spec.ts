@@ -8,7 +8,7 @@ const email = (label: string) =>
 async function signIn(page: Page, address: string, staff = false, mfa = true) {
   await page.goto('/');
   await expect(page).toHaveURL(/\/auth\/sign-in\?returnTo=%2F$/);
-  await page.getByRole('link', { name: 'Continue' }).click();
+  await page.getByRole('link', { name: 'More sign-in options' }).click();
   // dev-auth's local sign-in form stands in for Cognito managed login.
   await page.getByLabel('Email').fill(address);
   if (staff) await page.getByLabel('Staff (admin console)').check();
@@ -79,7 +79,7 @@ test('sign out clears the session', async ({ page, context }) => {
   await signIn(page, email('leaver'));
   // On phones sign out lives in Settings (W13); it is there on every screen size.
   await page.goto('/settings');
-  await page.getByRole('main').getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page).toHaveURL(/\/auth\/sign-in/);
   await page.goto('/');
   await expect(page).toHaveURL(/\/auth\/sign-in/);
