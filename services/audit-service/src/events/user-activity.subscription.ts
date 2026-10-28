@@ -62,3 +62,22 @@ export const auditEvent = subscribe<'AuditEvent@1', Prisma.TransactionClient>(
 );
 
 export const subscriptions = [consentChanged, profileChanged, auditEvent];
+
+/**
+ * Data-subject requests (export, deletion, restore, purge) are audited by action only, from the
+ * export and deletion events this service already takes part in (participantSubscriptions).
+ */
+export function dataRightsAudit(action: string) {
+  return async (tx: Prisma.TransactionClient, userId: string, at: Date): Promise<void> => {
+    await tx.auditLog.create({
+      data: {
+        actorId: userId,
+        actorRole: 'user',
+        action,
+        entityType: 'user',
+        entityId: userId,
+        createdAt: at,
+      },
+    });
+  };
+}

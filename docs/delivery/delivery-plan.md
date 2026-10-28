@@ -87,8 +87,8 @@ Each slice ships API + web + mobile + tests + docs, behind a feature flag, and i
 
 | Increment | Status |
 |---|---|
-| 5.1a Profile, preferences and consents API (`ProfileChanged`, `ConsentChanged`, internal user context), Settings screen on web and mobile behind `settings_v1` ([TAC-6](https://harisireddi7776.atlassian.net/browse/TAC-6)) | In review |
-| 5.1b Data export and account deletion/restore across services (TC-PRV-1..3) | Not started |
+| 5.1a Profile, preferences and consents API (`ProfileChanged`, `ConsentChanged`, internal user context), Settings screen on web and mobile behind `settings_v1` ([TAC-6](https://harisireddi7776.atlassian.net/browse/TAC-6)) | Done |
+| 5.1b Data export and account deletion/restore across services (TC-PRV-1..3), web and mobile behind `privacy_v1` ([TAC-7](https://harisireddi7776.atlassian.net/browse/TAC-7)) | Done |
 | 5.1c Email sign-up, verification, password reset, password sign-in and sign out of all devices on web and mobile; Google/Apple buttons when configured ([TAC-8](https://harisireddi7776.atlassian.net/browse/TAC-8)) | Done (real Cognito pool and IdP apps come with the Terraform ticket) |
 
 Risks: content creation is on the critical path (exercises, media, Indian dishes) → start content production during Phase 4 with the admin import tooling first.

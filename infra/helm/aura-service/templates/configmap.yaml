@@ -23,7 +23,12 @@ data:
   {{- if .Values.cognitoAdmin }}
   IDENTITY_ENDPOINT: {{ printf "https://cognito-idp.%s.amazonaws.com/" .Values.global.auth.region | quote }}
   COGNITO_USER_POOL_ID: {{ required "global.auth.userPoolId is required (deploy input)" .Values.global.auth.userPoolId | quote }}
+  {{- end }}
   AWS_REGION: {{ .Values.global.auth.region | quote }}
+  OBJECT_STORAGE: s3
+  S3_BUCKET: {{ required "global.objectStorage.bucket is required (deploy input)" .Values.global.objectStorage.bucket | quote }}
+  {{- with .Values.global.objectStorage.kmsKeyId }}
+  S3_KMS_KEY_ID: {{ . | quote }}
   {{- end }}
   FLAGS_SOURCE: {{ .Values.global.flags.source | quote }}
   {{- if eq .Values.global.flags.source "appconfig" }}

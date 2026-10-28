@@ -43,6 +43,11 @@ export interface DevUser {
   email: string;
   /** How the user signed in: ['pwd'], or ['pwd', 'mfa'] after the MFA step. */
   amr: string[];
+  /**
+   * When the user entered credentials (epoch seconds, the `auth_time` claim). Stamped at sign-in
+   * when not set; refreshes keep it, like Cognito.
+   */
+  authTime?: number;
 }
 
 const CODE_TTL_MS = 5 * 60_000;
@@ -51,8 +56,9 @@ const CODE_TTL_MS = 5 * 60_000;
  * The same person always gets the same id, so signing in again with an email finds the same
  * profile. Shaped as a UUID because services reject any other subject.
  */
-export function devUserId(email: string): string {
-  const h = createHash('sha256').update(`aura-dev:${email.trim().toLowerCase()}`).digest('hex');
+export function devUserId(email: string, generation = 0): string {
+  const seed = `aura-dev:${email.trim().toLowerCase()}${generation > 0 ? `#${generation}` : ''}`;
+  const h = createHash('sha256').update(seed).digest('hex');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
@@ -122,6 +128,14 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
   const codes = new Map<string, PendingCode>();
   const mfaTickets = new Map<string, PendingMfa>();
   const refreshTokens = new Map<string, { clientId: string; user: DevUser }>();
+  /** Users removed with deleteUser. Signing up again with the same email gets a new id, as in Cognito. */
+  const deleted = new Set<string>();
+
+  function idFor(email: string): string {
+    let generation = 0;
+    while (deleted.has(devUserId(email, generation))) generation++;
+    return devUserId(email, generation);
+  }
 
   function checkAuthorizeParams(p: URLSearchParams): string | null {
     if (p.get('response_type') !== 'code') return 'response_type must be code';
@@ -137,7 +151,8 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
    * Code grant: all three tokens. Refresh grant (`withRefresh` false): no new refresh token.
    * Groups are read now, so grants and revocations show up at the next refresh.
    */
-  async function issue(clientId: string, user: DevUser, nonce?: string, withRefresh = true) {
+  async function issue(clientId: string, signedIn: DevUser, nonce?: string, withRefresh = true) {
+    const user = { ...signedIn, authTime: signedIn.authTime ?? Math.floor(now() / 1000) };
     const current = groups.list(user.sub);
     let refreshToken: string | undefined;
     if (withRefresh) {
@@ -150,6 +165,7 @@ export function createOAuthHandlers(dev: DevIssuer, options: OAuthOptions = {}) 
         email: user.email,
         groups: current,
         amr: user.amr,
+        authTime: user.authTime,
         clientId,
         expiresIn: `${ttl}s`,
       }),
@@ -221,10 +237,10 @@ ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
       const email = (form.get('email') ?? '').trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+$/.test(email))
         return { status: 400, body: 'a valid email is required' };
-      const sub = devUserId(email);
+      const sub = idFor(email);
       // Local bootstrap: the checkbox makes this person an owner, who can then grant other roles.
       if (form.get('staff')) groups.add(sub, 'owner');
-      const user: DevUser = { sub, email, amr: ['pwd'] };
+      const user: DevUser = { sub, email, amr: ['pwd'], authTime: Math.floor(now() / 1000) };
       if (groups.list(sub).length === 0) return redirectWithCode(form, user);
       // Staff go through a second step, like Cognito TOTP, so the MFA_REQUIRED path can be tested.
       const ticket = randomBytes(24).toString('base64url');
@@ -301,6 +317,26 @@ ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
       for (const [token, entry] of refreshTokens) {
         if (entry.user.sub === sub) refreshTokens.delete(token);
       }
+    },
+
+    /** The id a new sign-up with this email gets (a deleted user's email gets a fresh one). */
+    idFor,
+
+    /**
+     * Cognito `AdminDeleteUser`: the user's refresh tokens and groups go, and the email can sign
+     * up again as a new user.
+     */
+    deleteUser(sub: string): void {
+      deleted.add(sub);
+      for (const group of groups.list(sub)) groups.remove(sub, group);
+      for (const [token, entry] of refreshTokens) {
+        if (entry.user.sub === sub) refreshTokens.delete(token);
+      }
+    },
+
+    /** False once deleteUser removed the user (dev-auth keeps no list of hosted-UI users). */
+    userExists(sub: string): boolean {
+      return !deleted.has(sub);
     },
 
     logout(params: URLSearchParams): OAuthResult {

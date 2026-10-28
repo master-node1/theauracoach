@@ -8,6 +8,8 @@ global:
     jwksUrl: https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLE/.well-known/jwks.json
     clientIds: [example-web-client, example-mobile-client]
     userPoolId: ap-south-1_EXAMPLE
+  objectStorage:
+    bucket: auracoach-123456789012-user-private
 image:
   tag: 0123456789abcdef0123456789abcdef01234567
 web:

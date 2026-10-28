@@ -133,6 +133,8 @@ export interface MeResponse {
   locale: string;
   onboardingComplete: boolean;
   status: 'ACTIVE' | 'PENDING_DELETION';
+  /** When a pending deletion becomes final; null unless `status` is PENDING_DELETION. */
+  deletionDueAt: string | null;
   roles: string[];
   profile: ProfileResponse | null;
   preferences: PreferencesResponse;
@@ -153,4 +155,38 @@ export interface UserContextResponse {
   timezone: string;
   locale: string;
   coachTone: CoachTone;
+}
+
+/**
+ * `DataRequest` statuses. `expired` exports had their file removed after the retention window;
+ * `cancelled` deletions were undone by a restore.
+ */
+export const DATA_REQUEST_STATUSES = [
+  'queued',
+  'running',
+  'ready',
+  'failed',
+  'done',
+  'expired',
+  'cancelled',
+] as const;
+export type DataRequestStatus = (typeof DATA_REQUEST_STATUSES)[number];
+
+/** `DataRequest` in the OpenAPI document: an export (or the record of a deletion). */
+export interface DataRequestResponse {
+  id: string;
+  kind: 'export' | 'delete';
+  status: DataRequestStatus;
+  createdAt: string;
+  completedAt: string | null;
+  /** Pre-signed link to the zip, valid for `downloadExpiresAt`; only on a ready export. */
+  downloadUrl: string | null;
+  downloadExpiresAt: string | null;
+  /** When the file is removed (ready exports only). */
+  expiresAt: string | null;
+}
+
+/** `DELETE /v1/me` (202). */
+export interface DeletionScheduledResponse {
+  deletionDueAt: string;
 }

@@ -7,5 +7,5 @@ secrets:
   keys: [DATABASE_URL, REDIS_URL]
   sharedKeys: [INTERNAL_TOKEN_SECRET]
 networkPolicy:
-  internetEgress: false
-  awsMetadata: false
+  internetEgress: true
+  awsMetadata: true

@@ -1,6 +1,7 @@
 import { ApiError } from '@aura/api-client';
 import { describe, expect, it, vi } from 'vitest';
 import { saveOptimistically } from '../src/settings/optimistic';
+import { deleteWithReauth } from '../src/settings/privacy';
 import { schemeFor } from '../src/settings/scheme';
 
 describe('optimistic settings saves', () => {
@@ -33,5 +34,48 @@ describe('theme preference', () => {
     expect(schemeFor('light', 'dark')).toBe('light');
     expect(schemeFor('system', 'dark')).toBe('dark');
     expect(schemeFor('system', null)).toBe('light');
+  });
+});
+
+describe('account deletion with a fresh sign-in', () => {
+  const due = { deletionDueAt: '2026-11-26T10:00:00.000Z' };
+  const reauth = () => new ApiError(403, { code: 'REAUTH_REQUIRED' } as never);
+
+  it('deletes straight away when the sign-in is fresh', async () => {
+    const reauthenticate = vi.fn();
+    expect(await deleteWithReauth(async () => due, reauthenticate)).toEqual({
+      kind: 'scheduled',
+      ...due,
+    });
+    expect(reauthenticate).not.toHaveBeenCalled();
+  });
+
+  it('signs in again once, then retries', async () => {
+    const remove = vi.fn().mockRejectedValueOnce(reauth()).mockResolvedValueOnce(due);
+    const outcome = await deleteWithReauth(remove, async () => true);
+    expect(outcome).toEqual({ kind: 'scheduled', ...due });
+    expect(remove).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops when the user backs out of signing in, or the new sign-in is still refused', async () => {
+    expect(
+      await deleteWithReauth(
+        () => Promise.reject(reauth()),
+        async () => false,
+      ),
+    ).toEqual({
+      kind: 'cancelled',
+    });
+    const remove = vi.fn().mockRejectedValue(reauth());
+    expect((await deleteWithReauth(remove, async () => true)).kind).toBe('error');
+    expect(remove).toHaveBeenCalledTimes(2);
+  });
+
+  it('explains other failures', async () => {
+    const outcome = await deleteWithReauth(
+      () => Promise.reject(new TypeError('Network request failed')),
+      vi.fn(),
+    );
+    expect(outcome).toEqual({ kind: 'error', text: expect.stringMatching(/connection/) });
   });
 });

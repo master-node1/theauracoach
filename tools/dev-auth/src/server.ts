@@ -18,6 +18,7 @@ import {
  *   POST /  X-Amz-Target: AWSCognitoIdentityProviderService.AdminAddUserToGroup (also
  *        AdminRemoveUserFromGroup, AdminListGroupsForUser): profile-service role grants
  *        Also the email-flow actions (SignUp, ConfirmSignUp, ForgotPassword, InitiateAuth, …)
+ *        and ListUsers / AdminDeleteUser for account deletion
  *   GET  /test/codes?email=…  -> {"signUp":"123456","reset":"654321"} (codes are never emailed)
  * Keys and sessions live in memory and are lost on restart.
  */

@@ -1,5 +1,11 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { ServiceKitModule, type UserTokenVerifier } from '@aura/service-kit';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import {
+  ACCOUNT_STATE_DB,
+  AccountStateInterceptor,
+  ServiceKitModule,
+  type UserTokenVerifier,
+} from '@aura/service-kit';
 import type { ServiceConfig } from './config';
 import {
   AdminExercisesController,
@@ -22,6 +28,9 @@ export class AppModule {
       controllers: [ExercisesController, AdminExercisesController, AdminTemplatesController],
       providers: [
         PrismaService,
+        // Pending-deletion users get 423 on user routes (replica kept by the worker).
+        { provide: ACCOUNT_STATE_DB, useExisting: PrismaService },
+        { provide: APP_INTERCEPTOR, useClass: AccountStateInterceptor },
         {
           provide: ContentStore,
           useFactory: (p: PrismaService) => new ContentStore(p),

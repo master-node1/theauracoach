@@ -191,6 +191,43 @@ describe('dev-auth OAuth flow', () => {
     expect((await refresh(first.refresh_token)).status).toBe(400);
   });
 
+  it('stamps auth_time at sign-in and keeps it across refreshes', async () => {
+    let clock = 1_800_000_000_000;
+    oauth = createOAuthHandlers(dev, { now: () => clock });
+    const first = JSON.parse((await exchange(signIn())).body as string);
+    expect(decodeJwt(first.access_token).auth_time).toBe(1_800_000_000);
+    clock += 600_000;
+    const refreshed = await oauth.token(
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: CLIENT,
+        refresh_token: first.refresh_token,
+      }),
+    );
+    expect(decodeJwt(JSON.parse(refreshed.body as string).access_token).auth_time).toBe(
+      1_800_000_000,
+    );
+  });
+
+  it('deletes users like AdminDeleteUser: refresh stops, the email signs up as someone new', async () => {
+    const first = JSON.parse((await exchange(signIn())).body as string);
+    const sub = decodeJwt(first.access_token).sub as string;
+    oauth.deleteUser(sub);
+    expect(oauth.userExists(sub)).toBe(false);
+    const refresh = await oauth.token(
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: CLIENT,
+        refresh_token: first.refresh_token,
+      }),
+    );
+    expect(refresh.status).toBe(400);
+    const again = JSON.parse((await exchange(signIn())).body as string);
+    const newSub = decodeJwt(again.access_token).sub;
+    expect(newSub).not.toBe(sub);
+    expect(newSub).toBe(devUserId('priya@example.com', 1));
+  });
+
   it('gives the same email the same UUID subject', () => {
     expect(devUserId('a@b.co')).toBe(devUserId(' A@B.CO '));
     expect(devUserId('a@b.co')).toMatch(
