@@ -12,7 +12,7 @@ export class RateLimiter {
   /** Null when the request may go ahead, else a 429 problem with Retry-After. */
   check(request: Request, config: WebConfig): Response | null {
     const t = this.now();
-    const key = clientIp(request, config.trustedProxyHops);
+    const key = clientIp(request, config.trustedProxyHops, config.clientIpHeader);
     let window = this.windows.get(key);
     if (!window || t - window.start >= 60_000) {
       window = { start: t, count: 0 };
@@ -46,10 +46,15 @@ export class RateLimiter {
 }
 
 /**
- * The client address as our own proxies saw it: counting `hops` entries from the right of
- * X-Forwarded-For, because entries further left are whatever the client chose to send.
+ * The client address. Behind CloudFront, `header` is CloudFront-Viewer-Address ("ip:port", IPv6
+ * without brackets), which CloudFront sets itself (deployment.md "Edge routing"). Without it, the
+ * address our own proxies saw: `hops` entries from the right of X-Forwarded-For, because entries
+ * further left are whatever the client chose to send.
  */
-export function clientIp(request: Request, hops: number): string {
+export function clientIp(request: Request, hops: number, header = ''): string {
+  const viewer = header ? request.headers.get(header)?.trim() : undefined;
+  const address = viewer?.match(/^(.+):\d+$/)?.[1];
+  if (address) return address;
   const entries = (request.headers.get('x-forwarded-for') ?? '')
     .split(',')
     .map((e) => e.trim())

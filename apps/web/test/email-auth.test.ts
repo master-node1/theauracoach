@@ -273,6 +273,21 @@ describe('web BFF email flows (TAC-8)', () => {
     expect(clientIp(new Request(APP), 1)).toBe('unknown');
   });
 
+  it('prefers the viewer address CloudFront sets, without its port', () => {
+    const header = 'cloudfront-viewer-address';
+    const v4 = new Request(APP, {
+      headers: { [header]: '203.0.113.7:46532', 'x-forwarded-for': 'spoofed, 10.0.0.1' },
+    });
+    expect(clientIp(v4, 1, header)).toBe('203.0.113.7');
+    const v6 = new Request(APP, { headers: { [header]: '2001:db8::1:443' } });
+    expect(clientIp(v6, 1, header)).toBe('2001:db8::1');
+    // Without the header (local stack, no CloudFront) it falls back to X-Forwarded-For.
+    const local = new Request(APP, { headers: { 'x-forwarded-for': '10.0.0.1' } });
+    expect(clientIp(local, 1, header)).toBe('10.0.0.1');
+    // Not configured: the header is ignored, so nobody can pick a bucket by sending it.
+    expect(clientIp(v4, 1)).toBe('10.0.0.1');
+  });
+
   it('offers only configured providers and sends identity_provider for them', async () => {
     expect(parseProviders('Google, Facebook,SignInWithApple')).toEqual([
       'Google',

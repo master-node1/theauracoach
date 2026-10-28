@@ -27,8 +27,13 @@ export interface WebConfig {
   identityProviders: IdentityProviderName[];
   /** Auth form posts allowed per client IP per minute (security architecture §5). */
   authRateLimitPerMinute: number;
-  /** Proxies in front of the app that append to X-Forwarded-For (ingress, CloudFront). */
+  /** Proxies in front of the app that append to X-Forwarded-For, when there is no client IP header. */
   trustedProxyHops: number;
+  /**
+   * Request header with the viewer's "ip:port", set by the edge: `cloudfront-viewer-address` in the
+   * cluster. Empty reads X-Forwarded-For. The BFF passes it on to the gateway.
+   */
+  clientIpHeader: string;
   /** At least 32 characters; encrypts the session cookies. */
   sessionSecret: string;
 }
@@ -73,6 +78,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
     identityProviders: parseProviders(env.IDENTITY_PROVIDERS),
     authRateLimitPerMinute: positiveInt(env.AUTH_RATE_LIMIT_PER_MINUTE, 10),
     trustedProxyHops: positiveInt(env.TRUSTED_PROXY_HOPS, 1),
+    clientIpHeader: (env.CLIENT_IP_HEADER ?? '').trim().toLowerCase(),
     sessionSecret,
   };
 }
