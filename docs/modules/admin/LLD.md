@@ -8,7 +8,7 @@ Next.js `/admin` (server components, MFA-enforced), backed by `/v1/admin/*` API 
 
 ## 2. Content workflow
 
-`DRAFT → IN_REVIEW → PUBLISHED → ARCHIVED`, with `version` incremented on each publish. Editors create/edit drafts; reviewers (`*:publish`) publish. Published versions are immutable; edits create a new draft version. Users' historical logs keep snapshots, so content edits never change history.
+`DRAFT → IN_REVIEW → PUBLISHED → ARCHIVED`, with `version` incremented on each publish. Editors create/edit drafts and submit them (`*:write`); reviewers send items back with a note (`*:review`) and publish or archive (`*:publish`). Published versions are immutable; edits are held as a revision (`pendingRevision`, with its own `revisionStatus` running through the same states) and replace the live values only when published. Read routes accept any of the type's permissions (`@AnyPermission` in service-kit), so editors and reviewers share one list. Users' historical logs keep snapshots, so content edits never change history.
 
 | Content | Editor permission | Publisher | Validation on publish |
 |---|---|---|---|
@@ -19,7 +19,7 @@ Next.js `/admin` (server components, MFA-enforced), backed by `/v1/admin/*` API 
 | Prompt | prompt:write | prompt:publish | eval suite thresholds met |
 | Policy / model config | policy:write | owner | diff shown, reason required |
 
-Bulk import: CSV/JSON importers for IFCT and FDC with dry-run diff.
+Bulk import: `pnpm nutrition:import <curated|fdc|ifct>` with a dry-run diff (nutrition LLD §4).
 
 ## 3. Review queues
 
@@ -35,4 +35,4 @@ Every admin mutation writes an `AuditEvent` to the owning service's outbox in th
 
 ## 6. API (prefix /v1/admin, routed by the gateway to the owning service)
 
-`/exercises`, `/templates` (workout) · `/foods`, `/recipes` (nutrition) · `/prompts`, `/model-configs`, `/policies`, `/reviews/safety`, `/feedback`, `/usage` (coach) · `/audit` (audit) · `/roles`, `/users/{id}` (profile). Content routes: CRUD + `/{id}/submit`, `/{id}/publish`, `/{id}/archive`. The support user view (`/users/{id}`, masked) is assembled by the web BFF from each service's admin read endpoint. Feature flags are managed in AWS AppConfig.
+`/exercises`, `/templates` (workout) · `/foods`, `/recipes` (nutrition) · `/prompts`, `/model-configs`, `/policies`, `/reviews/safety`, `/feedback`, `/usage` (coach) · `/audit` (audit) · `/roles`, `/users/{id}` (profile). Content routes: CRUD + `/{id}/submit`, `/{id}/reject` (with a note), `/{id}/publish`, `/{id}/archive`. Foods also list `?qa=flagged` (nightly data QA findings). The support user view (`/users/{id}`, masked) is assembled by the web BFF from each service's admin read endpoint. Feature flags are managed in AWS AppConfig.
