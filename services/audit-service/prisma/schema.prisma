@@ -24,13 +24,16 @@ model AuditLog {
   entityId   String
   before     Json?
   after      Json?
+  reason     String?  @db.VarChar(200) // staff member's note for a sensitive action
   requestId  String?  @db.Uuid
   ipHash     String?  @db.VarChar(64)
   createdAt  DateTime @default(now())
-  // append-only: UPDATE/DELETE revoked from the app role in migration SQL
+  // append-only: a trigger refuses UPDATE, DELETE and TRUNCATE (migration SQL)
 
   @@index([entityType, entityId, createdAt])
   @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
 }
 
 model OutboxEvent {

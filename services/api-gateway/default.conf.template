@@ -60,6 +60,13 @@ server {
   # Regex locations are tried in order, so more specific paths come first.
   # Each pattern matches the segment itself or the segment followed by "/", never a longer word.
 
+  # Per-service admin operations: /v1/admin/ops/<service>/... goes to that service (TAC-32).
+  # nginx resolves the variable against the upstream blocks above, so no DNS resolver is needed.
+  location ~ ^/v1/admin/ops/(?<ops_upstream>profile|workout|nutrition|progress|coach|notification|audit)(/|$) {
+    limit_req zone=per_ip burst=40 nodelay;
+    proxy_pass http://$ops_upstream;
+  }
+
   # notification-service (before profile-service, which owns the rest of /v1/me)
   location ~ ^/v1/(me/notification-preferences|me/devices|notifications)(/|$) {
     limit_req zone=per_ip burst=40 nodelay;

@@ -1,5 +1,13 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { ServiceKitModule, type UserTokenVerifier } from '@aura/service-kit';
+import {
+  ADMIN_REPORTS,
+  AdminOps,
+  AdminOpsController,
+  EVENT_DATABASE,
+  ServiceKitModule,
+  type UserTokenVerifier,
+} from '@aura/service-kit';
+import { ProgressReports } from './admin-reports';
 import type { ServiceConfig } from './config';
 import { PrismaService } from './prisma.service';
 
@@ -10,8 +18,13 @@ export class AppModule {
     return {
       module: AppModule,
       imports: [ServiceKitModule.forRoot({ config, ...(verifier ? { verifier } : {}) })],
-      controllers: [],
-      providers: [PrismaService],
+      controllers: [AdminOpsController],
+      providers: [
+        PrismaService,
+        AdminOps,
+        { provide: EVENT_DATABASE, useExisting: PrismaService },
+        { provide: ADMIN_REPORTS, useClass: ProgressReports },
+      ],
     };
   }
 }

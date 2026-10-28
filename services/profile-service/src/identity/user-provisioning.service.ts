@@ -38,6 +38,19 @@ export class UserProvisioningService {
     return user;
   }
 
+  /**
+   * Records that the user opened the app, at most once an hour, for the admin console's daily
+   * active users. The apps call /v1/me on start, so this is the activity signal.
+   */
+  async touchActivity(user: Pick<User, 'id' | 'lastActiveAt'>, now = new Date()): Promise<void> {
+    const hourAgo = new Date(now.getTime() - 3_600_000);
+    if (user.lastActiveAt && user.lastActiveAt > hourAgo) return;
+    await this.prisma.user.updateMany({
+      where: { id: user.id, OR: [{ lastActiveAt: null }, { lastActiveAt: { lt: hourAgo } }] },
+      data: { lastActiveAt: now },
+    });
+  }
+
   async ensureUser(identity: AuthenticatedUser): Promise<UserWithAccess> {
     const existing = await this.prisma.user.findUnique({ where: { id: identity.userId }, include });
     if (existing) return existing;

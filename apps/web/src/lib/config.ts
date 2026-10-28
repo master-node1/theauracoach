@@ -31,6 +31,37 @@ export interface WebConfig {
   trustedProxyHops: number;
   /** At least 32 characters; encrypts the session cookies. */
   sessionSecret: string;
+  /** Grafana panels the admin usage page embeds (error rate, latency); empty hides them. */
+  grafanaPanels: GrafanaPanel[];
+}
+
+export interface GrafanaPanel {
+  title: string;
+  url: string;
+}
+
+/**
+ * `ADMIN_GRAFANA_PANELS`: `Title|https://grafana.example/d-solo/...,Title 2|https://...`.
+ * Only http(s) URLs are kept; anything else is dropped rather than embedded.
+ */
+export function parseGrafanaPanels(value: string | undefined): GrafanaPanel[] {
+  if (!value) return [];
+  const panels: GrafanaPanel[] = [];
+  for (const item of value.split(',')) {
+    const bar = item.indexOf('|');
+    if (bar < 1) continue;
+    const title = item.slice(0, bar).trim();
+    const url = item.slice(bar + 1).trim();
+    try {
+      const parsed = new URL(url);
+      if (title && (parsed.protocol === 'https:' || parsed.protocol === 'http:')) {
+        panels.push({ title, url: parsed.toString() });
+      }
+    } catch {
+      // not a URL: skip it
+    }
+  }
+  return panels;
 }
 
 export const IDENTITY_PROVIDER_NAMES = ['Google', 'SignInWithApple'] as const;
@@ -74,6 +105,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
     authRateLimitPerMinute: positiveInt(env.AUTH_RATE_LIMIT_PER_MINUTE, 10),
     trustedProxyHops: positiveInt(env.TRUSTED_PROXY_HOPS, 1),
     sessionSecret,
+    grafanaPanels: parseGrafanaPanels(env.ADMIN_GRAFANA_PANELS),
   };
 }
 

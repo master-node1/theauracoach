@@ -10,6 +10,8 @@ export class MeController {
 
   @Get()
   async me(@CurrentUser() identity: AuthenticatedUser): Promise<MeResponse> {
-    return toMe(await this.provisioning.activeUser(identity));
+    const user = await this.provisioning.activeUser(identity);
+    await this.provisioning.touchActivity(user);
+    return toMe(user);
   }
 }
