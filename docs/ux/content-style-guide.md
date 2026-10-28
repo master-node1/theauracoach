@@ -103,7 +103,7 @@ A number and its unit are joined with a no-break space so they never wrap apart.
 
 1. Every user-facing string lives in the catalogue (`packages/i18n/src/messages/en-IN.ts`), grouped by screen. Web uses `useTranslations`/`getTranslations` from next-intl; mobile uses `useTranslations` from `src/i18n.tsx`. Keys are type-checked.
 2. Use ICU syntax for variables, plurals and choices: `"{count, plural, one {# set} other {# sets}}"`, never string concatenation. Use rich-text tags (`<strong>{email}</strong>`) for emphasis.
-3. The ESLint rule `aura/no-hardcoded-ui-strings` fails on text in JSX and on literal strings in props people read or hear (`title`, `label`, `aria-label`, `accessibilityLabel`, `placeholder`, ...). Test ids, class names and routes are not affected.
+3. The ESLint rule `aura/no-hardcoded-ui-strings` fails on text in JSX and on literal strings in props people read or hear (`title`, `label`, `aria-label`, `accessibilityLabel`, `placeholder`, ...). Test ids, class names and routes are not affected. The staff admin console (`apps/web/src/app/admin`, `apps/web/src/components/admin`) is skipped for now: it is English-only at launch and TAC-48 moves its text into the catalogue.
 4. Check layouts with the **en-XA pseudo-locale** (accented, ~40% longer): on the web set `I18N_PSEUDO_LOCALE=true` and the cookie `aura-locale=en-XA` (the Playwright pseudo-locale spec does this); on mobile run with `EXPO_PUBLIC_LOCALE=en-XA`. Text must wrap, not clip.
 5. Leave room: buttons and tabs must survive 40% longer text and Devanagari's taller line height.
 

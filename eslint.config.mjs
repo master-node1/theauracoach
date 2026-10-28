@@ -66,6 +66,8 @@ export default tseslint.config(
   {
     // User-facing text comes from the packages/i18n catalogue (docs/ux/content-style-guide.md).
     files: ['apps/*/src/**/*.tsx'],
+    // The staff-only admin console (TAC-32) is English-only for launch; TAC-48 moves it in.
+    ignores: ['apps/web/src/app/admin/**', 'apps/web/src/components/admin/**'],
     plugins: { aura },
     rules: { 'aura/no-hardcoded-ui-strings': 'error' },
   },

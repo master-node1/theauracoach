@@ -262,25 +262,7 @@ export const enIN = {
   admin: {
     title: 'Admin',
     nav: 'Admin',
-    consoleTitle: 'Admin console',
-    consolePlaceholder:
-      'Content, review queue, users and usage sections arrive with the admin slice.',
     backToApp: 'Back to app',
-    sections: {
-      dashboard: 'Dashboard',
-      exercises: 'Exercises',
-      foods: 'Foods',
-      recipes: 'Recipes',
-      templates: 'Templates',
-      prompts: 'Prompts',
-      policies: 'Policies',
-      reviewQueue: 'Review queue',
-      feedback: 'Feedback',
-      users: 'Users',
-      usage: 'Usage and cost',
-      auditLog: 'Audit log',
-      roles: 'Roles',
-    },
   },
   forbidden: {
     title: 'No access',
