@@ -162,6 +162,7 @@ describe('/v1/admin/roles', () => {
       before: null,
       after: { userId, role: 'content_reviewer' },
       requestId: '5b0f4f1c-6d38-4e55-9a9e-6a1f8d7c2b10',
+      reason: null,
     });
     const me = await api()
       .get('/v1/me')
