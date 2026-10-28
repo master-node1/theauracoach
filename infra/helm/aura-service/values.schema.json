@@ -42,6 +42,14 @@
       "properties": {
         "namespacePrefix": { "type": "string", "pattern": "^$|^[a-z]+-$" },
         "imageRegistry": { "type": "string" },
+        "hosts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "web": { "type": "string", "pattern": "^$|^[a-z0-9.-]+$" },
+            "api": { "type": "string", "pattern": "^$|^[a-z0-9.-]+$" }
+          }
+        },
         "deployables": {
           "type": "object",
           "additionalProperties": {
@@ -181,7 +189,7 @@
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" },
-        "host": { "type": "string" },
+        "publicHost": { "type": "string", "enum": ["", "web", "api"] },
         "paths": { "type": "array", "items": { "type": "string", "pattern": "^/" } },
         "priority": { "type": "integer", "minimum": 0 },
         "tlsSecretName": { "type": "string" },

@@ -11,7 +11,8 @@ namespaces:
 #   namespacePrefix  "dev-", "staging-", or "" in prod
 #   inClusterData    true when Postgres and Redis run in <prefix>aura-data (non-prod, aura-datastores chart)
 #   secretsRoleArn   deploy input: IAM role External Secrets assumes, allowed to read auracoach/<name>/* only
-#   originHost       deploy input: host CloudFront forwards to, e.g. origin.auracoach.app
+#   hosts            deploy input: the environment's public hosts (CloudFront aliases), e.g.
+#                    [app.auracoach.app, api.auracoach.app]; the origin certificate covers them
 environments: {}
 
 region: ap-south-1

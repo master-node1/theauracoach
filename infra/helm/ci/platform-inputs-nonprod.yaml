@@ -5,9 +5,9 @@ acme:
 environments:
   dev:
     secretsRoleArn: arn:aws:iam::123456789012:role/auracoach-dev-secrets-reader
-    originHost: origin.dev.example.test
+    hosts: [app.dev.example.test, api.dev.example.test]
   staging:
     secretsRoleArn: arn:aws:iam::123456789012:role/auracoach-staging-secrets-reader
-    originHost: origin.staging.example.test
+    hosts: [app.staging.example.test, api.staging.example.test]
 system:
   secretsRoleArn: arn:aws:iam::123456789012:role/auracoach-nonprod-platform-secrets-reader

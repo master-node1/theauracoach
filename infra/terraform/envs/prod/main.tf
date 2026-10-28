@@ -11,6 +11,7 @@ locals {
   deployables  = concat(local.services, ["api-gateway", "web"])
   web_hostname = "app.${var.domain_name}"
   api_hostname = "api.${var.domain_name}"
+  hosts        = { prod = { web = local.web_hostname, api = local.api_hostname } }
 
   # Bundled Traefik config from infra/k3s (TAC-35), applied by k3s at first boot.
   traefik_config   = "${path.module}/../../../k3s/traefik-config.yaml"
@@ -152,8 +153,7 @@ module "edge" {
   secret_prefix                    = local.secret_prefix
   kms_key_arn                      = module.kms.key_arn
   route53_zone_id                  = var.route53_zone_id
-  web_hostname                     = local.web_hostname
-  api_hostname                     = local.api_hostname
+  public_hosts                     = local.hosts
   origin_hostname                  = "origin.${var.domain_name}"
   origin_ip                        = module.k3s_node.public_ip
   content_media_bucket_domain_name = module.storage.content_media_regional_domain_name

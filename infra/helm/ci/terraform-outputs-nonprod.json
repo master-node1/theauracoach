@@ -1,0 +1,50 @@
+{
+  "cloudfront_aliases": {
+    "value": [
+      "app.dev.test.auracoach.example",
+      "api.dev.test.auracoach.example",
+      "app.staging.test.auracoach.example",
+      "api.staging.test.auracoach.example"
+    ]
+  },
+  "oidc": {
+    "value": {
+      "dev": {
+        "issuer": "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLEDEV",
+        "jwks_url": "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLEDEV/.well-known/jwks.json",
+        "hosted_ui_url": "https://auth.dev.test.auracoach.example",
+        "web_client_id": "example-dev-web",
+        "mobile_client_id": "example-dev-mobile"
+      },
+      "staging": {
+        "issuer": "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLESTG",
+        "jwks_url": "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLESTG/.well-known/jwks.json",
+        "hosted_ui_url": "https://auth.staging.test.auracoach.example",
+        "web_client_id": "example-staging-web",
+        "mobile_client_id": "example-staging-mobile"
+      }
+    }
+  },
+  "helm_inputs": {
+    "value": {
+      "image_registry": "123456789012.dkr.ecr.ap-south-1.amazonaws.com",
+      "public_hosts": {
+        "dev": { "web": "app.dev.test.auracoach.example", "api": "api.dev.test.auracoach.example" },
+        "staging": {
+          "web": "app.staging.test.auracoach.example",
+          "api": "api.staging.test.auracoach.example"
+        }
+      },
+      "secrets_role_arns": {
+        "dev": "arn:aws:iam::123456789012:role/auracoach-nonprod-secrets-dev",
+        "staging": "arn:aws:iam::123456789012:role/auracoach-nonprod-secrets-staging"
+      },
+      "platform_secrets_role_arn": "arn:aws:iam::123456789012:role/auracoach-nonprod-secrets-platform",
+      "hosted_zone_id": "Z0000000000EXAMPLE",
+      "web_app_urls": {
+        "dev": "https://app.dev.test.auracoach.example",
+        "staging": "https://app.staging.test.auracoach.example"
+      }
+    }
+  }
+}

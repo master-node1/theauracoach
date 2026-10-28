@@ -4,13 +4,18 @@ output "k3s_instance_id" {
 }
 
 output "node_public_ip" {
-  description = "Elastic IP of the node (origin.<domain>)."
+  description = "Elastic IP of the node (origin.<domain>, the address CloudFront connects to)."
   value       = module.k3s_node.public_ip
 }
 
 output "cloudfront_domain" {
   description = "CloudFront distribution domain."
   value       = module.edge.distribution_domain_name
+}
+
+output "cloudfront_aliases" {
+  description = "Hosts on the distribution; the deploy job checks helm_inputs.public_hosts against them."
+  value       = module.edge.aliases
 }
 
 output "oidc" {
@@ -53,10 +58,10 @@ output "github_roles" {
 }
 
 output "helm_inputs" {
-  description = "Deploy inputs for infra/helm (deployment.md §2): registry, secrets roles, origin host, data-store CIDRs."
+  description = "Deploy inputs for infra/helm (deployment.md §2): registry, secrets roles, public hosts, data-store CIDRs."
   value = {
     image_registry            = split("/", values(module.ecr.repository_urls)[0])[0]
-    origin_host               = "origin.${var.domain_name}"
+    public_hosts              = local.hosts # = the CloudFront aliases (module.edge)
     secrets_role_arns         = module.k3s_node.secrets_role_arns
     platform_secrets_role_arn = module.k3s_node.platform_secrets_role_arn
     hosted_zone_id            = var.route53_zone_id

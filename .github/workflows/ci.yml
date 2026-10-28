@@ -41,7 +41,7 @@ jobs:
           # The web smoke needs the app, what it imports, dev-auth, and anything the stack is built from.
           if git diff --name-only "$base"...HEAD | grep -qE '^(apps/web/|packages/|tools/dev-auth/|services/(profile-service|api-gateway)/|docker-compose\.yml|pnpm-lock\.yaml|\.github/workflows/)'; then echo "web=true" >> "$GITHUB_OUTPUT"; else echo "web=false" >> "$GITHUB_OUTPUT"; fi
           # Charts, values and the catalog they are checked against.
-          if git diff --name-only "$base"...HEAD | grep -qE '^(infra/helm/|infra/k3s/|tools/ci/(helm-validate\.sh|check-network-policies\.mjs)|tools/deploy/|tools/smoke/k3d-smoke\.sh|docs/architecture/service-catalog\.md|services/[^/]+/Dockerfile|\.github/workflows/)'; then echo "helm=true" >> "$GITHUB_OUTPUT"; else echo "helm=false" >> "$GITHUB_OUTPUT"; fi
+          if git diff --name-only "$base"...HEAD | grep -qE '^(infra/helm/|infra/k3s/|tools/ci/(helm-validate\.sh|check-network-policies\.mjs|check-edge-routing\.mjs)|tools/deploy/|infra/terraform/(modules/edge|envs)/|tools/smoke/k3d-smoke\.sh|docs/architecture/service-catalog\.md|services/[^/]+/Dockerfile|\.github/workflows/)'; then echo "helm=true" >> "$GITHUB_OUTPUT"; else echo "helm=false" >> "$GITHUB_OUTPUT"; fi
           echo "Deployables affected: $deployables"
 
   verify:
@@ -168,7 +168,7 @@ jobs:
         run: docker compose down -v
 
   helm:
-    name: Helm charts (lint, render, kubeconform, kube-linter, NetworkPolicy check)
+    name: Helm charts (lint, render, kubeconform, kube-linter, NetworkPolicy and edge routing checks)
     needs: changes
     if: needs.changes.outputs.helm == 'true'
     runs-on: ubuntu-latest
@@ -188,6 +188,10 @@ jobs:
           curl -sSfL -o "$HOME/bin/yq" "https://github.com/mikefarah/yq/releases/download/$YQ_VERSION/yq_linux_amd64" && chmod +x "$HOME/bin/yq"
       - name: Validate charts, values and add-ons (renders only; nothing is applied)
         run: tools/ci/helm-validate.sh --addons
+      - name: Edge routing (CloudFront, ingress routes and origin certificate agree per environment)
+        env:
+          K8S_VERSION: 1.36.0
+        run: node tools/ci/check-edge-routing.mjs
       - name: Dry-run the CD deploy scripts (render only, example inputs, no cluster)
         env:
           K8S_VERSION: 1.36.0
