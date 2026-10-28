@@ -169,14 +169,18 @@ module "dns_firewall" {
 }
 
 module "github_oidc" {
-  source               = "../../modules/github-oidc"
-  name_prefix          = local.name_prefix
-  create_oidc_provider = var.create_github_oidc_provider
-  deploy_environments  = local.environments
-  ecr_repository_arns  = module.ecr.repository_arns
-  kms_key_arn          = module.kms.key_arn
-  k3s_instance_arn     = module.k3s_node.instance_arn
-  state_bucket         = var.state_bucket
-  lock_table           = var.lock_table
-  state_kms_key_arn    = var.state_kms_key_arn
+  source                   = "../../modules/github-oidc"
+  name_prefix              = local.name_prefix
+  create_oidc_provider     = var.create_github_oidc_provider
+  deploy_environments      = local.environments
+  ecr_repository_arns      = module.ecr.repository_arns
+  origin_verify_secret_arn = module.edge.origin_verify_secret_arn
+  promote_from_ecr_repository_arns = var.nonprod_account_id == "" ? [] : [
+    for d in local.deployables : "arn:aws:ecr:${var.region}:${var.nonprod_account_id}:repository/auracoach/${d}"
+  ]
+  kms_key_arn       = module.kms.key_arn
+  k3s_instance_arn  = module.k3s_node.instance_arn
+  state_bucket      = var.state_bucket
+  lock_table        = var.lock_table
+  state_kms_key_arn = var.state_kms_key_arn
 }

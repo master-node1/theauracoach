@@ -1,0 +1,157 @@
+# Deploys signed images to one environment with Helm (TAC-37, ADR-010): verify signatures (and for
+# prod, promote the exact images from the non-prod registry), connect to the k3s API through SSM,
+# `helm upgrade --install --atomic` per deployable, then smoke-test. Called by release-images.yml
+# (dev) and release.yml (staging, prod); also runnable by hand to redeploy a commit.
+# The prod environment has required reviewers, which is the manual approval before prod.
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+      deployables:
+        description: JSON array of deployables
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, staging, prod]
+        required: true
+      sha:
+        description: Full commit SHA whose images to deploy
+        type: string
+        required: true
+      deployables:
+        description: JSON array of deployables, or "all"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      SHA: ${{ inputs.sha }}
+      REQUESTED: ${{ inputs.deployables }}
+    steps:
+      - name: CD enabled and configured?
+        id: gate
+        env:
+          CD_ENABLED: ${{ vars.CD_ENABLED }}
+          ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          ready=true
+          [[ "$CD_ENABLED" == true ]] || { ready=false; why="repository variable CD_ENABLED is not true"; }
+          [[ "$ready" == true && -z "$ROLE" ]] && { ready=false; why="AWS_DEPLOY_ROLE_ARN is not set in environment $ENVIRONMENT"; }
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          if [[ "$ready" != true ]]; then
+            echo "## Deploy to $ENVIRONMENT skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Nothing was deployed: $why (docs/operations/deployment.md, *Enabling CD*)." >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::Deploy to $ENVIRONMENT skipped: $why"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          ref: ${{ inputs.sha }}
+      - name: Deployables
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full commit SHA"; exit 1; }
+          if [[ "$REQUESTED" == all ]]; then list="$(node tools/ci/affected-services.mjs --all)"; else list="$REQUESTED"; fi
+          echo "DEPLOYABLES=$(jq -r 'join(" ")' <<<"$list")" >> "$GITHUB_ENV"
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - uses: ./.github/actions/cluster-access
+        if: steps.gate.outputs.ready == 'true'
+        id: cluster
+        with:
+          environment: ${{ inputs.environment }}
+          backend-hcl: ${{ inputs.environment == 'prod' && vars.TF_BACKEND_HCL_PROD || vars.TF_BACKEND_HCL_NONPROD }}
+      - uses: sigstore/cosign-installer@v3
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          cosign-release: v2.4.1
+      - name: Verify signatures (and promote to the prod registry)
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          REGISTRY: ${{ steps.cluster.outputs.image-registry }}
+          NONPROD_REGISTRY_ID: ${{ vars.NONPROD_ECR_REGISTRY_ID }}
+        run: |
+          # Only images this repository's build workflow signed, on main or a release tag, are deployed.
+          identity="^https://github.com/$GITHUB_REPOSITORY/\.github/workflows/build-images\.yml@refs/(heads/main|tags/v.+)$"
+          verify() { cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp "$identity" "$1" >/dev/null; }
+          source_registry="$REGISTRY"
+          if [[ "$ENVIRONMENT" == prod ]]; then
+            [[ -n "$NONPROD_REGISTRY_ID" ]] || { echo "::error::NONPROD_ECR_REGISTRY_ID is not set in environment prod"; exit 1; }
+            source_registry="$NONPROD_REGISTRY_ID.dkr.ecr.ap-south-1.amazonaws.com"
+          fi
+          # One ECR token works for every registry the role may read (prod reads non-prod to promote).
+          for host in "$REGISTRY" "$source_registry"; do
+            aws ecr get-login-password | docker login --username AWS --password-stdin "$host" >/dev/null
+          done
+          read -ra list <<<"$DEPLOYABLES"
+          for d in "${list[@]}"; do
+            src="$source_registry/auracoach/$d:$SHA"
+            verify "$src" || { echo "::error::$src is missing or not signed by build-images.yml"; exit 1; }
+            if [[ "$source_registry" != "$REGISTRY" ]]; then
+              dst="$REGISTRY/auracoach/$d:$SHA"
+              if ! aws ecr describe-images --repository-name "auracoach/$d" --image-ids "imageTag=$SHA" >/dev/null 2>&1; then
+                # Same digest, signatures and SBOM attestation: what passed staging is what runs in prod.
+                cosign copy "$src" "$dst"
+              fi
+              verify "$dst"
+            fi
+            echo "verified $d:$SHA"
+          done
+      - name: Helm upgrade
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          INPUTS: ${{ steps.cluster.outputs.inputs-dir }}/service-inputs.json
+        run: |
+          read -ra list <<<"$DEPLOYABLES"
+          tools/deploy/helm-deploy.sh "$ENVIRONMENT" "$SHA" "$INPUTS" "${list[@]}"
+      - name: Smoke test
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          SMOKE_API_URL: ${{ vars.SMOKE_API_URL }}
+          SMOKE_APP_URL: ${{ vars.SMOKE_APP_URL }}
+        run: |
+          read -ra list <<<"$DEPLOYABLES"
+          tools/smoke/deploy-smoke.sh "$ENVIRONMENT" "${list[@]}"
+      - name: Summary
+        if: steps.gate.outputs.ready == 'true' && always()
+        run: |
+          {
+            echo "## Deploy to $ENVIRONMENT (${{ job.status }})"
+            echo "Commit \`$SHA\`, deployables: \`$DEPLOYABLES\`"
+            echo
+            echo '```'
+            helm list --all-namespaces --filter "^($(tr ' ' '|' <<<"$DEPLOYABLES"))$" 2>/dev/null || true
+            echo '```'
+            echo "Roll back one deployable with the *Rollback* workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Close the port forward
+        if: always() && env.PORT_FORWARD_PID != ''
+        run: kill "$PORT_FORWARD_PID" || true

@@ -24,3 +24,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "pull_account_ids" {
+  description = "Other AWS accounts allowed to pull (the prod account, to promote images built in non-prod by digest)."
+  type        = list(string)
+  default     = []
+}

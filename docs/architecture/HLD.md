@@ -26,7 +26,7 @@ AuraCoach is a set of **NestJS microservices in one monorepo** (same layout as t
 | Push / email | Expo Push (APNs/FCM), Amazon SES | Simple, cheap | OneSignal |
 | Observability | OpenTelemetry → Grafana Cloud (Tempo, Loki, Prometheus), Sentry for client crashes | Tracing across API/worker/AI | Datadog (cost) |
 | IaC / CI | Terraform, GitHub Actions, Docker | Matches owner's existing setup | CDK |
-| Hosting | AWS `ap-south-1`, staged: k3s on one EC2 Graviton node per account for beta, EKS for growth; one generic Helm chart via Terraform `helm_release` in both | Data residency for India; beta infra within the PRD cost target; same chart and pipeline pattern as the-aura-lab | EKS from day one, ECS Fargate, Docker Compose VM, Lambda (ADR-007) |
+| Hosting | AWS `ap-south-1`, staged: k3s on one EC2 Graviton node per account for beta, EKS for growth; one generic Helm chart deployed by the CD workflows with the Helm CLI in both (ADR-010) | Data residency for India; beta infra within the PRD cost target; same chart and pipeline pattern as the-aura-lab | EKS from day one, ECS Fargate, Docker Compose VM, Lambda (ADR-007); Terraform `helm_release`, GitOps (ADR-010) |
 
 ## 3. System context
 
@@ -158,3 +158,4 @@ progress-service keeps per-user daily facts built from `WorkoutCompleted`, `Sess
 | [007](ADR/ADR-007-hosting.md) | Staged hosting on AWS ap-south-1: k3s on EC2 for beta, EKS for growth |
 | [008](ADR/ADR-008-nutrition-data.md) | Curated nutrition data with provenance |
 | [009](ADR/ADR-009-service-communication.md) | Internal REST plus outbox events on Redis Streams |
+| [010](ADR/ADR-010-cd-helm-cli.md) | CD deploys with the Helm CLI, not Terraform `helm_release` |

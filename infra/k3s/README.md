@@ -1,6 +1,6 @@
 # k3s platform (Stage 1)
 
-Cluster add-ons for the Stage 1 k3s nodes ([ADR-007](../../docs/architecture/ADR/ADR-007-hosting.md)), as Helm values only. Nothing here is applied by hand: Terraform (TAC-36) installs them as `helm_release` resources in the order of `addons.yaml`, then the in-repo charts in `infra/helm`. CI renders and validates all of it (`tools/ci/helm-validate.sh --addons`).
+Cluster add-ons for the Stage 1 k3s nodes ([ADR-007](../../docs/architecture/ADR/ADR-007-hosting.md)), as Helm values only. Nothing here is applied by hand: the *Cluster platform* workflow (`tools/deploy/install-platform.sh`, TAC-37, ADR-010) installs them in the order of `addons.yaml`, then the in-repo charts in `infra/helm`. CI renders and validates all of it (`tools/ci/helm-validate.sh --addons`).
 
 | File | What |
 |---|---|

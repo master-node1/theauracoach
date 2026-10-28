@@ -1,0 +1,3 @@
+# False positives gitleaks reports by fingerprint (commit:file:rule:line). Each entry needs a reason.
+# Fake Cognito user pool ID in a unit test (TAC-37), rewritten in the next commit.
+89da7479b356eb29003168a13ec144942eb96a1e:tools/deploy/test/deploy-inputs.test.mjs:generic-api-key:75

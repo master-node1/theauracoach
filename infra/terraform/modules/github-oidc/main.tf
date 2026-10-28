@@ -1,7 +1,7 @@
 # GitHub Actions OIDC (no static AWS keys). Two roles per account:
 #   plan   - read-only, assumable from pull requests and main, for `terraform plan`;
 #   deploy - assumable only from the named GitHub environments: pushes images to
-#            ECR and opens the SSM port forward to the k3s API (ADR-007).
+#            ECR, opens the SSM port forward to the k3s API and runs Helm (ADR-007, ADR-010).
 
 data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
@@ -190,11 +190,32 @@ data "aws_iam_policy_document" "deploy" {
     resources = ["*"]
   }
 
-  # The service stack needs the kubeconfig the node publishes to SSM Parameter Store.
+  # The deploy job (TAC-37) reads the kubeconfig the node publishes to SSM Parameter Store.
   statement {
     sid       = "ReadKubeconfig"
     actions   = ["ssm:GetParameter"]
     resources = ["arn:${local.arn}:ssm:${local.region}:${local.account}:parameter/${var.name_prefix}/k3s/*"]
+  }
+
+  # ingress.originVerify.value for api-gateway and web, passed to Helm as a sensitive input.
+  statement {
+    sid       = "ReadOriginVerify"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [var.origin_verify_secret_arn]
+  }
+
+  dynamic "statement" {
+    for_each = length(var.promote_from_ecr_repository_arns) > 0 ? [1] : []
+    content {
+      sid = "PromoteFromNonprod"
+      actions = [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:DescribeImages",
+        "ecr:GetDownloadUrlForLayer",
+      ]
+      resources = var.promote_from_ecr_repository_arns
+    }
   }
 }
 
