@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { adminApi, settle } from '@/lib/admin-api';
 import { formatTime, readableAction } from '@/lib/format';
 import { currentSession } from '@/lib/server-session';
+import { TableScroll } from '@/components/admin/TableScroll';
 
 export const metadata: Metadata = { title: 'Audit entry' };
 export const dynamic = 'force-dynamic';
@@ -61,7 +62,7 @@ export default async function AuditEntryPage({ params }: { params: Promise<{ id:
         {keys.length === 0 ? (
           <p>No before or after values recorded.</p>
         ) : (
-          <div className="table-scroll">
+          <TableScroll label="Changes">
             <table className="data-table">
               <thead>
                 <tr>
@@ -92,7 +93,7 @@ export default async function AuditEntryPage({ params }: { params: Promise<{ id:
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
       </section>
     </>

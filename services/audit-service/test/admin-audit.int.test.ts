@@ -159,10 +159,13 @@ describe('GET /v1/admin/audit', () => {
 describe('append-only', () => {
   it('has no route that changes or deletes an entry', async () => {
     const auth = `Bearer ${await token()}`;
-    for (const method of ['put', 'patch', 'delete'] as const) {
-      const res = await request(app.getHttpServer())
-        [method]('/v1/admin/audit/1')
-        .set('authorization', auth);
+    const server = () => request(app.getHttpServer());
+    for (const call of [
+      () => server().put('/v1/admin/audit/1'),
+      () => server().patch('/v1/admin/audit/1'),
+      () => server().delete('/v1/admin/audit/1'),
+    ]) {
+      const res = await call().set('authorization', auth);
       expect(res.status).toBe(404);
     }
   });

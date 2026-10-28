@@ -5,6 +5,7 @@ import { GrantRoleForm, RevokeRoleButton } from '@/components/admin/RoleActions'
 import { adminApi, settle } from '@/lib/admin-api';
 import { formatTime } from '@/lib/format';
 import { currentSession } from '@/lib/server-session';
+import { TableScroll } from '@/components/admin/TableScroll';
 
 export const metadata: Metadata = { title: 'Roles' };
 export const dynamic = 'force-dynamic';
@@ -66,7 +67,7 @@ export default async function RolesPage({
         {shown.length === 0 ? (
           <p>No grants.</p>
         ) : (
-          <div className="table-scroll">
+          <TableScroll label="Role grants">
             <table className="data-table">
               <thead>
                 <tr>
@@ -91,7 +92,7 @@ export default async function RolesPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
       </section>
       <section className="card" aria-labelledby="roles-heading">

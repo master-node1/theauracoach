@@ -3,6 +3,7 @@ import { ReplayButton } from '@/components/admin/ReplayButton';
 import { adminApi, OPS_SERVICES, settle } from '@/lib/admin-api';
 import { formatTime } from '@/lib/format';
 import { currentSession } from '@/lib/server-session';
+import { TableScroll } from '@/components/admin/TableScroll';
 
 export const metadata: Metadata = { title: 'Operations' };
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,7 @@ export default async function OperationsPage() {
           ) : result.value.entries.length === 0 ? (
             <p>Nothing dead-lettered.</p>
           ) : (
-            <div className="table-scroll">
+            <TableScroll label={`${service} dead letters`}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -66,7 +67,7 @@ export default async function OperationsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </section>
       ))}

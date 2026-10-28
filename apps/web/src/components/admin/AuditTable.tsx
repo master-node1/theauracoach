@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import type { AuditEntry } from '@aura/contracts';
 import { formatTime, readableAction } from '@/lib/format';
+import { TableScroll } from './TableScroll';
 
 /** Audit entries as a table; each row opens its detail with the before/after diff. */
 export function AuditTable({ entries }: { entries: AuditEntry[] }) {
   if (entries.length === 0) return <p>No entries match.</p>;
   return (
-    <div className="table-scroll">
+    <TableScroll label="Audit entries">
       <table className="data-table">
         <thead>
           <tr>
@@ -41,6 +42,6 @@ export function AuditTable({ entries }: { entries: AuditEntry[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
   );
 }

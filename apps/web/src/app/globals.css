@@ -788,9 +788,9 @@ fieldset.settings-row legend {
   text-decoration: none;
 }
 .chip[aria-current='page'] {
-  background: var(--color-primary-soft);
+  background: var(--color-primary);
   border-color: var(--color-primary);
-  color: var(--color-primary);
+  color: var(--color-on-primary);
 }
 .panel-grid {
   display: grid;

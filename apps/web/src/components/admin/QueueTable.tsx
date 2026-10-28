@@ -1,6 +1,7 @@
 import type { OpsService, QueueHealth } from '@aura/contracts';
 import type { Settled } from '@/lib/admin-api';
 import { formatNumber } from '@/lib/format';
+import { TableScroll } from './TableScroll';
 
 /** Outbox and dead-letter health per service; anything waiting over a minute is flagged. */
 export function QueueTable({
@@ -9,7 +10,7 @@ export function QueueTable({
   rows: { service: OpsService; result: Settled<QueueHealth> }[];
 }) {
   return (
-    <div className="table-scroll">
+    <TableScroll label="Queues">
       <table className="data-table">
         <thead>
           <tr>
@@ -40,6 +41,6 @@ export function QueueTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
   );
 }

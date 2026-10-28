@@ -1405,29 +1405,238 @@ paths:
     get:
       tags: [admin]
       operationId: adminListAudit
-      summary: Admin list audit
-      parameters:
-        - { name: entityType, in: query, schema: { type: string } }
-        - { name: entityId, in: query, schema: { type: string } }
+      summary: Audit entries, newest first, sensitive fields removed (permission audit:read, MFA)
+      parameters: &auditFilters
+        - { name: entityType, in: query, schema: { type: string, maxLength: 40 } }
+        - { name: entityId, in: query, schema: { type: string, maxLength: 100 } }
         - { name: actorId, in: query, schema: { type: string, format: uuid } }
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
+        - name: action
+          in: query
+          description: A whole action (`role.grant`) or its prefix (`role` matches every `role.*`).
+          schema: { type: string, pattern: '^[a-z_]+(\.[a-z_]+)?$' }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: order, in: query, schema: { type: string, enum: [desc, asc], default: desc } }
+        - { name: cursor, in: query, description: '`nextCursor` of the previous page', schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
       responses:
         '200':
-          description: Audit entries
+          description: One page of entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries, nextCursor]
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditEntry' }
+                  nextCursor: { type: [string, 'null'] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /v1/admin/audit/export.csv:
+    get:
+      tags: [admin]
+      operationId: adminExportAudit
+      summary: Matching entries as CSV, oldest first, at most 10,000 rows; the export is itself audited (permission audit:read, MFA)
+      parameters: *auditFilters
+      responses:
+        '200':
+          description: CSV attachment (`audit-log.csv`)
+          content:
+            text/csv:
+              schema: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/admin/audit/{id}:
+    get:
+      tags: [admin]
+      operationId: adminGetAudit
+      summary: One entry with before/after for the diff view (permission audit:read, MFA). The log is append-only; there is no update or delete.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^\d+$' } }
+      responses:
+        '200':
+          description: The entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditEntry' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/users:
+    get:
+      tags: [admin]
+      operationId: adminLookupUser
+      summary: Find the account behind an email; answers with a masked email (permission user:support_read, MFA)
+      parameters:
+        - { name: email, in: query, required: true, schema: { type: string, format: email } }
+      responses:
+        '200':
+          description: The account
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [userId, emailMasked, status, createdAt]
+                properties:
+                  userId: { type: string, format: uuid }
+                  emailMasked: { type: string, examples: ['pr***@e***.com'] }
+                  status: { type: string }
+                  createdAt: { type: string, format: date-time }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/users/{userId}:
+    get:
+      tags: [admin]
+      operationId: adminSupportViewAccount
+      summary: Account part of the masked support view; every call writes a user.support_view audit event (permission user:support_read, MFA)
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Masked account details
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/PageMeta'
+                  - $ref: '#/components/schemas/AdminUserSection'
                   - type: object
-                    required: [items]
+                    required: [userId, emailMasked]
                     properties:
-                      items:
-                        type: array
-                        items: { $ref: '#/components/schemas/AuditEntry' }
+                      userId: { type: string, format: uuid }
+                      emailMasked: { type: string }
         '403': { $ref: '#/components/responses/Forbidden' }
-
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/ops/{service}/users/{userId}:
+    get:
+      tags: [admin]
+      operationId: adminSupportViewSection
+      summary: One service's part of the support view, counts and dates only (permission user:support_read, MFA)
+      description: Served by workout, nutrition, progress, coach and notification; others answer 404.
+      parameters:
+        - $ref: '#/components/parameters/OpsService'
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The section
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserSection' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/ops/{service}/usage:
+    get:
+      tags: [admin]
+      operationId: adminServiceUsage
+      summary: The service's usage counters (DAU, sign-ups, sessions, meals) (permission usage:read, MFA)
+      parameters:
+        - $ref: '#/components/parameters/OpsService'
+      responses:
+        '200':
+          description: Counters; empty when the service reports none
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, metrics]
+                properties:
+                  service: { type: string }
+                  metrics:
+                    type: array
+                    items:
+                      type: object
+                      required: [key, label, value]
+                      properties:
+                        key: { type: string, examples: [dau, signups_7d, sessions_24h, meals_24h] }
+                        label: { type: string }
+                        value: { type: integer }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/admin/ops/{service}/queues:
+    get:
+      tags: [admin]
+      operationId: adminQueueHealth
+      summary: Outbox backlog and dead-letter count (permission usage:read, MFA)
+      parameters:
+        - $ref: '#/components/parameters/OpsService'
+      responses:
+        '200':
+          description: Queue health
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, outboxPending, outboxOldestAgeSeconds, dlqLength]
+                properties:
+                  service: { type: string }
+                  outboxPending: { type: integer }
+                  outboxOldestAgeSeconds: { type: integer }
+                  dlqLength: { type: integer }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/admin/ops/{service}/dlq:
+    get:
+      tags: [admin]
+      operationId: adminListDeadLetters
+      summary: The newest 100 dead-lettered events, without payloads (permission event:replay, MFA)
+      parameters:
+        - $ref: '#/components/parameters/OpsService'
+      responses:
+        '200':
+          description: Dead letters
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, total, entries]
+                properties:
+                  service: { type: string }
+                  total: { type: integer }
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, stream, entryId, reason, eventType, eventId, occurredAt]
+                      properties:
+                        id: { type: string }
+                        stream: { type: string }
+                        entryId: { type: string }
+                        reason: { type: string }
+                        eventType: { type: [string, 'null'] }
+                        eventId: { type: [string, 'null'] }
+                        occurredAt: { type: [string, 'null'] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /v1/admin/ops/{service}/dlq/{id}/replay:
+    post:
+      tags: [admin]
+      operationId: adminReplayDeadLetter
+      summary: Re-publish one dead-lettered event to its stream, exactly once, and audit it (permission event:replay, MFA)
+      parameters:
+        - $ref: '#/components/parameters/OpsService'
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 200 }
+      responses:
+        '200':
+          description: Replayed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, stream, newEntryId]
+                properties:
+                  id: { type: string }
+                  stream: { type: string }
+                  newEntryId: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
   /v1/admin/roles:
     get:
       tags: [admin]
@@ -1471,6 +1680,7 @@ paths:
                 userId: { type: string, format: uuid }
                 email: { type: string, format: email }
                 role: { $ref: '#/components/schemas/StaffRole' }
+                reason: { type: string, minLength: 3, maxLength: 200, description: Kept in the audit log }
       responses:
         '201':
           description: Granted
@@ -1500,6 +1710,7 @@ paths:
       parameters:
         - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: role, in: path, required: true, schema: { $ref: '#/components/schemas/StaffRole' } }
+        - { name: reason, in: query, description: Kept in the audit log, schema: { type: string, minLength: 3, maxLength: 200 } }
       responses:
         '204': { description: Revoked }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -1520,6 +1731,12 @@ components:
       description: Amazon Cognito access token
 
   parameters:
+    OpsService:
+      name: service
+      in: path
+      required: true
+      description: The gateway routes `/v1/admin/ops/{service}/…` to that service.
+      schema: { type: string, enum: [profile, workout, nutrition, progress, coach, notification, audit] }
     IdPath:
       name: id
       in: path
@@ -2374,6 +2591,22 @@ components:
         action: { type: string }
         entityType: { type: string }
         entityId: { type: string }
-        before: { type: [object, 'null'] }
+        before: { type: [object, 'null'], description: 'Sensitive keys (email, notes, …) show as "[removed]"' }
         after: { type: [object, 'null'] }
+        reason: { type: [string, 'null'] }
+        requestId: { type: [string, 'null'], format: uuid }
         createdAt: { type: string, format: date-time }
+    AdminUserSection:
+      type: object
+      required: [service, title, fields]
+      properties:
+        service: { type: string, enum: [profile, workout, nutrition, progress, coach, notification, audit] }
+        title: { type: string }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label: { type: string }
+              value: { type: [string, number, boolean, 'null'] }

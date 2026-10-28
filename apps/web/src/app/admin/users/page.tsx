@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { adminApi, settle } from '@/lib/admin-api';
 import { formatTime } from '@/lib/format';
 import { currentSession } from '@/lib/server-session';
+import { TableScroll } from '@/components/admin/TableScroll';
 
 export const metadata: Metadata = { title: 'Users' };
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ export default async function AdminUsersPage({
       ) : null}
       {result?.ok ? (
         <section className="card" aria-label="Result">
-          <div className="table-scroll">
+          <TableScroll label="Lookup result">
             <table className="data-table">
               <thead>
                 <tr>
@@ -70,7 +71,7 @@ export default async function AdminUsersPage({
                 </tr>
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         </section>
       ) : null}
     </>
