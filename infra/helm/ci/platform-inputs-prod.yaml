@@ -5,6 +5,6 @@ acme:
 environments:
   prod:
     secretsRoleArn: arn:aws:iam::210987654321:role/auracoach-prod-secrets-reader
-    originHost: origin.example.test
+    hosts: [app.example.test, api.example.test]
 system:
   secretsRoleArn: arn:aws:iam::210987654321:role/auracoach-prod-platform-secrets-reader

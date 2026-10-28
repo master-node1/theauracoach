@@ -56,11 +56,28 @@ The deploy job reads these from the account's Terraform outputs on every run (`t
 | `global.auth.issuer`, `global.auth.jwksUrl`, `global.auth.clientIds`, `global.auth.userPoolId` | aura-service | Cognito user pool and app clients (the pool id only for profile-service, which mirrors role grants to Cognito groups) |
 | `global.objectStorage.bucket`, `global.objectStorage.kmsKeyId` (optional) | aura-service | Storage module `bucket_names.user_private`, where every node service writes its part of a data export; the key defaults to the bucket's SSE-KMS key |
 | `web.appUrl`, `web.oidcDomainUrl`, `web.oidcClientId` | aura-service (web) | Public domain, Cognito hosted UI domain, web app client |
-| `ingress.host` | aura-service (api-gateway, web) | `origin.<domain>` |
+| `global.hosts.web`, `global.hosts.api` | aura-service (web and api-gateway route on one each) | The environment's public hosts, `helm_inputs.public_hosts.<env>`; checked against the `cloudfront_aliases` output on every deploy. See [Edge routing](#edge-routing) |
 | `ingress.originVerify.value` | aura-service (api-gateway, web) | Secrets Manager, passed with `set_sensitive` |
 | `global.datastores.postgres.cidrs`, `global.datastores.redis.cidrs` | aura-service (prod) | Isolated subnet CIDRs of RDS and ElastiCache |
-| `environments.<env>.secretsRoleArn`, `environments.<env>.originHost` | aura-platform | IAM role per environment that may read only `auracoach/<env>/*`; origin host |
+| `environments.<env>.secretsRoleArn`, `environments.<env>.hosts` | aura-platform | IAM role per environment that may read only `auracoach/<env>/*`; the environment's public hosts, which its origin certificate covers |
 | `system.secretsRoleArn`, `acme.email`, `acme.hostedZoneId` | aura-platform | Role reading `auracoach/<cluster>/platform`; Let's Encrypt account e-mail; Route 53 zone |
+
+### Edge routing
+
+CloudFront forwards the viewer `Host` to the node (origin request policy **AllViewer** on every behavior that targets the k3s origin). `origin.<domain>` is only the address CloudFront connects to; the TLS SNI, the certificate check and the `Host` the node sees are the public hosts:
+
+| Environment | Hosts (CloudFront aliases) | Routed by | Origin certificate |
+|---|---|---|---|
+| dev | `app.dev.<domain>` → web, `api.dev.<domain>` `/v1` → api-gateway | IngressRoutes in `dev-aura-edge` | `origin-tls` in `dev-aura-edge` for those two hosts |
+| staging | `app.staging.<domain>`, `api.staging.<domain>` | `staging-aura-edge` | `staging-aura-edge` |
+| prod | `app.<domain>`, `api.<domain>` | `aura-edge` | `aura-edge` |
+
+- **One map.** Each account stack defines `local.hosts` once; it sets the distribution's aliases and ACM certificate (`modules/edge`, `public_hosts`) and the `helm_inputs.public_hosts` output. `deploy-inputs.mjs` turns it into `global.hosts` for the routes and `environments.<env>.hosts` for the certificate, and fails if a host is not in `cloudfront_aliases`.
+- **Dev and staging share the non-prod node and distribution** but no host: each environment's routes and certificate name only its own hosts, the edge module rejects a host shared by two environments, and Traefik's `sniStrict` refuses an SNI no certificate covers. `/_next/static/*` is cached per `Host`, so the two never get each other's build assets.
+- **Headers.** The BFF and gateway see the public `Host`; Traefik adds `X-Forwarded-Host` and `X-Forwarded-Proto: https`. The web app builds redirects from `web.appUrl`, not from the request. The client IP is not yet carried through Traefik (§7, [TAC-47](https://harisireddi7776.atlassian.net/browse/TAC-47)).
+- **Stage 2** renders ALB `Ingress` rules for the same hosts.
+
+`tools/ci/check-edge-routing.mjs` proves this in CI (§6).
 
 ### Sizing (Stage 1)
 
@@ -158,7 +175,7 @@ helm upgrade --install profile-service infra/helm/aura-service \
   --atomic --wait --timeout 10m --history-max 10
 ```
 
-`service-inputs.json` holds the deploy inputs of §2 taken from the account's Terraform outputs (registry, Cognito, origin host, and in prod the data-store CIDRs). For `api-gateway` and `web` the origin header value is added from a temporary values file readable only by the job, never as a command-line argument. `DRY_RUN=1` renders with `helm template` instead; CI does that for every environment.
+`service-inputs.json` holds the deploy inputs of §2 taken from the account's Terraform outputs (registry, Cognito, public hosts, and in prod the data-store CIDRs). For `api-gateway` and `web` the origin header value is added from a temporary values file readable only by the job, never as a command-line argument. `DRY_RUN=1` renders with `helm template` instead; CI does that for every environment.
 
 What happens in the cluster:
 
@@ -202,7 +219,7 @@ Add `-f infra/helm/values/stage/eks.yaml` and the IRSA role as `serviceAccount.a
 
 ## 6. Validation in CI
 
-The `Helm charts` job runs on changes to `infra/helm/`, `infra/k3s/`, the catalog, Dockerfiles or workflows: `tools/ci/helm-validate.sh --addons`.
+The `Helm charts` job runs on changes to `infra/helm/`, `infra/k3s/`, `tools/deploy/`, the edge module and account stacks in `infra/terraform`, the catalog, Dockerfiles or workflows: `tools/ci/helm-validate.sh --addons`, then `tools/ci/check-edge-routing.mjs`.
 
 | Step | What it proves |
 |---|---|
@@ -211,6 +228,7 @@ The `Helm charts` job runs on changes to `infra/helm/`, `infra/k3s/`, the catalo
 | `kubeconform -strict` (Kubernetes 1.36, k3s `v1.36.5+k3s1`) | Every object against the API schemas, CRDs (ExternalSecret, IngressRoute, Certificate, HelmChartConfig) from the datree CRDs catalog |
 | `kube-linter` with `infra/helm/.kube-linter.yaml` | Non-root, read-only root filesystem, resources set, probes, anti-affinity, PDBs, no host access. Exceptions are annotations with a reason |
 | `tools/ci/check-network-policies.mjs` | Call graph equals the catalog; rendered policies, `INTERNAL_SERVICE_URLS` and gateway upstreams match it; migration hook and probes everywhere; no secret in any values file |
+| `tools/ci/check-edge-routing.mjs` | [Edge routing](#edge-routing): every CloudFront behavior to the k3s origin forwards `Host`; from example `terraform output` files (`infra/helm/ci/terraform-outputs-*.json`) through `deploy-inputs.mjs`, web and api-gateway route exactly their public host (k3s and EKS), the origin certificate in the same namespace covers exactly those hosts, all are CloudFront aliases, and no two environments share one |
 
 Run it locally with the same tools on `PATH` (helm 3, kubeconform, kube-linter, yq v4): `tools/ci/helm-validate.sh` (add `--addons` if the chart repositories are reachable).
 
@@ -223,7 +241,7 @@ Run it locally with the same tools on `PATH` (helm 3, kubeconform, kube-linter, 
 | Gap | Owner |
 |---|---|
 | coach-service will need the AI provider key in `auracoach/<env>/coach-service` and in `secrets.keys` | TAC-25 |
-| CloudFront forwards the viewer `Host` (origin request policy AllViewer) while the IngressRoutes and origin certificate use `origin.<domain>`, and dev and staging share that one origin host; must be fixed before the first deploy | [TAC-46](https://harisireddi7776.atlassian.net/browse/TAC-46) |
+| Traefik trusts no forwarded headers, so web's auth rate limit and the gateway's `limit_req` key on a proxy address instead of the viewer's; must be fixed before the first deploy | [TAC-47](https://harisireddi7776.atlassian.net/browse/TAC-47) |
 | No staged canary (10% → 50% → 100%): MVP uses Helm `--atomic` plus the smoke gate, as the deployment architecture allows | Stage 2 (Argo Rollouts) |
 | Playwright and Maestro E2E on dev after each deploy, k6 load suite, live AI eval | TAC-40, TAC-28 |
 | The `X-Origin-Verify` value sits in the IngressRoute object; anyone who can read IngressRoutes in `aura-edge` can read it. Cluster access is limited to the deploy role and operators (SSM) | accepted for beta |

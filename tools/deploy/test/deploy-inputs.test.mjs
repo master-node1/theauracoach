@@ -18,10 +18,21 @@ const oidc = (pool) => ({
 const nonprod = {
   oidc: { value: { dev: oidc('ap-south-1_DEV'), staging: oidc('ap-south-1_STG') } },
   k3s_instance_id: { value: 'i-0123' },
+  cloudfront_aliases: {
+    value: [
+      'app.dev.test.example.app',
+      'api.dev.test.example.app',
+      'app.staging.test.example.app',
+      'api.staging.test.example.app',
+    ],
+  },
   helm_inputs: {
     value: {
       image_registry: '222222222222.dkr.ecr.ap-south-1.amazonaws.com',
-      origin_host: 'origin.test.example.app',
+      public_hosts: {
+        dev: { web: 'app.dev.test.example.app', api: 'api.dev.test.example.app' },
+        staging: { web: 'app.staging.test.example.app', api: 'api.staging.test.example.app' },
+      },
       secrets_role_arns: {
         dev: 'arn:aws:iam::222222222222:role/d',
         staging: 'arn:aws:iam::222222222222:role/s',
@@ -38,10 +49,11 @@ const nonprod = {
 
 const prod = {
   oidc: { value: oidc(PROD_POOL) },
+  cloudfront_aliases: { value: ['app.example.app', 'api.example.app'] },
   helm_inputs: {
     value: {
       image_registry: '111111111111.dkr.ecr.ap-south-1.amazonaws.com',
-      origin_host: 'origin.example.app',
+      public_hosts: { prod: { web: 'app.example.app', api: 'api.example.app' } },
       secrets_role_arns: { prod: 'arn:aws:iam::111111111111:role/prod' },
       platform_secrets_role_arn: 'arn:aws:iam::111111111111:role/p',
       hosted_zone_id: 'ZPROD',
@@ -64,11 +76,39 @@ test('non-prod environments pick their own Cognito pool and app URL', () => {
     userPoolId: 'ap-south-1_STG',
   });
   assert.equal(service.web.appUrl, 'https://app.staging.test.example.app');
-  assert.equal(service.ingress.host, 'origin.test.example.app');
+  assert.deepEqual(service.global.hosts, {
+    web: 'app.staging.test.example.app',
+    api: 'api.staging.test.example.app',
+  });
   assert.equal(service.global.datastores, undefined, 'non-prod data stores are in-cluster');
   assert.deepEqual(Object.keys(platform.environments), ['dev', 'staging']);
   assert.equal(platform.environments.dev.secretsRoleArn, 'arn:aws:iam::222222222222:role/d');
   assert.equal(platform.acme.email, 'ops@example.app');
+});
+
+test('each environment gets only its own public hosts, for routes and certificate', () => {
+  const dev = deployInputs('dev', nonprod);
+  assert.deepEqual(dev.service.global.hosts, {
+    web: 'app.dev.test.example.app',
+    api: 'api.dev.test.example.app',
+  });
+  assert.deepEqual(dev.platform.environments.dev.hosts, [
+    'app.dev.test.example.app',
+    'api.dev.test.example.app',
+  ]);
+  assert.deepEqual(dev.platform.environments.staging.hosts, [
+    'app.staging.test.example.app',
+    'api.staging.test.example.app',
+  ]);
+  assert.doesNotMatch(JSON.stringify(dev.service), /origin\./);
+});
+
+test('a host missing from the CloudFront distribution fails the deploy', () => {
+  const drifted = { ...nonprod, cloudfront_aliases: { value: ['app.dev.test.example.app'] } };
+  assert.throws(
+    () => deployInputs('dev', drifted),
+    /api\.dev\.test\.example\.app not on the CloudFront/,
+  );
 });
 
 test('prod adds the RDS and ElastiCache subnet CIDRs', () => {

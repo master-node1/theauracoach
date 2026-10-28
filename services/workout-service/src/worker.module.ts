@@ -8,6 +8,8 @@ import {
   participantSubscriptions,
 } from '@aura/service-kit';
 import type { ServiceConfig } from './config';
+import { contentPublishedSubscription } from './content/content-published.subscription';
+import { LibraryCache } from './content/library-cache';
 import { PrismaService } from './prisma.service';
 import { userDataPlan } from './user-data-plan';
 
@@ -20,15 +22,19 @@ export class WorkerModule {
       imports: [ServiceKitModule.forRoot({ config })],
       providers: [
         PrismaService,
+        LibraryCache,
         { provide: EVENT_DATABASE, useExisting: PrismaService },
         {
           provide: EVENT_SUBSCRIPTIONS,
-          useFactory: () =>
-            participantSubscriptions({
+          useFactory: (cache: LibraryCache) => [
+            contentPublishedSubscription(cache),
+            ...participantSubscriptions({
               service: 'workout-service',
               plan: userDataPlan,
               storage: createObjectStorage(config),
             }),
+          ],
+          inject: [LibraryCache],
         },
         EventWorker,
       ],

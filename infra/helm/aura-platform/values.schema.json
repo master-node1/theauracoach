@@ -11,13 +11,18 @@
       "propertyNames": { "enum": ["dev", "staging", "prod"] },
       "additionalProperties": {
         "type": "object",
-        "required": ["namespacePrefix", "inClusterData", "secretsRoleArn", "originHost"],
+        "required": ["namespacePrefix", "inClusterData", "secretsRoleArn", "hosts"],
         "additionalProperties": false,
         "properties": {
           "namespacePrefix": { "type": "string", "pattern": "^$|^[a-z]+-$" },
           "inClusterData": { "type": "boolean" },
           "secretsRoleArn": { "type": "string", "pattern": "^arn:aws:iam::[0-9]{12}:role/.+$" },
-          "originHost": { "type": "string", "minLength": 1 }
+          "hosts": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z0-9.-]+$" }
+          }
         }
       }
     }

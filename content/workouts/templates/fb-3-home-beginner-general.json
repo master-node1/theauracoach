@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "fb-3-home-beginner-general",
+      "name": "Home basics: full body, 3 days",
+      "goal": "GENERAL_FITNESS",
+      "experience": "BEGINNER",
+      "location": "HOME",
+      "split": "full_body",
+      "daysPerWeek": 3,
+      "days": [
+        {
+          "name": "Full body A",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "goblet-squat",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "push-up",
+              "sets": 3,
+              "repMin": 6,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-row",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "glute-bridge",
+              "sets": 2,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "plank",
+              "sets": 2,
+              "repMin": 20,
+              "repMax": 40,
+              "targetRpe": 6,
+              "restSec": 45
+            }
+          ]
+        },
+        {
+          "name": "Full body B",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "dumbbell-rdl",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "pike-push-up",
+              "sets": 2,
+              "repMin": 6,
+              "repMax": 10,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "band-row",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "reverse-lunge",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dead-bug",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 45
+            }
+          ]
+        },
+        {
+          "name": "Full body C",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "dumbbell-split-squat",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-floor-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "band-lat-pulldown",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "step-up",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "side-plank",
+              "sets": 2,
+              "repMin": 20,
+              "repMax": 30,
+              "targetRpe": 6,
+              "restSec": 45
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

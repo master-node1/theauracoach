@@ -1,7 +1,8 @@
-# Local-only placeholder values (compose, .env.example, test helpers) are not secrets.
+# Local-only placeholder values (compose, .env.example, test helpers) and the placeholder
+# illustration keys in content/workouts/ are not secrets.
 [extend]
 useDefault = true
 
 [allowlist]
 description = "Local development placeholders"
-regexes = ['''local-dev-only[-a-z]*''', '''test-internal-secret-0123456789abcdef''']
+regexes = ['''local-dev-only[-a-z]*''', '''test-internal-secret-0123456789abcdef''', '''^placeholder/[a-z_]+$''']

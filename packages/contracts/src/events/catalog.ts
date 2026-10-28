@@ -143,6 +143,18 @@ export const auditEventV1 = z.object({
 });
 export type AuditEventV1 = z.infer<typeof auditEventV1>;
 
+/**
+ * A reviewed content version went live (admin LLD §2). Owners invalidate their library caches;
+ * `id` is the live entity's id, which stays the same across versions.
+ */
+export const CONTENT_PUBLISHED_KINDS = ['exercise', 'template', 'food', 'recipe'] as const;
+export const contentPublishedV1 = z.object({
+  kind: z.enum(CONTENT_PUBLISHED_KINDS),
+  id: z.uuid(),
+  version: z.number().int().positive(),
+});
+export type ContentPublishedV1 = z.infer<typeof contentPublishedV1>;
+
 export const eventCatalog = {
   'UserRegistered@1': userRegisteredV1,
   'ProfileChanged@1': profileChangedV1,
@@ -154,6 +166,7 @@ export const eventCatalog = {
   'AccountDeleted@1': accountDeletedV1,
   'UserDataPurged@1': userDataPurgedV1,
   'AuditEvent@1': auditEventV1,
+  'ContentPublished@1': contentPublishedV1,
 } as const;
 
 export type EventKey = keyof typeof eventCatalog;

@@ -17,3 +17,8 @@ output "origin_verify_secret_arn" {
   description = "Secret holding the X-Origin-Verify value for Traefik."
   value       = aws_secretsmanager_secret.origin_verify.arn
 }
+
+output "aliases" {
+  description = "Hosts on the distribution and its certificate."
+  value       = local.aliases
+}

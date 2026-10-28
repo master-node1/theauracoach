@@ -141,9 +141,7 @@ module "edge" {
   secret_prefix                    = "auracoach/nonprod/"
   kms_key_arn                      = module.kms.key_arn
   route53_zone_id                  = var.route53_zone_id
-  web_hostname                     = local.hosts.dev.web
-  api_hostname                     = local.hosts.dev.api
-  extra_aliases                    = [local.hosts.staging.web, local.hosts.staging.api]
+  public_hosts                     = local.hosts
   origin_hostname                  = "origin.${var.domain_name}"
   origin_ip                        = module.k3s_node.public_ip
   content_media_bucket_domain_name = module.storage.content_media_regional_domain_name

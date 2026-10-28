@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "fb-3-home-beginner-endurance",
+      "name": "Home endurance: full body, 3 days",
+      "goal": "ENDURANCE",
+      "experience": "BEGINNER",
+      "location": "HOME",
+      "split": "full_body",
+      "daysPerWeek": 3,
+      "days": [
+        {
+          "name": "Circuit A",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "bodyweight-squat",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "push-up",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 15,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "band-row",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "step-up",
+              "sets": 2,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "crunch",
+              "sets": 2,
+              "repMin": 12,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 30
+            }
+          ]
+        },
+        {
+          "name": "Circuit B",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "goblet-squat",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "incline-push-up",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "doorway-row",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "glute-bridge",
+              "sets": 2,
+              "repMin": 15,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "bird-dog",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 30
+            }
+          ]
+        },
+        {
+          "name": "Circuit C",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "dumbbell-reverse-lunge",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "dumbbell-floor-press",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "dumbbell-row",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 20,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "lateral-lunge",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "reverse-crunch",
+              "sets": 2,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 6,
+              "restSec": 30
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

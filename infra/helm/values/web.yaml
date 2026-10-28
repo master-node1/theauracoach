@@ -31,5 +31,6 @@ networkPolicy:
   internetEgress: true
 ingress:
   enabled: true
+  publicHost: web
   paths: [/]
   priority: 10
