@@ -6,3 +6,5 @@ export * from './api/me';
 export * from './flags';
 export * from './api/auth';
 export * from './api/admin-roles';
+export * from './api/content';
+export * from './api/foods';

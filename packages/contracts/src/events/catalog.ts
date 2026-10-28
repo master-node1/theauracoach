@@ -6,6 +6,7 @@ import {
   EXPERIENCE_LEVELS,
   TRAINING_LOCATIONS,
 } from '../api/me';
+import { CONTENT_TYPES } from '../api/content';
 
 /**
  * Event payload schemas by `Type@version` (platform LLD §4.3).
@@ -87,11 +88,25 @@ export const auditEventV1 = z.object({
 });
 export type AuditEventV1 = z.infer<typeof auditEventV1>;
 
+/**
+ * A content item was published (admin LLD §2). Consumers refresh caches or re-validate plans that
+ * use it. `version` is the published version; users' logs keep their own snapshots.
+ */
+export const contentPublishedV1 = z.object({
+  contentType: z.enum(CONTENT_TYPES),
+  contentId: z.uuid(),
+  slug: z.string().min(1).max(120).nullable(),
+  version: z.number().int().min(1),
+  publishedBy: z.uuid().nullable(),
+});
+export type ContentPublishedV1 = z.infer<typeof contentPublishedV1>;
+
 export const eventCatalog = {
   'UserRegistered@1': userRegisteredV1,
   'ProfileChanged@1': profileChangedV1,
   'ConsentChanged@1': consentChangedV1,
   'AuditEvent@1': auditEventV1,
+  'ContentPublished@1': contentPublishedV1,
 } as const;
 
 export type EventKey = keyof typeof eventCatalog;

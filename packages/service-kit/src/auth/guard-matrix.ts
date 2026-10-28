@@ -3,7 +3,7 @@ import { METHOD_METADATA } from '@nestjs/common/constants';
 import { ModulesContainer } from '@nestjs/core';
 import { REQUIRED_CONSENT } from './consent.guard';
 import { INTERNAL_CALLERS, PUBLIC_ROUTE } from './decorators';
-import { REQUIRED_PERMISSIONS } from './permissions.guard';
+import { ANY_PERMISSIONS, REQUIRED_PERMISSIONS } from './permissions.guard';
 import { isAdminPath, routeMethod, routePath } from './routes';
 
 /** How one route is protected, read from its decorators. */
@@ -14,6 +14,8 @@ export interface GuardMatrixRow {
   conflicting: boolean;
   callers: string[];
   permissions: string[];
+  /** From @AnyPermission: the caller needs one of these. */
+  anyPermissions: string[];
   consent: string | null;
 }
 
@@ -45,6 +47,7 @@ export function describeRoutes(app: INestApplicationContext): GuardMatrixRow[] {
           conflicting: isPublic && !!callers,
           callers: callers ?? [],
           permissions: metadata<string[]>(REQUIRED_PERMISSIONS, handler, controller) ?? [],
+          anyPermissions: metadata<string[]>(ANY_PERMISSIONS, handler, controller) ?? [],
           consent: metadata<string>(REQUIRED_CONSENT, handler, controller) ?? null,
         });
       }
@@ -82,9 +85,11 @@ export function guardMatrixViolations(
     }
     if (isAdminPath(path)) {
       if (row.access !== 'user') fail('is an admin route but does not take a user token');
-      if (row.permissions.length === 0) fail('is an admin route without @Permissions');
+      if (row.permissions.length === 0 && row.anyPermissions.length === 0) {
+        fail('is an admin route without @Permissions');
+      }
     }
-    if (row.access !== 'user' && row.permissions.length > 0) {
+    if (row.access !== 'user' && (row.permissions.length > 0 || row.anyPermissions.length > 0)) {
       fail('has @Permissions but no user token to check them against');
     }
     if (row.access !== 'user' && row.consent) {

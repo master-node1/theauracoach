@@ -13,6 +13,7 @@ import {
   describeRoutes,
   guardMatrixViolations,
   InternalOnly,
+  AnyPermission,
   Permissions,
   PermissionsGuard,
   ProblemDetailsFilter,
@@ -28,6 +29,12 @@ class AdminController {
   @Permissions('exercise:publish')
   @Post(':id/publish')
   publish() {
+    return { ok: true };
+  }
+
+  @AnyPermission('food:write', 'food:review')
+  @Get(':id')
+  read() {
     return { ok: true };
   }
 
@@ -130,6 +137,16 @@ describe('admin routes (TC-SEC-3)', () => {
     expect(res.body).toMatchObject({ status: 403, code: 'FORBIDDEN' });
   });
 
+  it('lets any one of @AnyPermission through and refuses staff with none of them', async () => {
+    const read = async (groups: string[]) =>
+      request(app.getHttpServer())
+        .get('/v1/admin/things/42')
+        .set('authorization', `Bearer ${await token(groups, ['pwd', 'mfa'])}`);
+    expect((await read(['content_editor'])).status).toBe(200);
+    expect((await read(['nutrition_reviewer'])).status).toBe(200);
+    expect((await read(['content_reviewer'])).body).toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('refuses an admin route that declares no permissions, even for owners', async () => {
     const res = await request(app.getHttpServer())
       .delete('/v1/admin/things/42')
@@ -168,6 +185,10 @@ describe('guard matrix', () => {
   it('reads every route and its guards from metadata', () => {
     expect(describeRoutes(app)).toEqual([
       expect.objectContaining({ route: 'DELETE /v1/admin/things/:id', permissions: [] }),
+      expect.objectContaining({
+        route: 'GET /v1/admin/things/:id',
+        anyPermissions: ['food:write', 'food:review'],
+      }),
       expect.objectContaining({ route: 'GET /v1/coach/conversations', consent: 'AI_COACH' }),
       expect.objectContaining({ route: 'GET /v1/coach/limits', access: 'user' }),
       expect.objectContaining({

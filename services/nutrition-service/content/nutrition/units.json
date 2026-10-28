@@ -1,0 +1,17 @@
+{
+  "$comment": "Household units (nutrition LLD §3). Volume units become grams through the food's density; recipes list their own serving units in grams.",
+  "units": [
+    { "code": "katori", "label": "Katori (small bowl)", "grams": 150 },
+    { "code": "roti", "label": "Roti", "grams": 40 },
+    { "code": "piece", "label": "Piece" },
+    { "code": "slice", "label": "Slice" },
+    { "code": "plate", "label": "Plate", "grams": 250 },
+    { "code": "glass", "label": "Glass (250 ml)", "ml": 250 },
+    { "code": "cup", "label": "Cup (240 ml)", "ml": 240 },
+    { "code": "ladle", "label": "Ladle (75 ml)", "ml": 75 },
+    { "code": "tbsp", "label": "Tablespoon (15 ml)", "ml": 15 },
+    { "code": "tsp", "label": "Teaspoon (5 ml)", "ml": 5 }
+  ],
+  "$liquidUnits": "Generated in grams for every ingredient with a density",
+  "liquidUnits": ["cup", "glass", "tbsp", "tsp"]
+}
