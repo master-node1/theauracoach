@@ -48,3 +48,25 @@ resource "aws_ecr_lifecycle_policy" "this" {
     ]
   })
 }
+
+# Release promotion (TAC-37): prod copies the exact image that passed staging from this registry.
+# The prod side still needs an identity policy allowing the pull (github-oidc module).
+data "aws_iam_policy_document" "pull" {
+  count = length(var.pull_account_ids) > 0 ? 1 : 0
+  statement {
+    sid     = "CrossAccountPull"
+    actions = ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:DescribeImages", "ecr:GetDownloadUrlForLayer"]
+    principals {
+      type        = "AWS"
+      identifiers = [for id in var.pull_account_ids : "arn:${data.aws_partition.current.partition}:iam::${id}:root"]
+    }
+  }
+}
+
+data "aws_partition" "current" {}
+
+resource "aws_ecr_repository_policy" "pull" {
+  for_each   = length(var.pull_account_ids) > 0 ? aws_ecr_repository.this : {}
+  repository = each.value.name
+  policy     = data.aws_iam_policy_document.pull[0].json
+}

@@ -1,0 +1,75 @@
+# Installs or upgrades a cluster's add-ons and platform releases (TAC-37, deployment.md §1):
+# cert-manager, external-secrets and the OpenTelemetry collector from infra/k3s/addons.yaml, then
+# aura-platform, then (non-prod) aura-datastores for dev and staging. Run by hand once after
+# `terraform apply`, and again after a version bump in addons.yaml (non-prod first).
+name: Cluster platform
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster:
+        type: choice
+        options: [nonprod, prod]
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  platform:
+    name: Platform on ${{ inputs.cluster }}
+    runs-on: ubuntu-latest
+    # The non-prod cluster is reached with the dev environment's deploy role (same account).
+    environment: ${{ inputs.cluster == 'prod' && 'prod' || 'dev' }}
+    concurrency:
+      group: platform-${{ inputs.cluster }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLUSTER: ${{ inputs.cluster }}
+    steps:
+      - name: CD enabled and configured?
+        id: gate
+        env:
+          CD_ENABLED: ${{ vars.CD_ENABLED }}
+          ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [[ "$CD_ENABLED" == true && -n "$ROLE" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "## Platform install skipped: CD is not enabled or AWS_DEPLOY_ROLE_ARN is not set" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::Platform install skipped: CD is not enabled or not configured"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ready == 'true'
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - uses: ./.github/actions/cluster-access
+        if: steps.gate.outputs.ready == 'true'
+        id: cluster
+        with:
+          environment: ${{ inputs.cluster == 'prod' && 'prod' || 'dev' }}
+          backend-hcl: ${{ inputs.cluster == 'prod' && vars.TF_BACKEND_HCL_PROD || vars.TF_BACKEND_HCL_NONPROD }}
+          acme-email: ${{ vars.ACME_EMAIL }}
+      - name: Add-ons, aura-platform and data stores
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          INPUTS: ${{ steps.cluster.outputs.inputs-dir }}/platform-inputs.json
+        run: |
+          jq -e '.acme.email != ""' "$INPUTS" >/dev/null || { echo "::error::repository variable ACME_EMAIL is not set"; exit 1; }
+          tools/deploy/install-platform.sh "$CLUSTER" "$INPUTS"
+          {
+            echo "## Platform on $CLUSTER"
+            echo '```'
+            helm list --all-namespaces
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Close the port forward
+        if: always() && env.PORT_FORWARD_PID != ''
+        run: kill "$PORT_FORWARD_PID" || true

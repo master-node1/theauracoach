@@ -1,6 +1,6 @@
 # Deployment
 
-How AuraCoach would be deployed to the Stage 1 k3s nodes ([ADR-007](../architecture/ADR/ADR-007-hosting.md)) with the Helm charts in `infra/helm` ([TAC-35](https://harisireddi7776.atlassian.net/browse/TAC-35)). **Nothing here has been run against a cluster.** The commands document what Terraform's `helm_release` resources ([TAC-36](https://harisireddi7776.atlassian.net/browse/TAC-36)) and the CD workflow ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37)) will do once the owner provides AWS accounts (TAC-44). CI only lints, renders and validates.
+How AuraCoach would be deployed to the Stage 1 k3s nodes ([ADR-007](../architecture/ADR/ADR-007-hosting.md)) with the Helm charts in `infra/helm` ([TAC-35](https://harisireddi7776.atlassian.net/browse/TAC-35)). **Nothing here has been run against a cluster.** The CD workflows ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37), [ADR-010](../architecture/ADR/ADR-010-cd-helm-cli.md)) are written and checked in CI but stay off until the owner creates the AWS accounts and sets `CD_ENABLED` (§5, [TAC-44](https://harisireddi7776.atlassian.net/browse/TAC-44)). CI only lints, renders and validates.
 
 Layout and network design: [deployment architecture](../architecture/deployment-architecture.md). Who may call whom: [service catalog §4](../architecture/service-catalog.md#4-allowed-synchronous-dependencies).
 
@@ -9,10 +9,13 @@ Layout and network design: [deployment architecture](../architecture/deployment-
 | # | Release | Chart | Namespace | Per |
 |---|---|---|---|---|
 | 1 | Traefik config | k3s bundled Traefik, configured by `infra/k3s/traefik-config.yaml` (placed by cloud-init) | `kube-system` | cluster |
-| 2 | `cert-manager`, `external-secrets`, `otel-collector` | upstream charts, pinned in `infra/k3s/addons.yaml`, values in `infra/k3s/values/` | `aura-system` | cluster |
+| 2 | `cert-manager`, `external-secrets` | upstream charts, pinned in `infra/k3s/addons.yaml`, values in `infra/k3s/values/` | `aura-system` | cluster |
 | 3 | `platform` | `infra/helm/aura-platform` with `values-nonprod.yaml` or `values-prod.yaml` | `aura-system` | cluster |
+| 3b | `otel-collector` | upstream chart from `addons.yaml` (`afterPlatform`: it reads the Grafana Cloud Secret the platform syncs) | `aura-system` | cluster |
 | 4 | `datastores-<env>` | `infra/helm/aura-datastores` (dev and staging only) | `<env>-aura-data` | non-prod environment |
 | 5 | `<deployable>` | `infra/helm/aura-service` | `[<env>-]aura-services` or `[<env>-]aura-edge` | deployable × environment |
+
+Rows 1–4 are installed by the *Cluster platform* workflow (§5), row 5 by the deploy workflows.
 
 `aura-platform` creates each environment's namespaces with the **restricted** Pod Security Standard, a default-deny NetworkPolicy plus a DNS allowance in each, a `SecretStore` per namespace, the origin certificate for Traefik and the Let's Encrypt `ClusterIssuer`. Prod has `aura-edge` and `aura-services`; the non-prod node has `dev-` and `staging-` copies of those plus `<env>-aura-data`.
 
@@ -44,7 +47,7 @@ No values file contains a secret; CI fails if one does (§6).
 
 ### Deploy inputs
 
-Terraform passes these from its outputs. `infra/helm/ci/*.yaml` holds fake examples used only to render in CI.
+The deploy job reads these from the account's Terraform outputs on every run (`tools/deploy/deploy-inputs.mjs`). `infra/helm/ci/*.yaml` holds fake examples used only to render in CI.
 
 | Input | Chart | Source |
 |---|---|---|
@@ -107,9 +110,40 @@ Every NestJS service reads feature flags from AWS AppConfig (`global.flags.sourc
 
 `global.callGraph` is the single source for the allow-lists, `INTERNAL_SERVICE_URLS` and the gateway's upstreams. CI compares it with the service catalog diagram and checks every rendered policy against it, so a new call needs a catalog (ADR) change first.
 
-## 5. How a deploy runs (documented, not executed)
+## 5. Continuous delivery
 
-The CD workflow (TAC-37) opens an SSM port forward to the node's k3s API and runs `terraform apply` on the `service` stack, whose `helm_release` for one deployable is equivalent to:
+GitHub Actions, off until `CD_ENABLED` is `true` ([ADR-010](../architecture/ADR/ADR-010-cd-helm-cli.md)). While off, every workflow below runs only its planning step and writes a summary of what it would have built or deployed; nothing is pushed, signed or deployed, and no AWS role is assumed.
+
+```mermaid
+flowchart LR
+  pr[pull request] --> ci[CI: tests, Helm validate, deploy scripts dry run,<br/>arm64 image build + Trivy + SBOM, no push]
+  main[merge to main] --> plan{CD_ENABLED?}
+  plan -- no --> sum[summary only]
+  plan -- yes --> img[build-images: arm64, Trivy gate, push to non-prod ECR,<br/>cosign sign + SBOM attestation]
+  img --> dev[deploy dev: verify signature, helm upgrade --atomic per changed deployable, smoke]
+  tag[tag v*] --> rimg[ensure images for the tag commit]
+  rimg --> stg[deploy staging]
+  stg --> gates[gates on staging: k6, ZAP baseline, live AI eval]
+  gates --> appr{prod reviewers approve}
+  appr --> prod[deploy prod: copy signed images to prod ECR by digest, helm upgrade, smoke]
+  prod --> notes[GitHub release with notes]
+```
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `build-images.yml` | called | Per deployable on a native arm64 runner: `docker buildx` for `linux/arm64` (Graviton), Trivy gate on fixable critical CVEs **before** any push, CycloneDX SBOM (artifact). With `push`: ECR push with provenance, keyless cosign signature and signed SBOM attestation. Already-pushed tags are skipped (ECR tags are immutable) |
+| `ci.yml` (job *Images*) | every PR and push | `build-images.yml` with `push: false`: the release build as a dry run, no secrets. The *Helm charts* job also renders `tools/deploy/helm-deploy.sh` and `install-platform.sh` for every environment with the example inputs and validates the result; *CD workflows and scripts* runs actionlint (with shellcheck) and the script unit tests |
+| `release-images.yml` | merge to main, or by hand | Deployables changed by the merge (`tools/ci/affected-services.mjs`, ADR-007) → `build-images.yml` (push, environment `dev`) → `deploy.yml` to dev |
+| `deploy.yml` | called, or by hand (redeploy a commit) | In the target GitHub environment: assume `AWS_DEPLOY_ROLE_ARN`, read deploy inputs from `terraform output` (`tools/deploy/deploy-inputs.mjs`), read the origin header from Secrets Manager, fetch the kubeconfig from SSM, open the SSM port forward, verify each image's signature (prod first copies the signed image, signatures and SBOM from the non-prod ECR by digest), `tools/deploy/helm-deploy.sh`, then `tools/smoke/deploy-smoke.sh` |
+| `release.yml` | tag `v*` | Deployables changed since the previous `v*` tag (all on the first release) → images → staging → gates → prod (waits for the `prod` environment's required reviewers) → GitHub release with notes from `tools/release/release-notes.mjs` |
+| `rollback.yml` | by hand | `helm rollback` of one deployable to the previous (or a given) revision, then smoke |
+| `platform.yml` (*Cluster platform*) | by hand | `tools/deploy/install-platform.sh`: cert-manager and external-secrets, `aura-platform`, the OpenTelemetry collector (it reads a Secret the platform syncs), and in non-prod `aura-datastores` for dev and staging |
+
+Jobs that touch one environment share the concurrency group `deploy-<env>`, so a rollback never races a deploy.
+
+### What one deploy runs
+
+`tools/deploy/helm-deploy.sh <env> <sha> <inputs.json> <deployable>...` renders the same values chain as CI (§2) and, for each deployable (services first, then `api-gateway`, then `web`), runs the equivalent of:
 
 ```bash
 # Prod example. Non-prod: --namespace dev-aura-services and values/env/dev.yaml.
@@ -118,27 +152,48 @@ helm upgrade --install profile-service infra/helm/aura-service \
   -f infra/helm/values/common.yaml \
   -f infra/helm/values/env/prod.yaml \
   -f infra/helm/values/profile-service.yaml \
-  --set image.tag="$GIT_SHA" \
-  --set global.imageRegistry="$ECR_REGISTRY" \
-  --set global.auth.issuer="$COGNITO_ISSUER" \
-  --set global.auth.jwksUrl="$COGNITO_ISSUER/.well-known/jwks.json" \
-  --set "global.auth.clientIds={$WEB_CLIENT_ID,$MOBILE_CLIENT_ID}" \
-  --set "global.datastores.postgres.cidrs={$DATA_SUBNET_A,$DATA_SUBNET_B}" \
-  --set "global.datastores.redis.cidrs={$DATA_SUBNET_A,$DATA_SUBNET_B}" \
-  --atomic --wait --timeout 10m
+  -f service-inputs.json \
+  --set-string image.tag="$GIT_SHA" \
+  --atomic --wait --timeout 10m --history-max 10
 ```
 
-What happens:
+`service-inputs.json` holds the deploy inputs of §2 taken from the account's Terraform outputs (registry, Cognito, origin host, and in prod the data-store CIDRs). For `api-gateway` and `web` the origin header value is added from a temporary values file readable only by the job, never as a command-line argument. `DRY_RUN=1` renders with `helm template` instead; CI does that for every environment.
+
+What happens in the cluster:
 
 1. Hooks: the migration ServiceAccount and NetworkPolicy, then its ExternalSecret, then the Job. External Secrets fills the Secret within seconds; until then the Job's pod waits. A failed migration fails the release and nothing else changes.
 2. ConfigMap, ExternalSecret, Service and NetworkPolicies are applied; both Deployments roll one pod at a time and wait for readiness.
 3. With `--atomic`, a release that does not become ready in time is rolled back to the previous revision. The database is not rolled back, which is why only expand migrations ship with code ([deployment architecture §4](../architecture/deployment-architecture.md#4-cicd-github-actions)).
 
-Order across deployables: services first (any order; each degrades gracefully when a callee is missing), then `api-gateway` (nginx resolves its upstreams at start), then `web`.
+The smoke test then checks that each release is `deployed` with all Deployments available and, when `SMOKE_APP_URL` and `SMOKE_API_URL` are set for the environment, that `https://app…/api/health` answers 200 and an unauthenticated `https://api…/v1/me` reaches the gateway and is refused with 401.
 
-Roll back a bad release: `helm rollback <deployable> <revision> -n <namespace>`, or re-run the deploy with the previous SHA.
+The non-prod node is stopped out of hours (weekdays 08:00–20:00 IST). A deploy to dev or staging outside those hours fails with a clear error; the pipeline never starts the instance, because that costs money.
 
 Hook objects (the migration ServiceAccount, NetworkPolicy and ExternalSecret) are not part of the release's manifest, so `helm uninstall` leaves them. Delete them with `kubectl delete sa,networkpolicy,externalsecret -l app.kubernetes.io/component=migrate -n <namespace>` after an uninstall.
+
+### Rolling back
+
+- **Code:** run *Rollback* with the environment and deployable (revision empty = the previous one), or re-run *Deploy* with the previous commit. From an operator machine with the port forward of infrastructure.md step 10: `helm rollback <deployable> [revision] -n <namespace> --wait`.
+- **Restoring a database** (data damage, not a bad release): in prod, restore RDS to a point in time into a new instance (`aws rds restore-db-instance-to-point-in-time --source-db-instance-identifier <prod db> --target-db-instance-identifier <prod db>-restore --restore-time <UTC time>`, same subnet group, security group and parameter group), check the data, then point the affected service's `DATABASE_URL` and `MIGRATION_DATABASE_URL` in `auracoach/prod/<service>` at the new endpoint and restart that service's pods; keep the old instance until the restore is confirmed. Only the affected service's database needs moving, because each service owns its own. Cross-region copies (weekly, `ap-southeast-1`) cover a lost region ([deployment architecture §6](../architecture/deployment-architecture.md#6-backup-and-disaster-recovery)). In non-prod, data is synthetic: delete the StatefulSet's volume and let migrations recreate the schema.
+
+### Enabling CD (owner checklist)
+
+Everything below is free on GitHub; the AWS steps create billable resources and are the owner's call ([TAC-44](https://harisireddi7776.atlassian.net/browse/TAC-44)).
+
+1. Apply Terraform for both accounts ([infrastructure](infrastructure.md), steps 1–9). Set `prod_account_id` in the non-prod tfvars and `nonprod_account_id` in the prod tfvars (release promotion), and apply both again.
+2. GitHub environments: `dev`, `staging` (no reviewers) and `prod` (**required reviewers**: this is the manual approval before prod; also restrict it to tags `v*`). Restrict `dev` to `main`.
+3. Environment variables (Settings → Environments, all non-secret):
+
+   | Variable | dev | staging | prod |
+   |---|---|---|---|
+   | `AWS_DEPLOY_ROLE_ARN` | non-prod `github_roles.deploy` | same | prod `github_roles.deploy` |
+   | `SMOKE_APP_URL`, `SMOKE_API_URL` | `https://app.dev.<domain>`, `https://api.dev.<domain>` | `…staging…` | `https://app.<domain>`, `https://api.<domain>` |
+   | `NONPROD_ECR_REGISTRY_ID` | — | — | non-prod account ID |
+
+4. Repository variables: `TF_BACKEND_HCL_NONPROD` and `TF_BACKEND_HCL_PROD` (contents of each `backend.hcl`, already needed for `terraform plan`), and `ACME_EMAIL` (Let's Encrypt account e-mail).
+5. Set the repository variable `CD_ENABLED=true`, then straight away run *Cluster platform* for `nonprod` and then `prod` (add-ons, `aura-platform`, non-prod data stores). A merge before that would fail its dev deploy, harmlessly.
+6. Run *Release images* by hand with deployables `all` to fill dev. From then on each merge to main builds, pushes and deploys what it changed.
+7. Releases: push a tag `v<semver>` on main. Until the k6 suite (TAC-40) and the live AI eval (TAC-28) exist, set `RELEASE_ALLOW_MISSING_GATES=true` to release without them; a missing gate otherwise fails the release. The live AI eval calls the AI provider, so each release run costs a little AI spend once it exists.
 
 ### Stage 2 (EKS)
 
@@ -166,8 +221,9 @@ Run it locally with the same tools on `PATH` (helm 3, kubeconform, kube-linter, 
 
 | Gap | Owner |
 |---|---|
-| The web app has no Dockerfile or health route yet; its values assume an image `auracoach/web` serving on 3000 and probe `/auth/sign-in` | TAC-37 |
 | coach-service will need the AI provider key in `auracoach/<env>/coach-service` and in `secrets.keys` | TAC-25 |
-| Terraform must create the Secrets Manager entries, IAM roles, ECR repositories, the AppConfig application `auracoach` with a `flags` profile per environment, and the `helm_release` resources described here | TAC-36 |
+| CloudFront forwards the viewer `Host` (origin request policy AllViewer) while the IngressRoutes and origin certificate use `origin.<domain>`, and dev and staging share that one origin host; must be fixed before the first deploy | [TAC-46](https://harisireddi7776.atlassian.net/browse/TAC-46) |
+| No staged canary (10% → 50% → 100%): MVP uses Helm `--atomic` plus the smoke gate, as the deployment architecture allows | Stage 2 (Argo Rollouts) |
+| Playwright and Maestro E2E on dev after each deploy, k6 load suite, live AI eval | TAC-40, TAC-28 |
 | The `X-Origin-Verify` value sits in the IngressRoute object; anyone who can read IngressRoutes in `aura-edge` can read it. Cluster access is limited to the deploy role and operators (SSM) | accepted for beta |
 | system-upgrade-controller and OS patching plans | TAC-41 |

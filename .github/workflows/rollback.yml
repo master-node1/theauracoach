@@ -1,0 +1,96 @@
+# Rolls one deployable back to an earlier Helm revision (TAC-37, deployment.md §5). Does not touch
+# databases: migrations are expand-only, so the previous code runs on the current schema. For data,
+# use the restore runbook in docs/operations/deployment.md ("Restoring a database").
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, staging, prod]
+        required: true
+      deployable:
+        type: choice
+        options:
+          - api-gateway
+          - web
+          - profile-service
+          - workout-service
+          - nutrition-service
+          - progress-service
+          - coach-service
+          - notification-service
+          - audit-service
+        required: true
+      revision:
+        description: Helm revision to return to (empty - the one before the current)
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    name: Roll back ${{ inputs.deployable }} in ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      DEPLOYABLE: ${{ inputs.deployable }}
+      REVISION: ${{ inputs.revision }}
+    steps:
+      - name: CD enabled and configured?
+        id: gate
+        env:
+          CD_ENABLED: ${{ vars.CD_ENABLED }}
+          ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [[ "$CD_ENABLED" == true && -n "$ROLE" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "## Rollback skipped: CD is not enabled or AWS_DEPLOY_ROLE_ARN is not set for $ENVIRONMENT" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::Rollback skipped: CD is not enabled or not configured for $ENVIRONMENT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ready == 'true'
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - uses: ./.github/actions/cluster-access
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          environment: ${{ inputs.environment }}
+          backend-hcl: ${{ inputs.environment == 'prod' && vars.TF_BACKEND_HCL_PROD || vars.TF_BACKEND_HCL_NONPROD }}
+      - name: helm rollback
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          prefix=""; [[ "$ENVIRONMENT" != prod ]] && prefix="$ENVIRONMENT-"
+          case "$DEPLOYABLE" in api-gateway | web) ns="${prefix}aura-edge" ;; *) ns="${prefix}aura-services" ;; esac
+          [[ -z "$REVISION" || "$REVISION" =~ ^[0-9]+$ ]] || { echo "::error::revision must be a number"; exit 1; }
+          echo "::group::history before"
+          helm history "$DEPLOYABLE" --namespace "$ns" --max 10
+          echo "::endgroup::"
+          # An empty revision rolls back to the previous one.
+          helm rollback "$DEPLOYABLE" ${REVISION:+"$REVISION"} --namespace "$ns" --wait --timeout 10m
+          tools/smoke/deploy-smoke.sh "$ENVIRONMENT" "$DEPLOYABLE"
+          {
+            echo "## Rolled back $DEPLOYABLE in $ENVIRONMENT"
+            echo '```'
+            helm history "$DEPLOYABLE" --namespace "$ns" --max 5
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Close the port forward
+        if: always() && env.PORT_FORWARD_PID != ''
+        run: kill "$PORT_FORWARD_PID" || true

@@ -12,7 +12,7 @@ The AWS platform for beta is defined in [`infra/terraform`](../../infra/terrafor
 | `modules/` | `kms`, `network`, `k3s-node`, `rds`, `redis`, `storage`, `cognito`, `ses`, `edge`, `ecr`, `secrets`, `appconfig`, `dns-firewall`, `observability`, `github-oidc`. |
 | `scripts/bootstrap-secrets.sh` | Fills the Secrets Manager entries Terraform leaves empty, in the shape the Helm charts read: per-service `DATABASE_URL` / `MIGRATION_DATABASE_URL` / `REDIS_URL`, `shared`, `web`, and non-prod `datastores`. In prod it also creates one database, an owner role (DDL, migrations) and an app role (DML only) per service on RDS. |
 
-The `service` stack (one `helm_release` per service, [deployment architecture §5](../architecture/deployment-architecture.md#5-infrastructure-as-code)) comes with the CD pipeline ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37)); the chart and cluster add-ons are [TAC-35](https://harisireddi7776.atlassian.net/browse/TAC-35).
+There is no Terraform `service` stack: the CD workflows deploy the charts with the Helm CLI and read their deploy inputs from this stack's outputs ([ADR-010](../architecture/ADR/ADR-010-cd-helm-cli.md), [deployment](deployment.md#5-continuous-delivery)); the chart and cluster add-ons are [TAC-35](https://harisireddi7776.atlassian.net/browse/TAC-35).
 
 ## What each account gets
 
@@ -31,7 +31,7 @@ The `service` stack (one `helm_release` per service, [deployment architecture §
 | Feature flags | AppConfig application `auracoach`, environment `prod`, hosted freeform profile `flags` (the names the Helm values use), 10-minute linear deployment strategy ([TAC-10](https://harisireddi7776.atlassian.net/browse/TAC-10)) | Environments `dev` and `staging` |
 | Egress | Route 53 Resolver DNS Firewall: allow-list (AWS, k3s and chart sources, Let's Encrypt, Anthropic, Open Food Facts, Expo, Grafana Cloud, Sentry), everything else NXDOMAIN, query logs 30 days | Same |
 | Alerts and cost | SNS topic (KMS) with email subscribers, monthly budget $220 (80% actual, 100% forecast), root console sign-in alert, RDS, Redis and node alarms | Budget $50 |
-| CI access | GitHub OIDC provider; `auracoach-prod-github-plan` (read-only, PRs and `main`) and `auracoach-prod-github-deploy` (GitHub environment `prod` only: ECR push, SSM port forward to the node, read the kubeconfig parameter) | Deploy role for environments `dev` and `staging` |
+| CI access | GitHub OIDC provider; `auracoach-prod-github-plan` (read-only, PRs and `main`) and `auracoach-prod-github-deploy` (GitHub environment `prod` only: ECR push, SSM port forward to the node, read the kubeconfig parameter, the Terraform state and the origin header secret; pull from the non-prod ECR to promote releases when `nonprod_account_id` is set) | Deploy role for environments `dev` and `staging`; ECR repositories let the prod account pull when `prod_account_id` is set |
 
 The node instance role is shared by every pod that may reach the metadata endpoint (NetworkPolicy decides which), so each permission is scoped to this account's resources: ECR repositories, the two app buckets, the etcd prefix, SES identity, Cognito pools, AppConfig application, and Route 53 DNS-01 records for cert-manager. It cannot read secrets itself. External Secrets assumes one role per environment (`auracoach-<account>-secrets-<env>`, reading only `auracoach/<env>/*`) and a cluster role (`auracoach-<account>-secrets-platform`, reading only `auracoach/<account>/platform`), so dev cannot read staging's secrets on the shared node.
 
@@ -112,9 +112,9 @@ Run every command from a machine with Terraform ≥ 1.9, the AWS CLI with the Se
       --query Parameter.Value --output text > ~/.kube/auracoach-<account>
     KUBECONFIG=~/.kube/auracoach-<account> kubectl get nodes
     ```
-    Then install the cluster add-ons from `infra/k3s` (TAC-35), including cert-manager with the Route 53 DNS-01 issuer for `origin.<domain>` and the Traefik middleware that requires `X-Origin-Verify` (value in `auracoach/<account>/edge/origin-verify`, or `auracoach/prod/edge/origin-verify` in prod).
+    The cluster add-ons and `aura-platform` are then installed by the *Cluster platform* workflow ([deployment §5](deployment.md#5-continuous-delivery)), not by hand.
 11. **GitHub.** Create environments `dev`, `staging` and `prod` (prod with required reviewers). Set the `github_roles` outputs as `AWS_DEPLOY_ROLE_ARN` per environment, and the repository variables `AWS_PLAN_ROLE_ARN_PROD` / `_NONPROD`, `TF_BACKEND_HCL_PROD` / `_NONPROD` and `TF_VARS_PROD` / `_NONPROD` (contents of `backend.hcl` and `terraform.tfvars`, no secrets) so the `Terraform` workflow starts running `plan`. If an account already has a GitHub OIDC provider, set `create_github_oidc_provider = false`.
-12. **Deploy inputs.** The `oidc` output gives the issuer, JWKS URL, hosted UI URL, `IDENTITY_ENDPOINT` and client IDs. The `helm_inputs` output gives the image registry, the secrets role ARNs, the origin host, the hosted zone and, in prod, the RDS and ElastiCache subnet CIDRs. The CD pipeline ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37)) passes these to `infra/helm`, as listed in deployment.md §2. Use the `appconfig` output for the flag client.
+12. **Deploy inputs.** The `oidc` output gives the issuer, JWKS URL, hosted UI URL, `IDENTITY_ENDPOINT` and client IDs. The `helm_inputs` output gives the image registry, the secrets role ARNs, the origin host, the hosted zone and, in prod, the RDS and ElastiCache subnet CIDRs. The CD workflows read them with `terraform output` on every run and pass them to `infra/helm` as listed in deployment.md §2; nothing needs copying. To turn CD on, follow [deployment §5, Enabling CD](deployment.md#enabling-cd-owner-checklist). Use the `appconfig` output for the flag client.
 
 ## Operating it
 
@@ -132,7 +132,6 @@ Run every command from a machine with Terraform ≥ 1.9, the AWS CLI with the Se
 | Single-AZ RDS and Redis, single node | ADR-007 Stage 1 trade-offs | Stage 2 triggers in ADR-007 |
 | Secret rotation by runbook, not Lambda | Few static secrets at beta | Stage 2 |
 | One Redis AUTH token, not a Redis ACL user per service | ElastiCache RBAC users per service add a user group to manage | Before Stage 2 |
-| Cluster add-ons (`infra/k3s/addons.yaml`) and the `service` stack are not Terraform `helm_release`s yet | They need the Helm provider pointed at the cluster through the SSM port forward, which belongs with the deploy pipeline | [TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37) |
 | The Redis AUTH token, CloudFront origin header and Cognito client secret are in Terraform state | Terraform must know them to configure the resources; state is SSE-KMS and versioned | — |
 | Log groups kept 30–90 days, not a year | Cost; no compliance requirement yet | TAC-41 |
 

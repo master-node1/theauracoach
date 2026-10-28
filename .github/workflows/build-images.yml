@@ -1,0 +1,130 @@
+# Builds the container image of each given deployable for the k3s nodes (Graviton, linux/arm64, built
+# natively on an arm64 runner), scans it with Trivy before anything is pushed, and writes a CycloneDX
+# SBOM. With push: true it then pushes to the account's ECR, signs the digest with cosign (keyless,
+# GitHub OIDC) and attaches the SBOM as a signed attestation. TAC-37, deployment.md §5.
+# Called by CI (push: false, the dry run on every PR), release-images.yml and release.yml.
+name: Build images
+
+on:
+  workflow_call:
+    inputs:
+      deployables:
+        description: JSON array of deployables
+        type: string
+        required: true
+      sha:
+        description: Commit to build; also the image tag
+        type: string
+        required: true
+      push:
+        description: Push, sign and attest (needs the environment's deploy role)
+        type: boolean
+        default: false
+      environment:
+        description: GitHub environment whose deploy role may push (dev for the non-prod registry)
+        type: string
+        default: dev
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: ${{ matrix.deployable }} (${{ inputs.push && 'build, scan, push' || 'build and scan' }})
+    runs-on: ubuntu-24.04-arm
+    # Only pushing jobs enter the environment and get its AWS role.
+    environment: ${{ inputs.push && inputs.environment || '' }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        deployable: ${{ fromJSON(inputs.deployables) }}
+    env:
+      DEPLOYABLE: ${{ matrix.deployable }}
+      SHA: ${{ inputs.sha }}
+      TRIVY_IMAGE: aquasec/trivy:0.58.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+      - name: Dockerfile
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full commit SHA"; exit 1; }
+          if [[ "$DEPLOYABLE" == web ]]; then df=apps/web/Dockerfile; else df="services/$DEPLOYABLE/Dockerfile"; fi
+          [[ -f "$df" ]] || { echo "::error::no Dockerfile for $DEPLOYABLE"; exit 1; }
+          echo "DOCKERFILE=$df" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (linux/arm64)
+        run: |
+          docker buildx build --platform linux/arm64 -f "$DOCKERFILE" \
+            --cache-from "type=gha,scope=$DEPLOYABLE-arm64" --cache-to "type=gha,scope=$DEPLOYABLE-arm64,mode=max" \
+            --output "type=oci,dest=$RUNNER_TEMP/image.tar" .
+      - name: Unpack the OCI layout for Trivy
+        run: mkdir -p "$RUNNER_TEMP/oci" && tar -xf "$RUNNER_TEMP/image.tar" -C "$RUNNER_TEMP/oci"
+      - name: Scan for fixable critical vulnerabilities (gate before any push)
+        run: >-
+          docker run --rm -v "$RUNNER_TEMP:/scan" "$TRIVY_IMAGE"
+          image --input /scan/oci --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress
+      - name: SBOM (CycloneDX)
+        run: >-
+          docker run --rm -v "$RUNNER_TEMP:/scan" "$TRIVY_IMAGE"
+          image --input /scan/oci --format cyclonedx --output /scan/sbom.cdx.json --quiet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.deployable }}
+          path: ${{ runner.temp }}/sbom.cdx.json
+          retention-days: 30
+
+      # ---- push: only from release-images.yml / release.yml, with CD enabled ----
+      - name: Deploy role configured?
+        if: inputs.push
+        env:
+          ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          [[ -n "$ROLE" ]] || { echo "::error::AWS_DEPLOY_ROLE_ARN is not set in environment ${{ inputs.environment }}"; exit 1; }
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: inputs.push
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - uses: aws-actions/amazon-ecr-login@v2
+        if: inputs.push
+        id: ecr
+      - name: Already pushed?
+        if: inputs.push
+        id: exists
+        # Tags are immutable: a release re-uses the image main already built for this commit.
+        run: |
+          if aws ecr describe-images --repository-name "auracoach/$DEPLOYABLE" --image-ids "imageTag=$SHA" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "auracoach/$DEPLOYABLE:$SHA already in ECR; not pushing again" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Push (rebuilds from cache) with provenance
+        if: inputs.push && steps.exists.outputs.found == 'false'
+        id: push
+        env:
+          REF: ${{ steps.ecr.outputs.registry }}/auracoach/${{ matrix.deployable }}:${{ inputs.sha }}
+        run: |
+          docker buildx build --platform linux/arm64 -f "$DOCKERFILE" \
+            --cache-from "type=gha,scope=$DEPLOYABLE-arm64" --provenance=mode=max \
+            --label "org.opencontainers.image.revision=$SHA" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --tag "$REF" --metadata-file "$RUNNER_TEMP/meta.json" --push .
+          digest="$(jq -r '."containerimage.digest"' "$RUNNER_TEMP/meta.json")"
+          echo "image=${REF%:*}@$digest" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@v3
+        if: steps.push.outputs.image != ''
+        with:
+          cosign-release: v2.4.1
+      - name: Sign and attest the SBOM (keyless)
+        if: steps.push.outputs.image != ''
+        env:
+          IMAGE: ${{ steps.push.outputs.image }}
+        run: |
+          cosign sign --yes "$IMAGE"
+          cosign attest --yes --type cyclonedx --predicate "$RUNNER_TEMP/sbom.cdx.json" "$IMAGE"
+          echo "pushed and signed \`$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"

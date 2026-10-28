@@ -119,3 +119,9 @@ variable "state_kms_key_arn" {
   description = "State key from the bootstrap stack."
   type        = string
 }
+
+variable "nonprod_account_id" {
+  description = "Non-prod account ID whose images releases are promoted from (TAC-37). Empty until non-prod exists."
+  type        = string
+  default     = ""
+}

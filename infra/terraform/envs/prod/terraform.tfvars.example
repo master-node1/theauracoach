@@ -19,3 +19,6 @@ apple_key_id      = ""
 state_bucket      = "auracoach-prod-tfstate-111111111111"
 lock_table        = "auracoach-prod-tflock"
 state_kms_key_arn = "arn:aws:kms:ap-south-1:111111111111:key/00000000-0000-0000-0000-000000000000"
+
+# Release promotion (TAC-37): the non-prod account whose ECR images prod copies by digest.
+nonprod_account_id = "222222222222"
