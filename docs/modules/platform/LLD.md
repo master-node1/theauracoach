@@ -76,8 +76,8 @@ Logging: `pino` JSON with `service`, `requestId`, `traceId`, `route`, `status`, 
 | MeasurementAdded, CheckInSaved, PlateauDetected | progress | nutrition, workout, coach | type, value, date / scores / kind |
 | RecommendationCreated, RecommendationAccepted | coach | notification, audit | id, kind, owner service |
 | SafetyFlagRaised | coach | audit | conversationId, category |
-| ContentPublished | workout, nutrition, coach | same service (cache), audit | contentType, id, version |
-| AuditEvent | every service (profile: `role.grant`, `role.revoke`) | audit | actorId, actorRole, action, entityType, entityId, before/after (ids and codes only), requestId |
+| ContentPublished | workout, nutrition, coach | same service (cache), audit | kind (`exercise`, `template`, `food`, `recipe`), id (live entity id, stable across versions), version |
+| AuditEvent | every service (profile: `role.grant`, `role.revoke`; workout: `exercise.*`, `workout_template.*` for create, update, submit, publish, archive) | audit | actorId, actorRole, action, entityType, entityId, before/after (ids and codes only), requestId |
 
 Compatibility: adding optional fields is a minor change within a version; anything else is a new version, consumers ship support first, producers dual-publish until all consumers move.
 
@@ -104,7 +104,7 @@ Per-user fan-out jobs use `jobId = queue:userId:period` to dedupe across worker 
 
 | Service | Key | TTL | Invalidation |
 |---|---|---|---|
-| workout | `wo:ex:list:{hash}`, `wo:ex:{slug}` | 1 h | ContentPublished(exercise) bumps namespace version |
+| workout | `workout:library:{gen}:list:{query}`, `workout:library:{gen}:detail:{slug}` (body + ETag) | 1 h | publish/archive and ContentPublished(exercise) `INCR workout:library:gen` |
 | workout | `wo:plan:{userId}:{weekStart}` | 5 min | session changes, adaptation |
 | nutrition | `nu:search:{q}:{diet}:{allergens}`, `nu:food:{id}` | 10 min / 1 h | ContentPublished(food) |
 | progress | `pr:dash:{userId}:{date}` | 5 min | every consumed event for that user and date |
