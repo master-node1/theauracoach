@@ -61,14 +61,16 @@ jobs:
           docker buildx build --platform linux/arm64 -f "$DOCKERFILE" \
             --cache-from "type=gha,scope=$DEPLOYABLE-arm64" --cache-to "type=gha,scope=$DEPLOYABLE-arm64,mode=max" \
             --output "type=oci,dest=$RUNNER_TEMP/image.tar" .
+      - name: Unpack the OCI layout for Trivy
+        run: mkdir -p "$RUNNER_TEMP/oci" && tar -xf "$RUNNER_TEMP/image.tar" -C "$RUNNER_TEMP/oci"
       - name: Scan for fixable critical vulnerabilities (gate before any push)
         run: >-
           docker run --rm -v "$RUNNER_TEMP:/scan" "$TRIVY_IMAGE"
-          image --input /scan/image.tar --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress
+          image --input /scan/oci --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress
       - name: SBOM (CycloneDX)
         run: >-
           docker run --rm -v "$RUNNER_TEMP:/scan" "$TRIVY_IMAGE"
-          image --input /scan/image.tar --format cyclonedx --output /scan/sbom.cdx.json --quiet
+          image --input /scan/oci --format cyclonedx --output /scan/sbom.cdx.json --quiet
       - uses: actions/upload-artifact@v4
         with:
           name: sbom-${{ matrix.deployable }}

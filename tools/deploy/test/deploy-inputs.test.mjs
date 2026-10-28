@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deployInputs } from '../deploy-inputs.mjs';
 
+// Fake Cognito pool IDs (not credentials).
+const PROD_POOL = 'ap-south-1_PROD';
 const issuer = (pool) => `https://cognito-idp.ap-south-1.amazonaws.com/${pool}`;
 const oidc = (pool) => ({
   issuer: issuer(pool),
@@ -35,7 +37,7 @@ const nonprod = {
 };
 
 const prod = {
-  oidc: { value: oidc('ap-south-1_PROD') },
+  oidc: { value: oidc(PROD_POOL) },
   helm_inputs: {
     value: {
       image_registry: '111111111111.dkr.ecr.ap-south-1.amazonaws.com',
@@ -72,7 +74,7 @@ test('non-prod environments pick their own Cognito pool and app URL', () => {
 test('prod adds the RDS and ElastiCache subnet CIDRs', () => {
   const { account, service, platform } = deployInputs('prod', prod);
   assert.equal(account, 'prod');
-  assert.equal(service.global.auth.userPoolId, 'ap-south-1_PROD');
+  assert.equal(service.global.auth.userPoolId, PROD_POOL);
   assert.deepEqual(service.global.datastores.postgres.cidrs, ['10.20.32.0/24', '10.20.33.0/24']);
   assert.deepEqual(service.global.datastores.redis.cidrs, ['10.20.32.0/24', '10.20.33.0/24']);
   assert.deepEqual(Object.keys(platform.environments), ['prod']);
