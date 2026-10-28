@@ -57,7 +57,7 @@ export default async function SettingsPage({
       )}
       {error === 'sign-out-all' ? (
         <section className="card warning" role="alert">
-          <p>We couldn&apos;t sign out your other devices. Try again in a moment.</p>
+          <p>{t('settings.signOutEverywhereFailed')}</p>
         </section>
       ) : null}
       <section className="settings-group" aria-labelledby="about-heading">

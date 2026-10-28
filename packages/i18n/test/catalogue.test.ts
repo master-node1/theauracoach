@@ -23,6 +23,9 @@ const SAMPLE_VALUES = {
   email: 'priya@example.com',
   version: '2026-10',
   period: 'morning',
+  min: 10,
+  minutes: 15,
+  list: '10 characters and a number',
   strong: (chunks: unknown) => chunks,
 };
 

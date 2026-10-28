@@ -17,10 +17,11 @@ export function SignOutButton() {
  * devices are signed out at their next request.
  */
 export function SignOutEverywhereButton() {
+  const t = useTranslations('settings');
   return (
     <form action="/api/auth/logout-everywhere" method="post">
       <button type="submit" className="link-button">
-        Sign out of all devices
+        {t('signOutEverywhere')}
       </button>
     </form>
   );

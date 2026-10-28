@@ -47,7 +47,7 @@ export default function SettingsScreen() {
   const { signOut, signOutEverywhere } = useAuth();
   const { me, failed, setTheme, reload } = useMe();
   const flags = useFlags();
-  const [status, setStatus] = useState<SaveStatus>(null);
+  const [status, setStatus] = useState<SaveStatus | 'signOutEverywhereFailed'>(null);
   const [consentsFailed, setConsentsFailed] = useState(false);
   const [name, setName] = useState('');
   const [savedName, setSavedName] = useState('');
@@ -184,9 +184,13 @@ export default function SettingsScreen() {
           style={[styles.status, { color: failure ? p.danger : p.primary }]}
         >
           {failure
-            ? t(failure === 'consents' ? 'settings.consentsFailed' : `common.${failure}`)
-            : status
-              ? t(`common.${status}`)
+            ? t(
+                failure === 'consents' || failure === 'signOutEverywhereFailed'
+                  ? `settings.${failure === 'consents' ? 'consentsFailed' : failure}`
+                  : `common.${failure}`,
+              )
+            : status === 'saved'
+              ? t('common.saved')
               : ''}
         </Text>
 
@@ -360,18 +364,17 @@ export default function SettingsScreen() {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityHint="Signs you out on every phone and browser"
+              accessibilityHint={t('settings.signOutEverywhereHint')}
               onPress={async () => {
                 if (!(await signOutEverywhere())) {
-                  setStatus({
-                    kind: 'error',
-                    text: "We couldn't sign out your other devices. Try again in a moment.",
-                  });
+                  setStatus('signOutEverywhereFailed');
                 }
               }}
               style={row}
             >
-              <Text style={[styles.label, { color: p.primary }]}>Sign out of all devices</Text>
+              <Text style={[styles.label, { color: p.primary }]}>
+                {t('settings.signOutEverywhere')}
+              </Text>
             </Pressable>
           </View>
         </Section>

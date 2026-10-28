@@ -1,3 +1,5 @@
+import { PASSWORD_POLICY, passwordIssues, type IdentityErrorCode } from '@aura/api-client';
+import { formatList } from '@aura/i18n';
 import { radius, size } from '@aura/ui-tokens';
 import type { ReactNode } from 'react';
 import {
@@ -11,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppLocale, useTranslations } from '../i18n';
 import { usePalette } from '../theme';
 import { Logo } from './Icon';
 
@@ -22,6 +25,7 @@ export function AuthScreen(props: {
   children: ReactNode;
 }) {
   const p = usePalette();
+  const t = useTranslations('common');
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: p.bg }]}>
       <KeyboardAvoidingView
@@ -44,9 +48,7 @@ export function AuthScreen(props: {
             ) : null}
           </View>
           <View style={styles.form}>{props.children}</View>
-          <Text style={[styles.fine, { color: p['text-muted'] }]}>
-            Not medical advice · Privacy · Terms
-          </Text>
+          <Text style={[styles.fine, { color: p['text-muted'] }]}>{t('legalLinks')}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -91,12 +93,37 @@ export function Field(props: {
   );
 }
 
-export function ErrorText({ message }: { message: string | null }) {
+const MIN = PASSWORD_POLICY.minLength;
+
+/** What the password still needs, or the policy when it is empty or already fine. */
+export function usePasswordHint(password: string): string {
+  const t = useTranslations('auth.password');
+  const locale = useAppLocale();
+  const issues = passwordIssues(password);
+  if (!password || issues.length === 0) return t('policy', { min: MIN });
+  if (issues.includes('tooLong')) return t('tooLong');
+  const list = formatList(
+    issues.map((issue) => t(`issues.${issue as Exclude<typeof issue, 'tooLong'>}`, { min: MIN })),
+    { locale },
+  );
+  return t('hint', { list });
+}
+
+/** An identity error code in words, or a message that is already words (hosted sign-in). */
+export function ErrorText({
+  code,
+  message,
+}: {
+  code?: IdentityErrorCode | null;
+  message?: string | null;
+}) {
   const p = usePalette();
-  if (!message) return null;
+  const t = useTranslations('auth.identityErrors');
+  const text = code ? t(code, { min: MIN }) : message;
+  if (!text) return null;
   return (
     <Text accessibilityRole="alert" style={[styles.hint, { color: p.danger }]}>
-      {message}
+      {text}
     </Text>
   );
 }

@@ -129,6 +129,18 @@ export function formatPercent(fraction: number, { locale }: { locale: string }):
   );
 }
 
+/**
+ * "a, b and c" in the locale's words. Engines without Intl.ListFormat (older Hermes) get the
+ * English shape, which is the only shipped language today.
+ */
+export function formatList(items: readonly string[], { locale }: { locale: string }): string {
+  if (typeof Intl.ListFormat === 'function') {
+    return new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(items);
+  }
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 type DateStyle = 'full' | 'long' | 'medium' | 'short';
 
 const DATE_STYLES: Record<DateStyle, Intl.DateTimeFormatOptions> = {

@@ -8,6 +8,7 @@ import {
   formatHeight,
   formatInr,
   formatLength,
+  formatList,
   formatNumber,
   formatRange,
   formatTime,
@@ -115,5 +116,20 @@ describe('dates in the user time zone', () => {
     expect(dayPeriod(new Date('2026-10-27T08:00:00Z'), 'Asia/Kolkata')).toBe('afternoon');
     expect(dayPeriod(new Date('2026-10-27T13:00:00Z'), 'Asia/Kolkata')).toBe('evening');
     expect(dayPeriod(new Date('2026-10-27T13:00:00Z'), 'Europe/London')).toBe('afternoon');
+  });
+});
+
+describe('formatList', () => {
+  it('joins items the way the locale does, with a fallback for engines without ListFormat', () => {
+    expect(formatList(['a', 'b', 'c'], { locale })).toBe('a, b and c');
+    expect(formatList(['a'], { locale })).toBe('a');
+    const listFormat = Intl.ListFormat;
+    try {
+      (Intl as { ListFormat?: unknown }).ListFormat = undefined;
+      expect(formatList(['a', 'b', 'c'], { locale })).toBe('a, b and c');
+      expect(formatList([], { locale })).toBe('');
+    } finally {
+      (Intl as { ListFormat?: unknown }).ListFormat = listFormat;
+    }
   });
 });

@@ -1,7 +1,13 @@
 import { createIdentityClient } from '@aura/api-client';
 import { createDevIssuer, createIdentityHandlers, createOAuthHandlers } from '@aura/dev-auth';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createEmailFlows, parseProviders, type EmailFlows } from '../src/auth/email-flows';
+import {
+  createEmailFlows,
+  errorKey,
+  isSignInNotice,
+  parseProviders,
+  type EmailFlows,
+} from '../src/auth/email-flows';
 
 const PASSWORD = 'Correct-Horse-42';
 
@@ -61,22 +67,22 @@ describe('mobile email flows', () => {
     expect((await restarted.signIn('meera@example.com', PASSWORD)).kind).toBe('signedIn');
   });
 
-  it('turns provider errors into plain messages', async () => {
+  it('turns provider errors into codes the screens put into words', async () => {
     expect(await flows.signUp('x@example.com', 'weak')).toMatchObject({
       kind: 'error',
       code: 'InvalidPassword',
     });
     await flows.signUp('x@example.com', PASSWORD);
     expect(await flows.signUp('x@example.com', PASSWORD)).toMatchObject({
+      kind: 'error',
       code: 'UsernameExists',
-      message: expect.stringContaining('already exists'),
     });
     const right = code('x@example.com', 'signUp');
     expect(
       await flows.verify('x@example.com', right === '000000' ? '111111' : '000000'),
     ).toMatchObject({
+      kind: 'error',
       code: 'CodeMismatch',
-      message: expect.stringContaining('not right'),
     });
     expect(await flows.signIn('x@example.com', PASSWORD)).toMatchObject({
       code: 'UserNotConfirmed',
@@ -107,5 +113,14 @@ describe('mobile email flows', () => {
   it('reads only known providers from config', () => {
     expect(parseProviders('SignInWithApple,Facebook')).toEqual(['SignInWithApple']);
     expect(parseProviders(undefined)).toEqual([]);
+  });
+});
+
+describe('codes from route params', () => {
+  it('only passes on codes the catalogue has words for', () => {
+    expect(errorKey('CodeMismatch')).toBe('CodeMismatch');
+    expect(errorKey('SomethingNew')).toBe('Unavailable');
+    expect(isSignInNotice('verified')).toBe(true);
+    expect(isSignInNotice('Your email is confirmed.')).toBe(false);
   });
 });
