@@ -24,5 +24,6 @@ export const userDataPlan: UserDataPlan = {
     WorkoutTemplate: 'Programme templates',
     WorkoutTemplateExercise: 'Programme templates',
     WorkoutPolicy: 'Engine configuration (staff edits)',
+    ContentRevision: 'Exercise library and programme template versions (staff edits)',
   },
 };

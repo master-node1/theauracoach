@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "ppl-6-gym-intermediate-muscle-gain",
+      "name": "Gym muscle: push/pull/legs, 6 days",
+      "goal": "MUSCLE_GAIN",
+      "experience": "INTERMEDIATE",
+      "location": "GYM",
+      "split": "ppl",
+      "daysPerWeek": 6,
+      "days": [
+        {
+          "name": "Push",
+          "focus": "chest, shoulders, triceps",
+          "exercises": [
+            {
+              "exercise": "barbell-bench-press",
+              "sets": 3,
+              "repMin": 6,
+              "repMax": 10,
+              "targetRpe": 8,
+              "restSec": 150
+            },
+            {
+              "exercise": "incline-dumbbell-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 8,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-shoulder-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 8,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-lateral-raise",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 8,
+              "restSec": 45
+            },
+            {
+              "exercise": "triceps-pushdown",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 8,
+              "restSec": 60
+            }
+          ]
+        },
+        {
+          "name": "Pull",
+          "focus": "back and biceps",
+          "exercises": [
+            {
+              "exercise": "lat-pulldown",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 8,
+              "restSec": 90
+            },
+            {
+              "exercise": "barbell-row",
+              "sets": 3,
+              "repMin": 6,
+              "repMax": 10,
+              "targetRpe": 8,
+              "restSec": 120
+            },
+            {
+              "exercise": "seated-cable-row",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 8,
+              "restSec": 90
+            },
+            {
+              "exercise": "face-pull",
+              "sets": 2,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 8,
+              "restSec": 60
+            },
+            {
+              "exercise": "dumbbell-curl",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 8,
+              "restSec": 60
+            }
+          ]
+        },
+        {
+          "name": "Legs",
+          "focus": "legs",
+          "exercises": [
+            {
+              "exercise": "barbell-back-squat",
+              "sets": 3,
+              "repMin": 6,
+              "repMax": 10,
+              "targetRpe": 8,
+              "restSec": 150
+            },
+            {
+              "exercise": "barbell-rdl",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 10,
+              "targetRpe": 8,
+              "restSec": 120
+            },
+            {
+              "exercise": "leg-press",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 8,
+              "restSec": 90
+            },
+            {
+              "exercise": "leg-curl",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 8,
+              "restSec": 60
+            },
+            {
+              "exercise": "standing-calf-raise",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 8,
+              "restSec": 45
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

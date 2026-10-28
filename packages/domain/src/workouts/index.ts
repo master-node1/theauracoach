@@ -9,3 +9,4 @@ export * from './progress-week';
 export * from './substitute';
 export * from './metrics';
 export * from './reschedule';
+export * from './check-template';

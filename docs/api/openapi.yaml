@@ -1334,10 +1334,32 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/admin/exercises:
+    get:
+      tags: [admin]
+      operationId: adminListExerciseVersions
+      summary: List exercise versions (exercise:write, :review or :publish)
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ContentStatus' } }
+        - { name: q, in: query, description: Slug contains, schema: { type: string, maxLength: 80 } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Versions, newest first within each slug
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items: { type: array, items: { $ref: '#/components/schemas/ExerciseRevision' } }
+        '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: [admin]
       operationId: adminCreateExercise
-      summary: Create an exercise draft (permission exercise:write)
+      summary: Create an exercise draft (permission exercise:write); audited
       requestBody:
         required: true
         content:
@@ -1345,18 +1367,148 @@ paths:
             schema: { $ref: '#/components/schemas/ExerciseInput' }
       responses:
         '201':
+          description: Draft created (version 1)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExerciseRevision' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/exercises/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [admin]
+      operationId: adminGetExerciseVersion
+      summary: Get one exercise version
+      responses:
+        '200':
+          description: Version
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExerciseRevision' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [admin]
+      operationId: adminUpdateExercise
+      summary: Edit a draft, or open the next version of a published one (exercise:write); audited
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExerciseInput' }
+      responses:
+        '200':
+          description: Open version edited
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExerciseRevision' }
+        '201':
+          description: New draft version opened from a published or archived one
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExerciseRevision' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/templates:
+    get:
+      tags: [admin]
+      operationId: adminListTemplateVersions
+      summary: List workout template versions (template:write, :review or :publish)
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ContentStatus' } }
+        - { name: q, in: query, schema: { type: string, maxLength: 80 } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Versions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageMeta'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items: { type: array, items: { $ref: '#/components/schemas/TemplateRevision' } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [admin]
+      operationId: adminCreateTemplate
+      summary: Create a workout template draft (template:write); audited
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateInput' }
+      responses:
+        '201':
           description: Draft created
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Exercise' }
-        '403': { $ref: '#/components/responses/Forbidden' }
+              schema: { $ref: '#/components/schemas/TemplateRevision' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/templates/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [admin]
+      operationId: adminGetTemplateVersion
+      summary: Get one template version
+      responses:
+        '200':
+          description: Version
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateRevision' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [admin]
+      operationId: adminUpdateTemplate
+      summary: Edit a draft, or open the next version of a published one (template:write); audited
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateInput' }
+      responses:
+        '200':
+          description: Open version edited
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateRevision' }
+        '201':
+          description: New draft version opened
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateRevision' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/{contentType}/{id}/submit:
+    post:
+      tags: [admin]
+      operationId: adminSubmitContent
+      summary: Send a draft for review (permission <type>:write); audited
+      parameters:
+        - { name: contentType, in: path, required: true, schema: { type: string, enum: [exercises, foods, recipes, templates, prompts] } }
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200': { description: In review }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /v1/admin/{contentType}/{id}/publish:
     post:
       tags: [admin]
       operationId: adminPublishContent
-      summary: Publish a reviewed draft (permission <type>:publish); audited
+      summary: Publish a reviewed version (permission <type>:publish); audited, emits ContentPublished
+      description: Refusals answer 422 PUBLISH_CHECKS_FAILED with one `errors[]` entry per failed check (admin LLD §2).
       parameters:
         - { name: contentType, in: path, required: true, schema: { type: string, enum: [exercises, foods, recipes, templates, prompts] } }
         - $ref: '#/components/parameters/IdPath'
@@ -1365,6 +1517,19 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/{contentType}/{id}/archive:
+    post:
+      tags: [admin]
+      operationId: adminArchiveContent
+      summary: Withdraw a draft or take the live version out of the library (permission <type>:publish); audited
+      parameters:
+        - { name: contentType, in: path, required: true, schema: { type: string, enum: [exercises, foods, recipes, templates, prompts] } }
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200': { description: Archived }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /v1/admin/flags:
     get:
@@ -1940,14 +2105,17 @@ components:
 
     ExerciseSummary:
       type: object
-      required: [id, slug, name, primaryMuscles, equipment]
+      required: [id, slug, name, movementPattern, difficulty, tracking, primaryMuscles, equipment, illustrationKey, thumbnailUrl]
       properties:
         id: { type: string, format: uuid }
         slug: { type: string }
         name: { type: string }
+        movementPattern: { type: string, enum: [squat, hinge, push_h, push_v, pull_h, pull_v, lunge, carry, core, cardio] }
+        difficulty: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
+        tracking: { type: string, enum: [reps, time], description: '`time`: repMin/repMax are seconds' }
         primaryMuscles: { type: array, items: { type: string } }
         equipment: { type: array, items: { type: string } }
-        difficulty: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
+        illustrationKey: { type: [string, 'null'], description: Placeholder art until licensed media exists }
         thumbnailUrl: { type: [string, 'null'], format: uri }
 
     Exercise:
@@ -1956,14 +2124,15 @@ components:
         - type: object
           properties:
             version: { type: integer }
-            movementPattern: { type: string }
+            mechanics: { type: string, enum: [compound, isolation] }
             secondaryMuscles: { type: array, items: { type: string } }
             instructions: { type: array, items: { type: string } }
             cues: { type: array, items: { type: string } }
             commonMistakes: { type: array, items: { type: string } }
             contraindications: { type: array, items: { type: string } }
-            regression: { $ref: '#/components/schemas/ExerciseSummary' }
-            progression: { $ref: '#/components/schemas/ExerciseSummary' }
+            defaultRestSec: { type: integer }
+            regression: { oneOf: [{ $ref: '#/components/schemas/ExerciseSummary' }, { type: 'null' }] }
+            progression: { oneOf: [{ $ref: '#/components/schemas/ExerciseSummary' }, { type: 'null' }] }
             media:
               type: array
               items:
@@ -1974,25 +2143,120 @@ components:
                   url: { type: string, format: uri }
                   captionsUrl: { type: [string, 'null'], format: uri }
                   altText: { type: string }
+                  durationSec: { type: [integer, 'null'] }
+
+    ContentStatus: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, ARCHIVED] }
+
+    ContentRevisionMeta:
+      type: object
+      required: [id, kind, slug, version, status, live, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [exercise, template] }
+        slug: { type: string }
+        version: { type: integer }
+        status: { $ref: '#/components/schemas/ContentStatus' }
+        live: { type: boolean, description: The published version the library serves now }
+        reviewRequired: { type: [string, 'null'], description: 'e.g. trainer: a qualified sign-off is still owed' }
+        createdById: { type: [string, 'null'], format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        submittedAt: { type: [string, 'null'], format: date-time }
+        publishedAt: { type: [string, 'null'], format: date-time }
+        archivedAt: { type: [string, 'null'], format: date-time }
+
+    ExerciseRevision:
+      allOf:
+        - $ref: '#/components/schemas/ContentRevisionMeta'
+        - type: object
+          required: [body]
+          properties:
+            body: { $ref: '#/components/schemas/ExerciseInput' }
+
+    TemplateRevision:
+      allOf:
+        - $ref: '#/components/schemas/ContentRevisionMeta'
+        - type: object
+          required: [body]
+          properties:
+            body: { $ref: '#/components/schemas/TemplateInput' }
+
+    TemplateInput:
+      type: object
+      additionalProperties: false
+      description: templateContentSchema in @aura/contracts. `days` are distinct sessions, cycled over the user's training days.
+      required: [slug, name, goal, experience, location, split, daysPerWeek, days]
+      properties:
+        slug: { type: string, pattern: '^[a-z0-9][a-z0-9-]{2,79}$' }
+        name: { type: string, maxLength: 80 }
+        goal: { type: string, enum: [FAT_LOSS, MUSCLE_GAIN, STRENGTH, ENDURANCE, GENERAL_FITNESS] }
+        experience: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
+        location: { type: string, enum: [GYM, HOME, OUTDOOR] }
+        split: { type: string, enum: [full_body, upper_lower, ppl, upper_lower_conditioning] }
+        daysPerWeek: { type: integer, minimum: 2, maximum: 6 }
+        days:
+          type: array
+          minItems: 1
+          maxItems: 6
+          items:
+            type: object
+            required: [name, focus, exercises]
+            properties:
+              name: { type: string, maxLength: 40 }
+              focus: { type: string, maxLength: 40 }
+              exercises:
+                type: array
+                minItems: 1
+                maxItems: 10
+                items:
+                  type: object
+                  required: [exercise, sets, repMin, repMax, targetRpe, restSec]
+                  properties:
+                    exercise: { type: string, description: Exercise slug }
+                    sets: { type: integer, minimum: 1, maximum: 8 }
+                    repMin: { type: integer, minimum: 1, maximum: 600 }
+                    repMax: { type: integer, minimum: 1, maximum: 600 }
+                    targetRpe: { type: number, minimum: 4, maximum: 10, multipleOf: 0.5 }
+                    restSec: { type: integer, minimum: 0, maximum: 600 }
 
     ExerciseInput:
       type: object
       additionalProperties: false
-      required: [slug, name, movementPattern, mechanics, difficulty, primaryMuscles, equipment, instructions]
+      description: exerciseContentSchema in @aura/contracts. Drafts may be incomplete; the publish checks require the rest.
+      required: [slug, name, movementPattern, mechanics, difficulty]
       properties:
-        slug: { type: string, pattern: '^[a-z0-9-]{3,80}$' }
+        slug: { type: string, pattern: '^[a-z0-9][a-z0-9-]{2,79}$' }
         name: { type: string, maxLength: 80 }
-        movementPattern: { type: string }
+        movementPattern: { type: string, enum: [squat, hinge, push_h, push_v, pull_h, pull_v, lunge, carry, core, cardio] }
         mechanics: { type: string, enum: [compound, isolation] }
         difficulty: { type: string, enum: [BEGINNER, INTERMEDIATE, ADVANCED] }
-        primaryMuscles: { type: array, minItems: 1, items: { type: string } }
-        secondaryMuscles: { type: array, items: { type: string } }
-        equipment: { type: array, items: { type: string } }
-        instructions: { type: array, minItems: 1, items: { type: string, maxLength: 300 } }
-        cues: { type: array, items: { type: string, maxLength: 120 } }
-        commonMistakes: { type: array, items: { type: string, maxLength: 200 } }
+        tracking: { type: string, enum: [reps, time], default: reps }
+        primaryMuscles: { type: array, maxItems: 6, items: { type: string } }
+        secondaryMuscles: { type: array, maxItems: 8, items: { type: string } }
+        equipment: { type: array, maxItems: 4, items: { type: string }, description: 'All needed; `bodyweight` alone for none' }
+        instructions: { type: array, maxItems: 12, items: { type: string, maxLength: 300 } }
+        cues: { type: array, maxItems: 8, items: { type: string, maxLength: 120 } }
+        commonMistakes: { type: array, maxItems: 8, items: { type: string, maxLength: 200 } }
         contraindications: { type: array, items: { type: string } }
-        defaultRestSec: { type: integer, minimum: 15, maximum: 600 }
+        contraindicationsReviewed: { type: boolean, default: false }
+        regression: { type: [string, 'null'], description: Exercise slug }
+        progression: { type: [string, 'null'], description: Exercise slug }
+        defaultRestSec: { type: integer, minimum: 15, maximum: 600, default: 90 }
+        loadIncrementKg: { type: [number, 'null'], exclusiveMinimum: 0, maximum: 10 }
+        metValue: { type: [number, 'null'], exclusiveMinimum: 0, maximum: 25 }
+        illustrationKey: { type: [string, 'null'], maxLength: 120 }
+        media:
+          type: array
+          maxItems: 6
+          items:
+            type: object
+            required: [kind, storageKey]
+            properties:
+              kind: { type: string, enum: [VIDEO, IMAGE, ANIMATION] }
+              storageKey: { type: string, maxLength: 200 }
+              captionsKey: { type: [string, 'null'], maxLength: 200 }
+              altText: { type: string, maxLength: 200 }
+              durationSec: { type: [integer, 'null'], minimum: 1, maximum: 600 }
 
     PlannedExercise:
       type: object

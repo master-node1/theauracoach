@@ -22,6 +22,11 @@ enum ContentStatus {
   ARCHIVED
 }
 
+enum ContentKind {
+  EXERCISE
+  TEMPLATE
+}
+
 enum ExperienceLevel {
   BEGINNER
   INTERMEDIATE
@@ -101,12 +106,15 @@ model MuscleGroup {
   exercises ExerciseMuscle[]
 }
 
+/// The live library: one row per exercise, written when a reviewed version is published
+/// (status PUBLISHED or ARCHIVED). Drafts and every version live in ContentRevision.
 model Exercise {
   id                String          @id @default(uuid()) @db.Uuid
   slug              String          @unique
   name              String
   status            ContentStatus   @default(DRAFT)
   version           Int             @default(1)
+  tracking          String          @default("reps") @db.VarChar(10) // reps | time (seconds in repMin/repMax)
   movementPattern   String          @db.VarChar(30) // squat, hinge, push_h, push_v, pull_h, pull_v, lunge, carry, core, cardio
   mechanics         String          @db.VarChar(10) // compound | isolation
   difficulty        ExperienceLevel
@@ -123,6 +131,8 @@ model Exercise {
   progressionOf     Exercise[]      @relation("Progression")
   defaultRestSec    Int             @default(90)
   metValue          Decimal?        @db.Decimal(4, 1)
+  loadIncrementKg   Decimal?        @db.Decimal(4, 2)
+  illustrationKey   String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   publishedAt       DateTime?
@@ -170,6 +180,7 @@ model ExerciseMedia {
   sortOrder   Int       @default(0)
 }
 
+/// The live template, written on publish like Exercise.
 model WorkoutTemplate {
   id          String                    @id @default(uuid()) @db.Uuid
   slug        String                    @unique
@@ -186,8 +197,34 @@ model WorkoutTemplate {
   plans       WorkoutPlan[]
   createdAt   DateTime                  @default(now())
   updatedAt   DateTime                  @updatedAt
+  publishedAt DateTime?
 
   @@index([status, goal, experience, daysPerWeek, location])
+}
+
+/// Every version of an exercise or template (admin LLD §2): DRAFT -> IN_REVIEW -> PUBLISHED ->
+/// ARCHIVED. Published bodies are never edited; an edit opens version + 1. The live version is the
+/// PUBLISHED one with no supersededAt. At most one DRAFT or IN_REVIEW version per slug.
+model ContentRevision {
+  id             String        @id @default(uuid()) @db.Uuid
+  kind           ContentKind
+  slug           String
+  version        Int
+  status         ContentStatus @default(DRAFT)
+  body           Json
+  reviewRequired String?       @db.VarChar(20) // e.g. trainer: a qualified sign-off is still owed
+  createdById    String?       @db.Uuid // null for the content importer
+  submittedAt    DateTime?
+  submittedById  String?       @db.Uuid
+  publishedAt    DateTime?
+  publishedById  String?       @db.Uuid
+  supersededAt   DateTime?
+  archivedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([kind, slug, version])
+  @@index([kind, status, slug])
 }
 
 model WorkoutTemplateExercise {
