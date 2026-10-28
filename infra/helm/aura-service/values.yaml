@@ -35,6 +35,12 @@ global:
   # Synchronous calls allowed between deployables (service catalog §4). Set in values/common.yaml.
   # Drives INTERNAL_SERVICE_URLS, gateway upstreams and the NetworkPolicy allow-lists.
   callGraph: {}
+  # Deploy input: the user-private S3 bucket (Terraform storage module, bucket_names.user_private).
+  # Every node service writes its part of a data export there (users LLD §3). Objects use SSE-KMS
+  # with the bucket's default key unless kmsKeyId is set. The node role grants access (Stage 1).
+  objectStorage:
+    bucket: ''
+    kmsKeyId: ''
   auth:
     # Deploy inputs from the Cognito user pool.
     issuer: ''
@@ -94,8 +100,8 @@ containerPort: 3000
 # Non-secret environment for every container of this release, on top of what the chart derives.
 env: {}
 
-# The service mirrors role grants to Cognito groups (profile-service): renders IDENTITY_ENDPOINT,
-# COGNITO_USER_POOL_ID and AWS_REGION, which it requires in production.
+# The service mirrors role grants to Cognito groups (profile-service): renders IDENTITY_ENDPOINT and
+# COGNITO_USER_POOL_ID, which it requires in production.
 cognitoAdmin: false
 
 # User the image runs as: node (1000) for NestJS and Next.js, nginx (101) for the gateway.
