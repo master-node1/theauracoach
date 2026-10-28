@@ -88,6 +88,7 @@ helm install "$SERVICE" infra/helm/aura-service -n "$SVC_NS" \
   --set global.auth.issuer=http://dev-auth.invalid \
   --set global.auth.jwksUrl=http://dev-auth.invalid/.well-known/jwks.json \
   --set 'global.auth.clientIds={aura-dev-client}' \
+  --set global.auth.userPoolId=ap-south-1_SMOKE \
   --set secrets.source=existing \
   --set "secrets.existing.app=$SERVICE-env" --set "secrets.existing.migration=$SERVICE-migrate" \
   --wait --timeout 8m || {

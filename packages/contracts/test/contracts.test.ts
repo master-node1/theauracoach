@@ -4,7 +4,11 @@ import {
   eventKey,
   isKnownEvent,
   parseEventData,
+  GRANTABLE_ROLES,
+  hasMfa,
+  PERMISSIONS,
   permissionsFor,
+  roleGrantSchema,
   streamKey,
 } from '../src';
 
@@ -53,19 +57,41 @@ describe('event catalog', () => {
 
 describe('permissions', () => {
   it('unions permissions across roles and ignores unknown roles', () => {
-    const perms = permissionsFor(['user', 'trainer', 'pirate']);
+    const perms = permissionsFor(['user', 'content_editor', 'pirate']);
     expect(perms.has('exercise:write')).toBe(true);
     expect(perms.has('exercise:publish')).toBe(false);
   });
 
-  it('lets content admins publish content but not configure the AI', () => {
-    const perms = permissionsFor(['content_admin']);
-    expect(perms.has('recipe:publish')).toBe(true);
-    expect(perms.has('prompt:publish')).toBe(false);
+  it('splits drafting from reviewing and keeps AI config with owners', () => {
+    expect(permissionsFor(['content_reviewer']).has('template:publish')).toBe(true);
+    expect(permissionsFor(['content_reviewer']).has('food:publish')).toBe(false);
+    expect(permissionsFor(['nutrition_reviewer']).has('recipe:publish')).toBe(true);
+    for (const role of ['content_editor', 'content_reviewer', 'nutrition_reviewer', 'support']) {
+      expect(permissionsFor([role]).has('prompt:publish')).toBe(false);
+      expect(permissionsFor([role]).has('role:grant')).toBe(false);
+    }
   });
 
-  it('gives admin every permission', () => {
-    expect(permissionsFor(['admin']).has('audit:read')).toBe(true);
-    expect(permissionsFor(['admin']).has('prompt:publish')).toBe(true);
+  it('gives owner every permission and user none', () => {
+    expect(permissionsFor(['owner']).size).toBe(PERMISSIONS.length);
+    expect(permissionsFor(['user']).size).toBe(0);
+    expect(GRANTABLE_ROLES).not.toContain('user');
+  });
+
+  it('counts only multi-factor methods as MFA', () => {
+    expect(hasMfa(['pwd', 'mfa'])).toBe(true);
+    expect(hasMfa(['otp'])).toBe(true);
+    expect(hasMfa(['pwd'])).toBe(false);
+    expect(hasMfa(undefined)).toBe(false);
+  });
+});
+
+describe('role grant input', () => {
+  it('takes exactly one of userId or email and a grantable role', () => {
+    expect(roleGrantSchema.safeParse({ email: 'a@example.com', role: 'support' }).success).toBe(
+      true,
+    );
+    expect(roleGrantSchema.safeParse({ role: 'support' }).success).toBe(false);
+    expect(roleGrantSchema.safeParse({ email: 'a@example.com', role: 'user' }).success).toBe(false);
   });
 });

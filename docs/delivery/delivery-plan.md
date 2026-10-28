@@ -63,7 +63,8 @@ flowchart LR
 | Web (Next.js) and mobile (Expo) shells, sign-in through the BFF and PKCE against dev-auth, `packages/ui-tokens` and `packages/api-client`, web Playwright smoke in CI ([TAC-2](https://harisireddi7776.atlassian.net/browse/TAC-2)) | Done |
 | Hosting revision: k3s on EC2 for beta, EKS for growth ([TAC-4](https://harisireddi7776.atlassian.net/browse/TAC-4), ADR-007) | Done |
 | Generic Helm chart `aura-service`, `aura-platform` and non-prod `aura-datastores` charts, values for all 9 deployables × dev/staging/prod, k3s add-on values, CI validation (kubeconform, kube-linter, NetworkPolicy vs catalog) and [deployment](../operations/deployment.md) doc; validated, never applied ([TAC-35](https://harisireddi7776.atlassian.net/browse/TAC-35)) | Done |
-| Terraform `platform` and `service` stacks ([TAC-36](https://harisireddi7776.atlassian.net/browse/TAC-36)), image push and CD disabled until AWS accounts exist ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37)) | Not started |
+| Terraform `platform` stack for Stage 1 (prod and nonprod accounts, state backend, CI fmt/validate/tflint/checkov, plan once credentials exist), validated but not applied; [infrastructure](../operations/infrastructure.md) runbook ([TAC-36](https://harisireddi7776.atlassian.net/browse/TAC-36)) | Done |
+| Terraform `service` stack (add-ons and one `helm_release` per deployable), image push and CD, disabled until AWS accounts exist ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37)) | Not started |
 | OpenTelemetry tracing, metrics and log correlation in every service, local Grafana stack, [monitoring](../operations/monitoring.md) doc ([TAC-5](https://harisireddi7776.atlassian.net/browse/TAC-5)) | Done |
 | EAS dev builds, remaining operations docs (troubleshooting) | Not started |
 

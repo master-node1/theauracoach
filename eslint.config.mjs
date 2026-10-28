@@ -1,3 +1,4 @@
+import { builtinModules } from 'node:module';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
@@ -29,6 +30,35 @@ export default tseslint.config(
             },
           ],
         },
+      ],
+    },
+  },
+  {
+    files: ['packages/domain/src/**/*.ts'],
+    rules: {
+      // ADR-004 engines are pure: no Node APIs, frameworks, persistence or other workspace code.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: builtinModules.map((name) => ({ name, message: 'Domain engines do no I/O.' })),
+          patterns: [
+            { group: ['node:*'], message: 'Domain engines do no I/O.' },
+            {
+              group: ['@nestjs/*', '@prisma/*', '@aura/*', '**/services/*', '**/generated/*'],
+              message: 'Domain engines depend on nothing but their inputs.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        'process',
+        'Buffer',
+        'require',
+        '__dirname',
+        'fetch',
+        'setTimeout',
+        'setInterval',
       ],
     },
   },

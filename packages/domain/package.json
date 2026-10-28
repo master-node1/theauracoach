@@ -1,0 +1,33 @@
+{
+  "name": "@aura/domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic domain engines (no I/O): every number shown to users comes from here (ADR-004)",
+  "exports": {
+    "./nutrition": {
+      "types": "./dist/nutrition/index.d.ts",
+      "default": "./dist/nutrition/index.js"
+    },
+    "./workouts": {
+      "types": "./dist/workouts/index.d.ts",
+      "default": "./dist/workouts/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "decimal.js": "10.6.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "3.2.7",
+    "fast-check": "4.10.2",
+    "vitest": "3.2.7"
+  }
+}

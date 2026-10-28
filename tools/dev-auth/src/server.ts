@@ -1,13 +1,21 @@
 #!/usr/bin/env node
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { createDevIssuer, createOAuthHandlers, type OAuthResult } from './index';
+import {
+  createDevIssuer,
+  createOAuthHandlers,
+  GroupStore,
+  handleGroupTarget,
+  type OAuthResult,
+} from './index';
 
 /**
  * Local Cognito stand-in for docker compose.
  *   GET  /.well-known/jwks.json
  *   POST /token  {"sub":"…","email":"…","groups":["admin"]}  -> {"access_token":"…"}
- *   GET  /oauth2/authorize, POST /oauth2/token, POST /oauth2/revoke, GET /logout
- *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints)
+ *   GET  /oauth2/authorize, POST /oauth2/mfa, POST /oauth2/token, POST /oauth2/revoke, GET /logout
+ *        (Authorization Code + PKCE, shaped like the Cognito hosted endpoints; staff get an MFA step)
+ *   POST /  X-Amz-Target: AWSCognitoIdentityProviderService.AdminAddUserToGroup (also
+ *        AdminRemoveUserFromGroup, AdminListGroupsForUser): profile-service role grants
  * Keys and sessions live in memory and are lost on restart.
  */
 function readBody(req: IncomingMessage): Promise<string> {
@@ -31,8 +39,11 @@ async function main() {
   const port = Number(process.env.PORT ?? 4100);
   const issuer = process.env.DEV_AUTH_ISSUER ?? `http://localhost:${port}`;
   const dev = await createDevIssuer(issuer);
+  const groups = new GroupStore();
   const oauth = createOAuthHandlers(dev, {
     accessTokenTtlSeconds: Number(process.env.DEV_AUTH_ACCESS_TOKEN_TTL ?? 900),
+    groups,
+    ...(process.env.DEV_AUTH_MFA_CODE ? { mfaCode: process.env.DEV_AUTH_MFA_CODE } : {}),
   });
   createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', issuer);
@@ -59,6 +70,21 @@ async function main() {
       }
       if (url.pathname === '/oauth2/authorize' && req.method === 'POST') {
         send(res, oauth.authorizeSubmit(new URLSearchParams(await readBody(req))));
+        return;
+      }
+      if (url.pathname === '/oauth2/mfa' && req.method === 'POST') {
+        send(res, oauth.mfaSubmit(new URLSearchParams(await readBody(req))));
+        return;
+      }
+      if (url.pathname === '/' && req.method === 'POST') {
+        const target = req.headers['x-amz-target'];
+        const raw = await readBody(req);
+        const result = handleGroupTarget(
+          groups,
+          typeof target === 'string' ? target : undefined,
+          raw ? JSON.parse(raw) : {},
+        );
+        send(res, result ?? { status: 400, body: '{"__type":"UnknownOperationException"}' });
         return;
       }
       if (url.pathname === '/oauth2/token' && req.method === 'POST') {

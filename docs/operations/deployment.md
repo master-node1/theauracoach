@@ -50,7 +50,7 @@ Terraform passes these from its outputs. `infra/helm/ci/*.yaml` holds fake examp
 |---|---|---|
 | `image.tag` | aura-service | Git SHA the CD workflow built and pushed |
 | `global.imageRegistry` | aura-service | ECR registry of the account |
-| `global.auth.issuer`, `global.auth.jwksUrl`, `global.auth.clientIds` | aura-service | Cognito user pool and app clients |
+| `global.auth.issuer`, `global.auth.jwksUrl`, `global.auth.clientIds`, `global.auth.userPoolId` | aura-service | Cognito user pool and app clients (the pool id only for profile-service, which mirrors role grants to Cognito groups) |
 | `web.appUrl`, `web.oidcDomainUrl`, `web.oidcClientId` | aura-service (web) | Public domain, Cognito hosted UI domain, web app client |
 | `ingress.host` | aura-service (api-gateway, web) | `origin.<domain>` |
 | `ingress.originVerify.value` | aura-service (api-gateway, web) | Secrets Manager, passed with `set_sensitive` |

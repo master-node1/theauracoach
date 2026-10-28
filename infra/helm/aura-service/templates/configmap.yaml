@@ -20,6 +20,11 @@ data:
   {{- $urls = append $urls (printf "%s=http://%s" . (include "aura.hostPortOf" (dict "ctx" $ "name" .))) }}
   {{- end }}
   INTERNAL_SERVICE_URLS: {{ join "," $urls | quote }}
+  {{- if .Values.cognitoAdmin }}
+  IDENTITY_ENDPOINT: {{ printf "https://cognito-idp.%s.amazonaws.com/" .Values.global.auth.region | quote }}
+  COGNITO_USER_POOL_ID: {{ required "global.auth.userPoolId is required (deploy input)" .Values.global.auth.userPoolId | quote }}
+  AWS_REGION: {{ .Values.global.auth.region | quote }}
+  {{- end }}
   FLAGS_SOURCE: {{ .Values.global.flags.source | quote }}
   {{- if eq .Values.global.flags.source "appconfig" }}
   APPCONFIG_APPLICATION: {{ .Values.global.flags.appconfigApplication | quote }}

@@ -1,6 +1,8 @@
 # profile-service: users, consents, onboarding saga, privacy requests. Calls Cognito admin APIs with the node role (Stage 1).
 # Layered after values/common.yaml and values/env/<env>.yaml. Service catalog: docs/architecture/service-catalog.md
 kind: node-service
+# Role grants mirror to Cognito groups (TAC-9).
+cognitoAdmin: true
 image:
   repository: auracoach/profile-service
 secrets:

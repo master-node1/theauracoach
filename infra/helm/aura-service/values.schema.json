@@ -89,6 +89,7 @@
       }
     },
     "containerPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+    "cognitoAdmin": { "type": "boolean" },
     "env": {
       "type": "object",
       "propertyNames": { "$ref": "#/definitions/envName" },

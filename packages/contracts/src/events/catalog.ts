@@ -70,10 +70,28 @@ export const consentChangedV1 = z.object({
 });
 export type ConsentChangedV1 = z.infer<typeof consentChangedV1>;
 
+/**
+ * An admin action to record in the audit log (admin LLD §5). The owning service writes it to its
+ * outbox in the same transaction as the change; audit-service stores it append-only.
+ * `before` and `after` hold ids and codes only, never free text or health data.
+ */
+export const auditEventV1 = z.object({
+  actorId: z.uuid().nullable(),
+  actorRole: z.string().min(1).max(40),
+  action: z.string().regex(/^[a-z_]+\.[a-z_]+$/, 'Must look like role.grant'),
+  entityType: z.string().min(1).max(40),
+  entityId: z.string().min(1).max(100),
+  before: z.record(z.string(), z.unknown()).nullable(),
+  after: z.record(z.string(), z.unknown()).nullable(),
+  requestId: z.uuid().nullable(),
+});
+export type AuditEventV1 = z.infer<typeof auditEventV1>;
+
 export const eventCatalog = {
   'UserRegistered@1': userRegisteredV1,
   'ProfileChanged@1': profileChangedV1,
   'ConsentChanged@1': consentChangedV1,
+  'AuditEvent@1': auditEventV1,
 } as const;
 
 export type EventKey = keyof typeof eventCatalog;

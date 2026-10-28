@@ -41,6 +41,9 @@ global:
     jwksUrl: ''
     # App client ids whose access tokens services accept (web BFF, mobile).
     clientIds: []
+    # Deploy input: user pool id, for services that call Cognito's admin API (cognitoAdmin: true).
+    userPoolId: ''
+    region: ap-south-1
   otel:
     # OTLP/HTTP endpoint of the in-cluster collector; empty turns telemetry off.
     endpoint: ''
@@ -90,6 +93,10 @@ containerPort: 3000
 
 # Non-secret environment for every container of this release, on top of what the chart derives.
 env: {}
+
+# The service mirrors role grants to Cognito groups (profile-service): renders IDENTITY_ENDPOINT,
+# COGNITO_USER_POOL_ID and AWS_REGION, which it requires in production.
+cognitoAdmin: false
 
 # User the image runs as: node (1000) for NestJS and Next.js, nginx (101) for the gateway.
 podSecurity:

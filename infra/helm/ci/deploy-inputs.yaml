@@ -7,6 +7,7 @@ global:
     issuer: https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLE
     jwksUrl: https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLE/.well-known/jwks.json
     clientIds: [example-web-client, example-mobile-client]
+    userPoolId: ap-south-1_EXAMPLE
 image:
   tag: 0123456789abcdef0123456789abcdef01234567
 web:

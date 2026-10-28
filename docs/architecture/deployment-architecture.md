@@ -160,7 +160,7 @@ Rules:
 | `platform` | VPC (public + isolated subnets, S3 gateway endpoint), k3s EC2 node (launch template with cloud-init installing a pinned k3s version, Elastic IP, instance role, auto-recovery and status-check alarms, Instance Scheduler tag in non-prod), RDS, ElastiCache (prod), S3, CloudFront + WAF, Route 53 + DNS Firewall, Cognito, ECR, observability, budgets | VPC across 3 AZs with NAT, EKS + Karpenter, RDS Multi-AZ, ElastiCache with replica, VPC interface endpoints; the rest unchanged |
 | `service` | One `helm_release` per service from its `infra/helm/values` files plus deploy inputs, database and DB user creation, Secrets Manager entries; Helm provider points at the k3s API through the SSM port forward | Same module; Helm provider points at EKS; adds the IRSA role per service |
 
-The stage is a variable of the `platform` stack (`hosting_stage = "k3s" | "eks"`), so both live in one codebase and the `service` stack does not change between them. Nothing is applied until the owner provides AWS accounts (TAC-44).
+The Stage 1 `platform` stack is written ([TAC-36](https://harisireddi7776.atlassian.net/browse/TAC-36)): `infra/terraform/envs/{prod,nonprod}` composed from `infra/terraform/modules`, with the state backend in `infra/terraform/bootstrap`; details and apply steps in [infrastructure](../operations/infrastructure.md). Stage 2 adds an EKS variant of the compute modules in the same codebase, and the `service` stack does not change between them. Nothing is applied until the owner provides AWS accounts (TAC-44).
 
 ## 6. Backup and disaster recovery
 
