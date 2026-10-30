@@ -11,7 +11,7 @@ describe('optimistic settings saves', () => {
     const status = await saveOptimistically(apply, undo, async () => ({}));
     expect(apply).toHaveBeenCalledOnce();
     expect(undo).not.toHaveBeenCalled();
-    expect(status).toEqual({ kind: 'saved', text: 'Saved' });
+    expect(status).toBe('saved');
   });
 
   it('undoes the change and explains a failed save', async () => {
@@ -20,11 +20,11 @@ describe('optimistic settings saves', () => {
       Promise.reject(new ApiError(422, null)),
     );
     expect(undo).toHaveBeenCalledOnce();
-    expect(invalid).toEqual({ kind: 'error', text: 'Please check the value and try again.' });
+    expect(invalid).toBe('invalidValue');
     const offline = await saveOptimistically(vi.fn(), vi.fn(), () =>
       Promise.reject(new TypeError('Network request failed')),
     );
-    expect(offline?.text).toMatch(/connection/);
+    expect(offline).toBe('saveFailed');
   });
 });
 
@@ -76,6 +76,6 @@ describe('account deletion with a fresh sign-in', () => {
       () => Promise.reject(new TypeError('Network request failed')),
       vi.fn(),
     );
-    expect(outcome).toEqual({ kind: 'error', text: expect.stringMatching(/connection/) });
+    expect(outcome).toEqual({ kind: 'error', reason: 'failed' });
   });
 });

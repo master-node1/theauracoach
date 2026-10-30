@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 import { Logo } from '@/components/Logo';
 import { SignOutButton } from '@/components/SignOutButton';
@@ -8,9 +9,10 @@ import { currentSession } from '@/lib/server-session';
 import MfaRequiredPage from '../forbidden/mfa/page';
 import ForbiddenPage from '../forbidden/page';
 
-export const metadata: Metadata = {
-  title: { default: 'Admin', template: '%s · Admin · AuraCoach' },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations();
+  return { title: { default: t('admin.title'), template: t('meta.adminTitleTemplate') } };
+}
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await currentSession();
@@ -24,17 +26,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     const usable = page && (!page.permission || hasPermission(session.groups, page.permission));
     return { label, href: usable ? page.href : null };
   });
+  const t = await getTranslations('admin');
   return (
     <div className="admin-shell">
-      <nav aria-label="Admin" className="admin-sidebar">
+      <nav aria-label={t('nav')} className="admin-sidebar">
         <div className="brand">
           <Logo />
-          <span>Admin</span>
+          <span>{t('title')}</span>
         </div>
         <AdminNav items={items} />
         <div className="rail-spacer" />
         <a className="nav-link muted" href="/">
-          Back to app
+          {t('backToApp')}
         </a>
         <div className="account">
           <span className="account-email">{session.email}</span>

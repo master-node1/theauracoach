@@ -4,6 +4,7 @@ import {
   eventKey,
   isKnownEvent,
   parseEventData,
+  passwordIssues,
   GRANTABLE_ROLES,
   hasMfa,
   PERMISSIONS,
@@ -93,5 +94,13 @@ describe('role grant input', () => {
     );
     expect(roleGrantSchema.safeParse({ role: 'support' }).success).toBe(false);
     expect(roleGrantSchema.safeParse({ email: 'a@example.com', role: 'user' }).success).toBe(false);
+  });
+});
+
+describe('passwordIssues', () => {
+  it('lists each unmet rule as a code', () => {
+    expect(passwordIssues('short')).toEqual(['minLength', 'upper', 'number']);
+    expect(passwordIssues('Long-enough-pass-9')).toEqual([]);
+    expect(passwordIssues(`A1${'a'.repeat(300)}`)).toEqual(['tooLong']);
   });
 });

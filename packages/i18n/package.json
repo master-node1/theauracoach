@@ -1,0 +1,21 @@
+{
+  "name": "@aura/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AuraCoach message catalogues (ICU), locale resolution, pseudo-locale and formatting helpers shared by the web and mobile apps (docs/ux/content-style-guide.md)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "use-intl": "4.14.9",
+    "vitest": "3.2.7"
+  }
+}

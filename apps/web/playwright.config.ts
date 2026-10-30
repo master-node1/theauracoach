@@ -38,6 +38,8 @@ export default defineConfig({
       AUTH_RATE_LIMIT_PER_MINUTE: '1000',
       // Test-only key for the throwaway session cookies of this run.
       SESSION_SECRET: process.env.SESSION_SECRET ?? 'playwright-only-session-key-0123456789',
+      // Lets e2e/pseudo-locale.spec.ts switch to en-XA with the aura-locale cookie.
+      I18N_PSEUDO_LOCALE: 'true',
     },
   },
 });

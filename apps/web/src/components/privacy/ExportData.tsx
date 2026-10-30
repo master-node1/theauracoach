@@ -7,6 +7,7 @@ import {
   exportState,
   type DataRequestResponse,
 } from '@aura/api-client';
+import { useTranslations } from 'next-intl';
 import { browserApi } from '@/lib/browser-api';
 
 /**
@@ -15,7 +16,8 @@ import { browserApi } from '@/lib/browser-api';
  */
 export function ExportData({ initial }: { initial: DataRequestResponse | null }) {
   const [latest, setLatest] = useState(initial);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const t = useTranslations('privacy.export');
   const state = exportState(latest);
 
   // While an export is being prepared, check on it with a growing interval.
@@ -43,7 +45,7 @@ export function ExportData({ initial }: { initial: DataRequestResponse | null })
   }, [latest, state.busy]);
 
   async function start() {
-    setError(null);
+    setFailed(false);
     try {
       setLatest(await browserApi.requestExport());
     } catch (err) {
@@ -52,25 +54,25 @@ export function ExportData({ initial }: { initial: DataRequestResponse | null })
         if (running) setLatest(running);
         return;
       }
-      setError('Could not start the export. Check your connection and try again.');
+      setFailed(true);
     }
   }
 
   return (
     <div className="settings-row" data-testid="export-row">
       <span>
-        Export my data
+        {t('title')}
         <span className="settings-hint" aria-live="polite" data-testid="export-state">
-          {error ?? state.label}
+          {failed ? t('failed') : t(`states.${state.key}`)}
         </span>
       </span>
       {state.downloadUrl ? (
         <a className="button small" href={state.downloadUrl} download data-testid="export-download">
-          Download
+          {t('download')}
         </a>
       ) : (
         <button type="button" className="button small" onClick={start} disabled={state.busy}>
-          {state.busy ? 'Preparing…' : 'Export'}
+          {state.busy ? t('busy') : t('start')}
         </button>
       )}
     </div>

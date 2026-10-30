@@ -38,9 +38,12 @@ const emailFlows = createEmailFlows(
   createIdentityClient({ endpoint: appConfig.identityEndpoint, clientId }),
 );
 
+export type HostedSignInError = 'provider' | 'tokens';
+
 interface AuthContextValue {
   status: Status;
-  error: string | null;
+  /** Why the hosted sign-in failed, as a key under `auth.errors`. */
+  error: HostedSignInError | null;
   /** Hosted sign-in; with a provider it goes straight to Google or Apple. */
   signIn: (provider?: IdentityProviderName) => Promise<void>;
   /** Stores tokens from an email flow (sign-in, or verify after sign-up). */
@@ -59,7 +62,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<HostedSignInError | null>(null);
   const tokens = useRef<StoredTokens | null>(null);
 
   const store = useCallback(async (next: StoredTokens | null) => {
@@ -120,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const response = await request.promptAsync(discovery);
       if (response.type === 'error') {
-        setError('Sign-in failed. Please try again.');
+        setError('provider');
         return;
       }
       if (response.type !== 'success') return;
@@ -133,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
         await store(fromTokenResult(result, null));
       } catch {
-        setError('We could not finish signing you in. Please try again.');
+        setError('tokens');
       }
     },
     [store],

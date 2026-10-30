@@ -5,10 +5,8 @@ import {
   deletionConfirmed,
   exportPollDelayMs,
   exportState,
-  formatDeletionDate,
   isPendingDeletion,
   isReauthRequired,
-  pendingDeletionText,
 } from '../src';
 
 const ready = {
@@ -58,15 +56,11 @@ describe('privacy helpers', () => {
     expect(deletionConfirmed('DELET')).toBe(false);
   });
 
-  it('formats the deletion date in the user time zone', () => {
-    expect(formatDeletionDate('2026-11-26T20:00:00.000Z', 'Asia/Kolkata')).toBe('27 November 2026');
-    expect(pendingDeletionText('2026-11-26T10:00:00.000Z')).toContain('26 November 2026');
-  });
-
   it('describes each export state', () => {
-    expect(exportState(null).busy).toBe(false);
+    expect(exportState(null)).toMatchObject({ key: 'none', busy: false });
+    expect(exportState({ ...ready, status: 'failed', downloadUrl: null }).key).toBe('failed');
     expect(exportState({ ...ready, status: 'running', downloadUrl: null }).busy).toBe(true);
-    expect(exportState(ready).downloadUrl).toBe('https://s3/x.zip');
+    expect(exportState(ready)).toMatchObject({ key: 'ready', downloadUrl: 'https://s3/x.zip' });
     expect(exportState({ ...ready, status: 'expired', downloadUrl: null }).downloadUrl).toBeNull();
     expect(exportPollDelayMs(0)).toBe(2000);
     expect(exportPollDelayMs(50)).toBe(10_000);

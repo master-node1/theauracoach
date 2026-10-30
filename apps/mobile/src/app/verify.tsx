@@ -1,3 +1,4 @@
+import { AUTH_CODE_TTL_SECONDS, type IdentityErrorCode } from '@aura/api-client';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
@@ -9,14 +10,16 @@ import {
   SecondaryButton,
   TextLink,
 } from '../components/AuthForm';
+import { useTranslations } from '../i18n';
 
 export default function VerifyScreen() {
   const params = useLocalSearchParams<{ email?: string }>();
   const { completeSignIn, emailFlows } = useAuth();
+  const t = useTranslations('auth');
   const [email, setEmail] = useState(params.email ?? '');
   const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<IdentityErrorCode | null>(null);
+  const [resent, setResent] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function submit() {
@@ -30,39 +33,39 @@ export default function VerifyScreen() {
         pathname: result.route,
         params: { email: result.email, ...(result.notice ? { notice: result.notice } : {}) },
       });
-    } else setError(result.message);
+    } else setError(result.code);
   }
 
   async function resend() {
     setError(null);
-    setNotice(undefined);
+    setResent(false);
     const result = await emailFlows.resend(email);
-    if (result?.kind === 'error') setError(result.message);
-    else setNotice('We sent a new code. The old one no longer works.');
+    if (result?.kind === 'error') setError(result.code);
+    else setResent(true);
   }
 
   return (
     <AuthScreen
-      title="Check your email"
-      lede={
-        params.email
-          ? `We sent a 6-digit code to ${params.email}.`
-          : 'Enter the 6-digit code we sent you.'
-      }
-      notice={notice}
+      title={t('verify.title')}
+      lede={params.email ? t('verify.ledeEmail', { email: params.email }) : t('verify.lede')}
+      notice={resent ? t('notices.codeResent') : undefined}
     >
-      <Field label="Email" kind="email" value={email} onChangeText={setEmail} />
+      <Field label={t('fields.email')} kind="email" value={email} onChangeText={setEmail} />
       <Field
-        label="Code"
+        label={t('fields.code')}
         kind="code"
         value={code}
         onChangeText={setCode}
-        hint="It works for 15 minutes."
+        hint={t('codeHint', { minutes: AUTH_CODE_TTL_SECONDS / 60 })}
       />
-      <ErrorText message={error} />
-      <PrimaryButton label={busy ? 'Checking…' : 'Verify email'} busy={busy} onPress={submit} />
-      <SecondaryButton label="Send a new code" onPress={resend} disabled={!email} />
-      <TextLink label="Use a different email" onPress={() => router.replace('/sign-up')} />
+      <ErrorText code={error} />
+      <PrimaryButton
+        label={busy ? t('verify.busy') : t('verify.submit')}
+        busy={busy}
+        onPress={submit}
+      />
+      <SecondaryButton label={t('verify.resend')} onPress={resend} disabled={!email} />
+      <TextLink label={t('verify.differentEmail')} onPress={() => router.replace('/sign-up')} />
     </AuthScreen>
   );
 }

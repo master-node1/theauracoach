@@ -1,20 +1,25 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { config } from '@/lib/config';
 import { AuthCard, ProviderButtons } from '../AuthCard';
 import { SignUpForm } from '../AuthForms';
 
-export const metadata: Metadata = { title: 'Create an account' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('auth.signUp');
+  return { title: t('metaTitle') };
+}
 export const dynamic = 'force-dynamic';
 
-export default function SignUpPage() {
+export default async function SignUpPage() {
+  const t = await getTranslations('auth.signUp');
   return (
-    <AuthCard title="Create your account" lede="You must be 18 or older to use AuraCoach.">
+    <AuthCard title={t('title')} lede={t('lede')}>
       <ProviderButtons providers={config().identityProviders} returnTo="/" />
       <SignUpForm />
       <div className="auth-links">
-        <span>Already have an account?</span>
-        <Link href="/auth/sign-in">Sign in</Link>
+        <span>{t('haveAccount')}</span>
+        <Link href="/auth/sign-in">{t('signIn')}</Link>
       </div>
     </AuthCard>
   );

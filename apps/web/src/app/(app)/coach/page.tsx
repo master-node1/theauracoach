@@ -1,14 +1,20 @@
 import type { Metadata } from 'next';
+import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
 
-export const metadata: Metadata = { title: 'Coach' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('nav');
+  return { title: t('coach') };
+}
 
 export default function CoachPage() {
+  const t = useTranslations();
   return (
     <>
-      <h1 className="page-title">Coach</h1>
+      <h1 className="page-title">{t('nav.coach')}</h1>
       <section className="card">
-        <h2>Coming soon</h2>
-        <p>Ask your AI coach about training and food here.</p>
+        <h2>{t('common.comingSoon')}</h2>
+        <p>{t('coach.placeholder')}</p>
       </section>
     </>
   );

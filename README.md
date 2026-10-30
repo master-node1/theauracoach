@@ -24,7 +24,7 @@ Reasoning for each choice is in the [ADRs](docs/architecture/ADR/); what each se
 services/api-gateway  services/profile-service  services/workout-service  services/nutrition-service
 services/progress-service  services/coach-service  services/notification-service  services/audit-service
 apps/web  apps/mobile
-packages/contracts  packages/domain  packages/service-kit  packages/api-client  packages/ui  packages/ui-tokens
+packages/contracts  packages/domain  packages/service-kit  packages/api-client  packages/ui  packages/ui-tokens  packages/i18n
 tools/dev-auth  tools/testing  tools/scaffold  tests/e2e
 infra/local  docs/
 ```

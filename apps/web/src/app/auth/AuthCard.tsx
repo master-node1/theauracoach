@@ -1,11 +1,7 @@
+import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/Logo';
 import type { IdentityProviderName } from '@/lib/config';
-
-const PROVIDER_LABELS: Record<IdentityProviderName, string> = {
-  Google: 'Continue with Google',
-  SignInWithApple: 'Continue with Apple',
-};
 
 /** The frame every sign-in, sign-up and reset page shares. */
 export function AuthCard(props: {
@@ -14,6 +10,7 @@ export function AuthCard(props: {
   notice?: { text: string; tone: 'info' | 'warning' } | null;
   children: ReactNode;
 }) {
+  const t = useTranslations('common');
   return (
     <main className="welcome">
       <div className="welcome-card">
@@ -31,7 +28,7 @@ export function AuthCard(props: {
           </div>
         ) : null}
         {props.children}
-        <p className="fine-print">Not medical advice · Privacy · Terms</p>
+        <p className="fine-print">{t('legalLinks')}</p>
       </div>
     </main>
   );
@@ -42,6 +39,7 @@ export function AuthCard(props: {
  * configured in IDENTITY_PROVIDERS are shown, so nothing appears until the IdP apps exist.
  */
 export function ProviderButtons(props: { providers: IdentityProviderName[]; returnTo: string }) {
+  const t = useTranslations('auth');
   if (props.providers.length === 0) return null;
   return (
     <>
@@ -51,10 +49,10 @@ export function ProviderButtons(props: { providers: IdentityProviderName[]; retu
           className="button"
           href={`/api/auth/login?provider=${p}&returnTo=${encodeURIComponent(props.returnTo)}`}
         >
-          {PROVIDER_LABELS[p]}
+          {t(`providers.${p}`)}
         </a>
       ))}
-      <div className="auth-divider">or with email</div>
+      <div className="auth-divider">{t('orWithEmail')}</div>
     </>
   );
 }
