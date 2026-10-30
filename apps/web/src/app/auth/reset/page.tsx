@@ -1,25 +1,28 @@
+import { AUTH_CODE_TTL_SECONDS } from '@aura/api-client';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { config } from '@/lib/config';
 import { readPending } from '@/lib/email-auth';
 import { AuthCard } from '../AuthCard';
 import { ResetForm } from '../AuthForms';
 
-export const metadata: Metadata = { title: 'Choose a new password' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('auth.reset');
+  return { title: t('title') };
+}
 export const dynamic = 'force-dynamic';
 
 export default async function ResetPage() {
+  const t = await getTranslations('auth.reset');
   const pending = await readPending(config(), (await headers()).get('cookie'));
   return (
-    <AuthCard
-      title="Choose a new password"
-      lede="If the email has an account, a code is on its way. It works once, for 15 minutes."
-    >
+    <AuthCard title={t('title')} lede={t('lede', { minutes: AUTH_CODE_TTL_SECONDS / 60 })}>
       <ResetForm initialEmail={pending?.email ?? ''} />
       <div className="auth-links">
-        <Link href="/auth/forgot">Send a new code</Link>
-        <Link href="/auth/sign-in">Back to sign in</Link>
+        <Link href="/auth/forgot">{t('resend')}</Link>
+        <Link href="/auth/sign-in">{t('back')}</Link>
       </div>
     </AuthCard>
   );

@@ -2,7 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { pendingDeletionText, type DataRequestResponse } from '@aura/api-client';
+import type { DataRequestResponse } from '@aura/api-client';
+import { formatDate } from '@aura/i18n';
+import { useLocale, useTranslations } from 'next-intl';
 import { SignOutButton } from '@/components/SignOutButton';
 import { browserApi } from '@/lib/browser-api';
 import { ExportData } from './ExportData';
@@ -22,16 +24,18 @@ export function PendingDeletion({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const t = useTranslations('privacy.pending');
+  const locale = useLocale();
 
   async function restore() {
     setBusy(true);
-    setError(null);
+    setFailed(false);
     try {
       await browserApi.restoreAccount();
       router.refresh();
     } catch {
-      setError('Could not restore the account. Try again in a moment.');
+      setFailed(true);
       setBusy(false);
     }
   }
@@ -39,17 +43,21 @@ export function PendingDeletion({
   return (
     <section className="card pending-deletion" aria-labelledby="pending-title">
       <h1 id="pending-title" className="page-title">
-        Account scheduled for deletion
+        {t('title')}
       </h1>
-      <p data-testid="pending-deletion-text">{pendingDeletionText(deletionDueAt, timeZone)}</p>
-      {error && (
+      <p data-testid="pending-deletion-text">
+        {deletionDueAt
+          ? t('body', { date: formatDate(new Date(deletionDueAt), { locale, timeZone }) })
+          : t('bodySoon')}
+      </p>
+      {failed && (
         <p className="settings-status error" role="alert">
-          {error}
+          {t('failed')}
         </p>
       )}
       <div className="dialog-actions">
         <button type="button" className="button primary" onClick={restore} disabled={busy}>
-          {busy ? 'Restoring…' : 'Restore my account'}
+          {busy ? t('busy') : t('restore')}
         </button>
       </div>
       <div className="settings-list">

@@ -1,43 +1,22 @@
 import type { CoachTone, ConsentPurpose, Theme } from '@aura/contracts';
 
 /**
- * Settings copy and choices shared by the web and mobile Settings screens (W13 in
- * docs/ux/hifi-designs.md), so both apps offer the same options with the same words.
+ * Settings choices shared by the web and mobile Settings screens (W13 in
+ * docs/ux/hifi-designs.md), so both apps offer the same options. Their labels live in the
+ * packages/i18n catalogue under `settings.*`.
  */
 
 /** Optional consents users can switch on and off. CORE_SERVICE is required and not listed. */
-export const SETTINGS_CONSENTS: readonly {
-  purpose: ConsentPurpose;
-  label: string;
-  description: string;
-}[] = [
-  {
-    purpose: 'AI_COACH',
-    label: 'AI coach',
-    description: 'Lets the coach read your plan and logs to answer questions and suggest changes.',
-  },
-  {
-    purpose: 'NOTIFICATIONS',
-    label: 'Reminders',
-    description: 'Workout and meal reminders and a weekly summary.',
-  },
-  {
-    purpose: 'MARKETING',
-    label: 'Product news',
-    description: 'Occasional emails about new features.',
-  },
-];
+export const SETTINGS_CONSENTS = [
+  'AI_COACH',
+  'NOTIFICATIONS',
+  'MARKETING',
+] as const satisfies readonly ConsentPurpose[];
+export type SettingsConsent = (typeof SETTINGS_CONSENTS)[number];
 
-export const THEME_OPTIONS: readonly { value: Theme; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-];
+export const THEME_OPTIONS: readonly Theme[] = ['system', 'light', 'dark'];
 
-export const COACH_TONE_OPTIONS: readonly { value: CoachTone; label: string }[] = [
-  { value: 'supportive', label: 'Supportive' },
-  { value: 'direct', label: 'Direct' },
-];
+export const COACH_TONE_OPTIONS: readonly CoachTone[] = ['supportive', 'direct'];
 
 /** Time zones offered in Settings; the user's current zone is added if it is not listed. */
 export const COMMON_TIME_ZONES = [
@@ -60,7 +39,7 @@ export function consentState(
   consents: readonly { purpose: ConsentPurpose; granted: boolean }[],
 ): Record<ConsentPurpose, boolean> {
   const state = {} as Record<ConsentPurpose, boolean>;
-  for (const { purpose } of SETTINGS_CONSENTS) state[purpose] = false;
+  for (const purpose of SETTINGS_CONSENTS) state[purpose] = false;
   for (const c of consents) state[c.purpose] = c.granted;
   return state;
 }

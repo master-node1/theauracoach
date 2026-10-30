@@ -1,7 +1,14 @@
 'use client';
 
-import { identityErrorMessage, passwordHint } from '@aura/api-client';
+import {
+  AUTH_CODE_TTL_SECONDS,
+  PASSWORD_POLICY,
+  isIdentityErrorCode,
+  passwordIssues,
+} from '@aura/api-client';
+import { formatList } from '@aura/i18n';
 import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 
 /**
@@ -86,11 +93,30 @@ function Field(props: {
   );
 }
 
+const MINUTES = AUTH_CODE_TTL_SECONDS / 60;
+const MIN = PASSWORD_POLICY.minLength;
+
+/** What the password still needs, or the policy while the field is empty. */
+function usePasswordHint(password: string): { hint: string; ok: boolean } {
+  const t = useTranslations('auth.password');
+  const locale = useLocale();
+  const issues = passwordIssues(password);
+  if (!password) return { hint: t('policy', { min: MIN }), ok: false };
+  if (issues.length === 0) return { hint: t('policy', { min: MIN }), ok: true };
+  if (issues.includes('tooLong')) return { hint: t('tooLong'), ok: false };
+  const list = formatList(
+    issues.map((issue) => t(`issues.${issue as Exclude<typeof issue, 'tooLong'>}`, { min: MIN })),
+    { locale },
+  );
+  return { hint: t('hint', { list }), ok: false };
+}
+
 function ErrorText({ code, children }: { code: string | null; children?: ReactNode }) {
+  const t = useTranslations('auth.identityErrors');
   if (!code) return null;
   return (
     <p className="auth-error" role="alert">
-      {identityErrorMessage(code)} {children}
+      {t(isIdentityErrorCode(code) ? code : 'Unavailable', { min: MIN })} {children}
     </p>
   );
 }
@@ -99,25 +125,33 @@ export function SignInForm({ returnTo }: { returnTo: string }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { busy, disabled, error, submit } = useSubmit('sign-in');
+  const t = useTranslations('auth.signIn');
+  const f = useTranslations('auth.fields');
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     void submit({ email, password, returnTo });
   };
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
       <Field
-        label="Password"
+        label={f('email')}
+        type="email"
+        value={email}
+        onChange={setEmail}
+        autoComplete="email"
+      />
+      <Field
+        label={f('password')}
         type="password"
         value={password}
         onChange={setPassword}
         autoComplete="current-password"
       />
       <ErrorText code={error}>
-        {error === 'UserNotConfirmed' ? <Link href="/auth/verify">Enter your code</Link> : null}
+        {error === 'UserNotConfirmed' ? <Link href="/auth/verify">{t('enterCode')}</Link> : null}
       </ErrorText>
       <button className="button primary" type="submit" disabled={disabled}>
-        {busy ? 'Signing in…' : 'Sign in'}
+        {busy ? t('busy') : t('submit')}
       </button>
     </form>
   );
@@ -127,10 +161,12 @@ export function SignUpForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { busy, disabled, error, setError, submit } = useSubmit('sign-up');
-  const hint = password ? passwordHint(password) : null;
+  const t = useTranslations('auth.signUp');
+  const f = useTranslations('auth.fields');
+  const hint = usePasswordHint(password);
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (passwordHint(password)) {
+    if (!hint.ok) {
       setError('InvalidPassword');
       return;
     }
@@ -138,20 +174,26 @@ export function SignUpForm() {
   };
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
       <Field
-        label="Password"
+        label={f('email')}
+        type="email"
+        value={email}
+        onChange={setEmail}
+        autoComplete="email"
+      />
+      <Field
+        label={f('password')}
         type="password"
         value={password}
         onChange={setPassword}
         autoComplete="new-password"
-        hint={hint ?? 'At least 10 characters, with upper- and lower-case letters and a number.'}
+        hint={hint.hint}
       />
       <ErrorText code={error}>
-        {error === 'UsernameExists' ? <Link href="/auth/sign-in">Sign in</Link> : null}
+        {error === 'UsernameExists' ? <Link href="/auth/sign-in">{t('signIn')}</Link> : null}
       </ErrorText>
       <button className="button primary" type="submit" disabled={disabled}>
-        {busy ? 'Creating account…' : 'Create account'}
+        {busy ? t('busy') : t('submit')}
       </button>
     </form>
   );
@@ -163,6 +205,8 @@ export function VerifyForm({ initialEmail }: { initialEmail: string }) {
   const [resent, setResent] = useState(false);
   const verify = useSubmit('verify');
   const resend = useSubmit('resend');
+  const t = useTranslations('auth');
+  const f = useTranslations('auth.fields');
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     void verify.submit({ email, code });
@@ -173,24 +217,30 @@ export function VerifyForm({ initialEmail }: { initialEmail: string }) {
   };
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
       <Field
-        label="Code"
+        label={f('email')}
+        type="email"
+        value={email}
+        onChange={setEmail}
+        autoComplete="email"
+      />
+      <Field
+        label={f('code')}
         type="text"
         inputMode="numeric"
         value={code}
         onChange={setCode}
         autoComplete="one-time-code"
-        hint="The 6-digit code we emailed you. It works for 15 minutes."
+        hint={t('codeHint', { minutes: MINUTES })}
       />
       <ErrorText code={verify.error ?? resend.error} />
       {resent ? (
         <p className="auth-hint" role="status">
-          We sent a new code. The old one no longer works.
+          {t('notices.codeResent')}
         </p>
       ) : null}
       <button className="button primary" type="submit" disabled={verify.disabled}>
-        {verify.busy ? 'Checking…' : 'Verify email'}
+        {verify.busy ? t('verify.busy') : t('verify.submit')}
       </button>
       <button
         className="button"
@@ -198,7 +248,7 @@ export function VerifyForm({ initialEmail }: { initialEmail: string }) {
         onClick={onResend}
         disabled={resend.disabled || !email}
       >
-        Send a new code
+        {t('verify.resend')}
       </button>
     </form>
   );
@@ -207,16 +257,24 @@ export function VerifyForm({ initialEmail }: { initialEmail: string }) {
 export function ForgotForm() {
   const [email, setEmail] = useState('');
   const { busy, disabled, error, submit } = useSubmit('forgot');
+  const t = useTranslations('auth.forgot');
+  const f = useTranslations('auth.fields');
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     void submit({ email });
   };
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
+      <Field
+        label={f('email')}
+        type="email"
+        value={email}
+        onChange={setEmail}
+        autoComplete="email"
+      />
       <ErrorText code={error} />
       <button className="button primary" type="submit" disabled={disabled}>
-        {busy ? 'Sending…' : 'Send reset code'}
+        {busy ? t('busy') : t('submit')}
       </button>
     </form>
   );
@@ -227,10 +285,12 @@ export function ResetForm({ initialEmail }: { initialEmail: string }) {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const { busy, disabled, error, setError, submit } = useSubmit('reset');
-  const hint = password ? passwordHint(password) : null;
+  const t = useTranslations('auth');
+  const f = useTranslations('auth.fields');
+  const hint = usePasswordHint(password);
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (passwordHint(password)) {
+    if (!hint.ok) {
       setError('InvalidPassword');
       return;
     }
@@ -238,29 +298,35 @@ export function ResetForm({ initialEmail }: { initialEmail: string }) {
   };
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
       <Field
-        label="Code"
+        label={f('email')}
+        type="email"
+        value={email}
+        onChange={setEmail}
+        autoComplete="email"
+      />
+      <Field
+        label={f('code')}
         type="text"
         inputMode="numeric"
         value={code}
         onChange={setCode}
         autoComplete="one-time-code"
-        hint="The 6-digit code we emailed you. It works once, for 15 minutes."
+        hint={t('resetCodeHint', { minutes: MINUTES })}
       />
       <Field
-        label="New password"
+        label={f('newPassword')}
         type="password"
         value={password}
         onChange={setPassword}
         autoComplete="new-password"
-        hint={hint ?? 'At least 10 characters, with upper- and lower-case letters and a number.'}
+        hint={hint.hint}
       />
       <ErrorText code={error}>
-        {error === 'ExpiredCode' ? <Link href="/auth/forgot">Send a new code</Link> : null}
+        {error === 'ExpiredCode' ? <Link href="/auth/forgot">{t('reset.resend')}</Link> : null}
       </ErrorText>
       <button className="button primary" type="submit" disabled={disabled}>
-        {busy ? 'Saving…' : 'Set new password'}
+        {busy ? t('reset.busy') : t('reset.submit')}
       </button>
     </form>
   );

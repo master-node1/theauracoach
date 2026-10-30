@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { PendingDeletion } from '../components/privacy/PendingDeletion';
+import { I18nProvider } from '../i18n';
 import { MeProvider, useFlags, useMe } from '../preferences';
 import { useScheme } from '../theme';
 
@@ -46,7 +47,11 @@ function RootStack() {
 
 function SignedInData({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
-  return <MeProvider enabled={status === 'signedIn'}>{children}</MeProvider>;
+  return (
+    <MeProvider enabled={status === 'signedIn'}>
+      <I18nProvider>{children}</I18nProvider>
+    </MeProvider>
+  );
 }
 
 export default function RootLayout() {

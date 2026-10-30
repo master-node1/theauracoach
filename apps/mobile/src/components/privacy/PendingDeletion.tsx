@@ -1,10 +1,11 @@
-import { pendingDeletionText } from '@aura/api-client';
+import { formatDate } from '@aura/i18n';
 import { radius, size } from '@aura/ui-tokens';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApi } from '../../api';
 import { useAuth } from '../../auth/AuthProvider';
+import { useAppLocale, useTranslations } from '../../i18n';
 import { useMe } from '../../preferences';
 import { usePalette } from '../../theme';
 import { ExportRow } from './ExportRow';
@@ -19,16 +20,19 @@ export function PendingDeletion() {
   const { signOut } = useAuth();
   const { me, reload } = useMe();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const t = useTranslations();
+  const locale = useAppLocale();
+  const due = me?.deletionDueAt;
 
   const restore = async () => {
     setBusy(true);
-    setError(null);
+    setFailed(false);
     try {
       await api.restoreAccount();
       await reload();
     } catch {
-      setError('Could not restore the account. Try again in a moment.');
+      setFailed(true);
       setBusy(false);
     }
   };
@@ -38,14 +42,21 @@ export function PendingDeletion() {
     <SafeAreaView style={[styles.fill, { backgroundColor: p.bg }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text accessibilityRole="header" style={[styles.title, text]}>
-          Account scheduled for deletion
+          {t('privacy.pending.title')}
         </Text>
         <Text style={[styles.body, text]}>
-          {pendingDeletionText(me?.deletionDueAt ?? null, me?.timezone)}
+          {due
+            ? t('privacy.pending.body', {
+                date: formatDate(new Date(due), {
+                  locale,
+                  timeZone: me?.timezone ?? 'Asia/Kolkata',
+                }),
+              })
+            : t('privacy.pending.bodySoon')}
         </Text>
-        {error ? (
+        {failed ? (
           <Text accessibilityRole="alert" style={[styles.body, { color: p.danger }]}>
-            {error}
+            {t('privacy.pending.failed')}
           </Text>
         ) : null}
         <Pressable
@@ -56,14 +67,14 @@ export function PendingDeletion() {
           style={[styles.primary, { backgroundColor: p.primary }]}
         >
           <Text style={[styles.buttonText, { color: p['on-primary'] }]}>
-            {busy ? 'Restoring…' : 'Restore my account'}
+            {busy ? t('privacy.pending.busy') : t('privacy.pending.restore')}
           </Text>
         </Pressable>
         <View style={[styles.card, { backgroundColor: p.surface, borderColor: p.border }]}>
           <ExportRow />
         </View>
         <Pressable accessibilityRole="button" onPress={() => void signOut()} style={styles.link}>
-          <Text style={[styles.buttonText, { color: p.primary }]}>Sign out</Text>
+          <Text style={[styles.buttonText, { color: p.primary }]}>{t('common.signOut')}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

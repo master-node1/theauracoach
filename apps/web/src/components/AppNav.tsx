@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { tabs } from '@aura/ui-tokens';
 import { Icon, Logo } from './Logo';
 import { SignOutButton } from './SignOutButton';
@@ -24,33 +25,35 @@ export function AppNav({
   settings: boolean;
 }) {
   const pathname = usePathname();
+  const t = useTranslations();
   return (
-    <nav aria-label="Main" className="rail">
+    <nav aria-label={t('nav.main')} className="rail">
       <div className="brand">
         <Logo />
-        <span className="label">AuraCoach</span>
+        <span className="label">{t('common.appName')}</span>
       </div>
       {tabs.map((tab) => {
         const href = hrefFor(tab.id);
         const current = href === '/' ? pathname === '/' : pathname.startsWith(href);
+        const label = t(`nav.${tab.id}`);
         return (
           <Link
             key={tab.id}
             href={href}
             className="nav-link"
             aria-current={current ? 'page' : undefined}
-            title={tab.label}
+            title={label}
           >
             <Icon path={tab.icon} />
-            <span className="label">{tab.label}</span>
+            <span className="label">{label}</span>
           </Link>
         );
       })}
       <div className="rail-spacer" />
       {staff && (
-        <Link href="/admin" className="nav-link muted rail-extra" title="Admin console">
+        <Link href="/admin" className="nav-link muted rail-extra" title={t('nav.adminConsole')}>
           <Icon path={SHIELD} />
-          <span className="label">Admin console</span>
+          <span className="label">{t('nav.adminConsole')}</span>
         </Link>
       )}
       <div className="account rail-extra">
@@ -58,7 +61,7 @@ export function AppNav({
           <Link
             href="/settings"
             className="account-link"
-            title="Settings"
+            title={t('common.settings')}
             aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
           >
             <span className="avatar" aria-hidden="true">
@@ -67,7 +70,7 @@ export function AppNav({
             <span className="account-email" data-testid="account-email">
               {email}
             </span>
-            <span className="visually-hidden">Settings</span>
+            <span className="visually-hidden">{t('common.settings')}</span>
           </Link>
         ) : (
           <>

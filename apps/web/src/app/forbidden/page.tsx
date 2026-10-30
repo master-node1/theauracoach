@@ -1,16 +1,22 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
 
-export const metadata: Metadata = { title: 'No access' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('forbidden');
+  return { title: t('title') };
+}
 
 export default function ForbiddenPage() {
+  const t = useTranslations('forbidden');
   return (
     <main className="welcome">
       <div className="welcome-card">
-        <h1>You don&apos;t have access to this page</h1>
-        <p>The admin console is for AuraCoach staff. Ask an admin if you need a role.</p>
+        <h1>{t('heading')}</h1>
+        <p>{t('body')}</p>
         <Link className="button" href="/">
-          Back to Today
+          {t('back')}
         </Link>
       </div>
     </main>

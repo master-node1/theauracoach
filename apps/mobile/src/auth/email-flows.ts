@@ -2,11 +2,12 @@ import {
   IdentityError,
   confirmSignUpSchema,
   emailOnlySchema,
-  identityErrorMessage,
+  isIdentityErrorCode,
   resetPasswordSchema,
   signInSchema,
   signUpSchema,
   type IdentityClient,
+  type IdentityErrorCode,
   type IdentityTokens,
 } from '@aura/api-client';
 import { fromTokenResult, nowSeconds, type StoredTokens } from './tokens';
@@ -17,20 +18,36 @@ import { fromTokenResult, nowSeconds, type StoredTokens } from './tokens';
  * directly (no BFF on mobile); tokens go straight to the secure store through AuthProvider.
  */
 
-/** A step's outcome: tokens to store, a screen to go to, or a message to show. */
+/** What the sign-in screen says after a flow sends the user back to it (`auth.notices.*`). */
+export type SignInNotice = 'verified' | 'passwordChanged';
+
+/**
+ * A step's outcome: tokens to store, a screen to go to, or an error code. Screens turn codes into
+ * words from the catalogue (`auth.identityErrors.*`), so this file holds no user-facing text.
+ */
 export type FlowResult =
   | { kind: 'signedIn'; tokens: StoredTokens }
-  | { kind: 'next'; route: '/verify' | '/reset' | '/sign-in'; email: string; notice?: string }
-  | { kind: 'error'; code: string; message: string };
+  | {
+      kind: 'next';
+      route: '/verify' | '/reset' | '/sign-in';
+      email: string;
+      notice?: SignInNotice;
+    }
+  | { kind: 'error'; code: IdentityErrorCode };
 
-const fail = (code: string): FlowResult => ({
-  kind: 'error',
-  code,
-  message: identityErrorMessage(code),
-});
+const fail = (code: IdentityErrorCode): FlowResult => ({ kind: 'error', code });
 
 function caught(err: unknown): FlowResult {
   return fail(err instanceof IdentityError ? err.code : 'Unavailable');
+}
+
+export function isSignInNotice(value: unknown): value is SignInNotice {
+  return value === 'verified' || value === 'passwordChanged';
+}
+
+/** An error code from anywhere (a flow, a route param) as one the catalogue has words for. */
+export function errorKey(code: string): IdentityErrorCode {
+  return isIdentityErrorCode(code) ? code : 'Unavailable';
 }
 
 export function storedTokens(tokens: IdentityTokens, now = nowSeconds()): StoredTokens {
@@ -102,7 +119,7 @@ export function createEmailFlows(identity: IdentityClient, now = nowSeconds): Em
         kind: 'next',
         route: '/sign-in',
         email,
-        notice: 'Your email is confirmed. Sign in to continue.',
+        notice: 'verified',
       };
     },
 
@@ -154,7 +171,7 @@ export function createEmailFlows(identity: IdentityClient, now = nowSeconds): Em
           kind: 'next',
           route: '/sign-in',
           email,
-          notice: 'Your password is changed. Sign in with the new one.',
+          notice: 'passwordChanged',
         };
       } catch (err) {
         return caught(err);
@@ -163,16 +180,12 @@ export function createEmailFlows(identity: IdentityClient, now = nowSeconds): Em
   };
 }
 
-export const IDENTITY_PROVIDER_LABELS = {
-  Google: 'Continue with Google',
-  SignInWithApple: 'Continue with Apple',
-} as const;
-export type IdentityProviderName = keyof typeof IDENTITY_PROVIDER_LABELS;
+/** Labels live in the catalogue at `auth.providers.*`. */
+export const IDENTITY_PROVIDERS = ['Google', 'SignInWithApple'] as const;
+export type IdentityProviderName = (typeof IDENTITY_PROVIDERS)[number];
 
 /** `EXPO_PUBLIC_IDENTITY_PROVIDERS=Google,SignInWithApple`; unknown names are dropped. */
 export function parseProviders(value: string | undefined): IdentityProviderName[] {
   const names = (value ?? '').split(',').map((p) => p.trim());
-  return (Object.keys(IDENTITY_PROVIDER_LABELS) as IdentityProviderName[]).filter((p) =>
-    names.includes(p),
-  );
+  return IDENTITY_PROVIDERS.filter((p) => names.includes(p));
 }

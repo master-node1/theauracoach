@@ -3,11 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import {
-  DELETE_ACCOUNT_COPY,
   DELETE_CONFIRMATION,
+  DELETION_GRACE_DAYS,
   deletionConfirmed,
   isReauthRequired,
 } from '@aura/api-client';
+import { useTranslations } from 'next-intl';
 import { browserApi } from '@/lib/browser-api';
 
 /** Where the fresh sign-in returns to: Settings, with the dialog open again. */
@@ -24,7 +25,9 @@ export function DeleteAccount({ resume }: { resume: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [typed, setTyped] = useState(resume ? DELETE_CONFIRMATION : '');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const t = useTranslations('privacy.delete');
+  const days = DELETION_GRACE_DAYS;
 
   useEffect(() => {
     if (resume) dialog.current?.showModal();
@@ -34,7 +37,7 @@ export function DeleteAccount({ resume }: { resume: boolean }) {
     event.preventDefault();
     if (!deletionConfirmed(typed)) return;
     setBusy(true);
-    setError(null);
+    setFailed(false);
     try {
       await browserApi.deleteAccount();
       dialog.current?.close();
@@ -45,7 +48,7 @@ export function DeleteAccount({ resume }: { resume: boolean }) {
         window.location.assign(`/api/auth/login?reauth=1&returnTo=${encodeURIComponent(RESUME)}`);
         return;
       }
-      setError('Could not delete the account. Check your connection and try again.');
+      setFailed(true);
       setBusy(false);
     }
   }
@@ -54,15 +57,15 @@ export function DeleteAccount({ resume }: { resume: boolean }) {
     <>
       <div className="settings-row">
         <span className="danger-text">
-          Delete account
-          <span className="settings-hint">Locks it now, erases everything after 30 days.</span>
+          {t('title')}
+          <span className="settings-hint">{t('hint', { days })}</span>
         </span>
         <button
           type="button"
           className="button small danger"
           onClick={() => dialog.current?.showModal()}
         >
-          Delete…
+          {t('open')}
         </button>
       </div>
       <dialog
@@ -72,15 +75,17 @@ export function DeleteAccount({ resume }: { resume: boolean }) {
         aria-describedby={`${ids}-body`}
       >
         <form onSubmit={confirm}>
-          <h2 id={`${ids}-title`}>{DELETE_ACCOUNT_COPY.title}</h2>
-          <p id={`${ids}-body`}>{DELETE_ACCOUNT_COPY.body}</p>
-          <p className="settings-muted">{DELETE_ACCOUNT_COPY.exportHint}</p>
+          <h2 id={`${ids}-title`}>{t('dialogTitle')}</h2>
+          <p id={`${ids}-body`}>{t('body', { days })}</p>
+          <p className="settings-muted">{t('exportHint')}</p>
           {resume ? (
-            <p className="settings-muted">You signed in again. Press Delete account to finish.</p>
+            <p className="settings-muted">{t('resumed')}</p>
           ) : (
-            <p className="settings-muted">{DELETE_ACCOUNT_COPY.reauth}</p>
+            <p className="settings-muted">{t('reauth')}</p>
           )}
-          <label htmlFor={`${ids}-confirm`}>Type {DELETE_CONFIRMATION} to confirm</label>
+          <label htmlFor={`${ids}-confirm`}>
+            {t('confirmLabel', { word: DELETE_CONFIRMATION })}
+          </label>
           <input
             id={`${ids}-confirm`}
             className="input"
@@ -89,9 +94,9 @@ export function DeleteAccount({ resume }: { resume: boolean }) {
             autoCapitalize="characters"
             onChange={(e) => setTyped(e.target.value)}
           />
-          {error && (
+          {failed && (
             <p className="settings-status error" role="alert">
-              {error}
+              {t('failed')}
             </p>
           )}
           <div className="dialog-actions">
@@ -101,14 +106,14 @@ export function DeleteAccount({ resume }: { resume: boolean }) {
               onClick={() => dialog.current?.close()}
               disabled={busy}
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"
               className="button small danger"
               disabled={busy || !deletionConfirmed(typed)}
             >
-              {busy ? 'Deleting…' : 'Delete account'}
+              {busy ? t('busy') : t('submit')}
             </button>
           </div>
         </form>

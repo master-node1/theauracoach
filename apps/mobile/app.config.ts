@@ -26,6 +26,8 @@ const config: ExpoConfig = {
     ),
     identityEndpoint: process.env.EXPO_PUBLIC_IDENTITY_ENDPOINT,
     identityProviders: process.env.EXPO_PUBLIC_IDENTITY_PROVIDERS,
+    /** en-XA forces the pseudo-locale for layout checks; unset follows the device. */
+    locale: process.env.EXPO_PUBLIC_LOCALE,
   },
 };
 

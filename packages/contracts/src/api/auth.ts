@@ -23,6 +23,19 @@ export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** What is wrong with a password, as codes the apps turn into catalogue text (TAC-15). */
+export type PasswordIssue = 'tooLong' | 'minLength' | 'lower' | 'upper' | 'number';
+
+export function passwordIssues(password: string): PasswordIssue[] {
+  if (password.length > PASSWORD_POLICY.maxLength) return ['tooLong'];
+  const issues: PasswordIssue[] = [];
+  if (password.length < PASSWORD_POLICY.minLength) issues.push('minLength');
+  if (!/[a-z]/.test(password)) issues.push('lower');
+  if (!/[A-Z]/.test(password)) issues.push('upper');
+  if (!/[0-9]/.test(password)) issues.push('number');
+  return issues;
+}
+
 /** What is wrong with a password, as short phrases for one sentence ("Use at least …"). */
 export function passwordProblems(password: string): string[] {
   const problems: string[] = [];

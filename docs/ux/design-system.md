@@ -108,6 +108,8 @@ Charts: Victory Native (mobile) and Recharts (web) wrapped by one `@aura/charts`
 
 ## 7. Content style
 
+The full rules are in the [content style guide](content-style-guide.md); the essentials:
+
 - "You've done 2 of 3 sessions this week" not "You missed 1".
 - Numbers: "≈ 1,850 kcal" for estimates; exact only for user-entered values.
 - Safety copy reviewed by a qualified professional before launch.

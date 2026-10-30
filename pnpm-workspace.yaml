@@ -13,6 +13,8 @@ onlyBuiltDependencies:
 # protobufjs (from the OTLP exporters) only runs a version check on install.
 ignoredBuiltDependencies:
   - protobufjs
+  # next-intl's message extractor (unused): ships prebuilt binaries, the install script only rebuilds.
+  - '@parcel/watcher'
 overrides:
   # Keep one OpenTelemetry instrumentation line (0.223 / api 1.9) across Prisma and the contrib packages.
   '@prisma/instrumentation>@opentelemetry/instrumentation': 0.223.0

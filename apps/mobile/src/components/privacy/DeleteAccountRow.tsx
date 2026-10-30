@@ -1,9 +1,10 @@
-import { DELETE_ACCOUNT_COPY, DELETE_CONFIRMATION, deletionConfirmed } from '@aura/api-client';
+import { DELETE_CONFIRMATION, DELETION_GRACE_DAYS, deletionConfirmed } from '@aura/api-client';
 import { radius, size } from '@aura/ui-tokens';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi } from '../../api';
 import { useAuth } from '../../auth/AuthProvider';
+import { useTranslations } from '../../i18n';
 import { useMe } from '../../preferences';
 import { deleteWithReauth } from '../../settings/privacy';
 import { usePalette } from '../../theme';
@@ -20,7 +21,9 @@ export function DeleteAccountRow({ style }: { style?: object }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<'reauthAgain' | 'failed' | null>(null);
+  const t = useTranslations('privacy.delete');
+  const days = DELETION_GRACE_DAYS;
 
   const close = () => {
     setOpen(false);
@@ -38,7 +41,7 @@ export function DeleteAccountRow({ style }: { style?: object }) {
       close();
       await reload();
     } else if (outcome.kind === 'error') {
-      setError(outcome.text);
+      setError(outcome.reason);
     }
   };
 
@@ -48,12 +51,12 @@ export function DeleteAccountRow({ style }: { style?: object }) {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityHint="Locks the account now and erases it after 30 days"
+        accessibilityHint={t('a11yHint', { days })}
         onPress={() => setOpen(true)}
         style={[styles.row, style]}
       >
-        <Text style={[styles.label, { color: p.danger }]}>Delete account</Text>
-        <Text style={[styles.small, muted]}>Erased after 30 days</Text>
+        <Text style={[styles.label, { color: p.danger }]}>{t('title')}</Text>
+        <Text style={[styles.small, muted]}>{t('summary', { days })}</Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
         <View style={styles.backdrop}>
@@ -62,16 +65,16 @@ export function DeleteAccountRow({ style }: { style?: object }) {
             style={[styles.sheet, { backgroundColor: p.surface, borderColor: p.border }]}
           >
             <Text accessibilityRole="header" style={[styles.title, text]}>
-              {DELETE_ACCOUNT_COPY.title}
+              {t('dialogTitle')}
             </Text>
-            <Text style={[styles.small, text]}>{DELETE_ACCOUNT_COPY.body}</Text>
-            <Text style={[styles.small, muted]}>{DELETE_ACCOUNT_COPY.exportHint}</Text>
-            <Text style={[styles.small, muted]}>{DELETE_ACCOUNT_COPY.reauth}</Text>
+            <Text style={[styles.small, text]}>{t('body', { days })}</Text>
+            <Text style={[styles.small, muted]}>{t('exportHint')}</Text>
+            <Text style={[styles.small, muted]}>{t('reauth')}</Text>
             <Text nativeID="delete-confirm" style={[styles.label, text]}>
-              Type {DELETE_CONFIRMATION} to confirm
+              {t('confirmLabel', { word: DELETE_CONFIRMATION })}
             </Text>
             <TextInput
-              accessibilityLabel={`Type ${DELETE_CONFIRMATION} to confirm`}
+              accessibilityLabel={t('confirmLabel', { word: DELETE_CONFIRMATION })}
               accessibilityLabelledBy="delete-confirm"
               value={typed}
               onChangeText={setTyped}
@@ -85,7 +88,7 @@ export function DeleteAccountRow({ style }: { style?: object }) {
             />
             {error ? (
               <Text accessibilityRole="alert" style={[styles.small, { color: p.danger }]}>
-                {error}
+                {t(error)}
               </Text>
             ) : null}
             <View style={styles.actions}>
@@ -95,7 +98,7 @@ export function DeleteAccountRow({ style }: { style?: object }) {
                 onPress={close}
                 style={[styles.button, { borderColor: p.border }]}
               >
-                <Text style={[styles.label, text]}>Cancel</Text>
+                <Text style={[styles.label, text]}>{t('cancel')}</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -109,7 +112,7 @@ export function DeleteAccountRow({ style }: { style?: object }) {
                 ]}
               >
                 <Text style={[styles.label, { color: '#FFFFFF' }]}>
-                  {busy ? 'Deleting…' : 'Delete account'}
+                  {busy ? t('busy') : t('submit')}
                 </Text>
               </Pressable>
             </View>

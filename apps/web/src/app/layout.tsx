@@ -1,11 +1,17 @@
 import type { Metadata, Viewport } from 'next';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { cssVariables } from '@aura/ui-tokens';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: { default: 'AuraCoach', template: '%s · AuraCoach' },
-  description: 'Your trainer and nutrition coach, any time.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('meta');
+  const common = await getTranslations('common');
+  return {
+    title: { default: common('appName'), template: t('titleTemplate') },
+    description: t('description'),
+  };
+}
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -15,13 +21,17 @@ export const viewport: Viewport = {
 
 const tokens = cssVariables();
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
   return (
-    <html lang="en-IN">
+    <html lang={locale}>
       <head>
         <style id="aura-tokens">{tokens}</style>
       </head>
-      <body>{children}</body>
+      <body>
+        {/* Client components get the request's locale and catalogue from here. */}
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+      </body>
     </html>
   );
 }

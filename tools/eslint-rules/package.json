@@ -1,0 +1,16 @@
+{
+  "name": "@aura/eslint-rules",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Repository ESLint rules, loaded by the root eslint.config.mjs",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "eslint": "9.39.5",
+    "typescript-eslint": "8.71.1",
+    "vitest": "3.2.7"
+  }
+}

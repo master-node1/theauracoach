@@ -18,6 +18,8 @@ export const appConfig = {
     clientId: extra.oidcClientId ?? 'aura-dev-client',
     scopes: ['openid', 'email', 'profile'],
   },
+  /** Locale override (EXPO_PUBLIC_LOCALE); only the en-XA pseudo-locale is honoured besides the device's. */
+  locale: extra.locale ?? null,
   /**
    * Flag values until `GET /v1/me/flags` answers, and whenever it cannot: catalogue defaults with
    * `EXPO_PUBLIC_FEATURE_<KEY>` overrides. Screens read flags with `useFlags()` (preferences.tsx).

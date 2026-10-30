@@ -8,6 +8,7 @@ import {
   eventKey,
   isKnownEvent,
   parseEventData,
+  passwordIssues,
   GRANTABLE_ROLES,
   hasMfa,
   PERMISSIONS,
@@ -152,5 +153,13 @@ describe('food catalogue inputs', () => {
 
   it('keeps patches to the fields sent', () => {
     expect(adminFoodPatchSchema.parse({ name: 'Arhar dal' })).toEqual({ name: 'Arhar dal' });
+  });
+});
+
+describe('passwordIssues', () => {
+  it('lists each unmet rule as a code', () => {
+    expect(passwordIssues('short')).toEqual(['minLength', 'upper', 'number']);
+    expect(passwordIssues('Long-enough-pass-9')).toEqual([]);
+    expect(passwordIssues(`A1${'a'.repeat(300)}`)).toEqual(['tooLong']);
   });
 });

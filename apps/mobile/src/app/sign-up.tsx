@@ -1,8 +1,7 @@
-import { passwordHint } from '@aura/api-client';
+import type { IdentityErrorCode } from '@aura/api-client';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
-import { IDENTITY_PROVIDER_LABELS } from '../auth/email-flows';
 import {
   AuthScreen,
   ErrorText,
@@ -10,56 +9,55 @@ import {
   PrimaryButton,
   SecondaryButton,
   TextLink,
+  usePasswordHint,
 } from '../components/AuthForm';
 import { appConfig } from '../config';
-
-const POLICY = 'At least 10 characters, with upper- and lower-case letters and a number.';
+import { useTranslations } from '../i18n';
 
 export default function SignUpScreen() {
   const { signIn, emailFlows } = useAuth();
+  const t = useTranslations('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<IdentityErrorCode | null>(null);
   const [busy, setBusy] = useState(false);
+  const hint = usePasswordHint(password);
 
   async function submit() {
     setBusy(true);
     setError(null);
     const result = await emailFlows.signUp(email, password);
     setBusy(false);
-    if (result.kind === 'error') setError(result.message);
+    if (result.kind === 'error') setError(result.code);
     else if (result.kind === 'next') {
       router.replace({ pathname: result.route, params: { email: result.email } });
     }
   }
 
   return (
-    <AuthScreen title="Create your account" lede="You must be 18 or older to use AuraCoach.">
+    <AuthScreen title={t('signUp.title')} lede={t('signUp.lede')}>
       {appConfig.identityProviders.map((provider) => (
         <SecondaryButton
           key={provider}
-          label={IDENTITY_PROVIDER_LABELS[provider]}
+          label={t(`providers.${provider}`)}
           onPress={() => void signIn(provider)}
         />
       ))}
-      <Field label="Email" kind="email" value={email} onChangeText={setEmail} />
+      <Field label={t('fields.email')} kind="email" value={email} onChangeText={setEmail} />
       <Field
-        label="Password"
+        label={t('fields.password')}
         kind="new-password"
         value={password}
         onChangeText={setPassword}
-        hint={(password && passwordHint(password)) || POLICY}
+        hint={hint}
       />
-      <ErrorText message={error} />
+      <ErrorText code={error} />
       <PrimaryButton
-        label={busy ? 'Creating account…' : 'Create account'}
+        label={busy ? t('signUp.busy') : t('signUp.submit')}
         busy={busy}
         onPress={submit}
       />
-      <TextLink
-        label="Already have an account? Sign in"
-        onPress={() => router.replace('/sign-in')}
-      />
+      <TextLink label={t('signUp.haveAccountLink')} onPress={() => router.replace('/sign-in')} />
     </AuthScreen>
   );
 }
