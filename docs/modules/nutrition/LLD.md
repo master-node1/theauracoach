@@ -7,10 +7,14 @@ Service: **nutrition-service** · see the [service catalog](../../architecture/s
 Food catalogue and search, serving normalisation, logging, daily summaries, targets engine, meal-plan generator, recipes, grocery lists, barcode lookup, target adaptation.
 
 ```text
-services/nutrition-service/src/
-  controllers/ foods.controller.ts logs.controller.ts targets.controller.ts meal-plans.controller.ts recipes.controller.ts
-  application/ food-search.service.ts logging.service.ts targets.service.ts meal-plan.service.ts barcode.service.ts grocery.service.ts
-  infrastructure/ nutrition.repository.ts off.client.ts search.repository.ts
+services/nutrition-service/
+  content/nutrition/       curated ingredients, units, cooked forms, recipes/<region>.json (TAC-14)
+  src/catalogue/           content loader (Zod), records, composite builder, idempotent catalogue writer
+  src/import/              `pnpm nutrition:import <curated|fdc|ifct>` (csv, classify, fdc, ifct, cli)
+  src/search/              food-search.service.ts, foods.controller.ts (/v1/foods, /internal/v1/foods/search)
+  src/admin/               /v1/admin/foods, /v1/admin/recipes, content workflow + audit
+  src/qa/                  nightly data QA job (worker)
+  (later) logs, targets, meal plans, barcode, grocery
 packages/domain/src/nutrition/            (@aura/domain/nutrition, TAC-12)
   targets.ts assessment.ts normalise-serving.ts composite-recipe.ts meal-plan.ts adapt-targets.ts
   decimal.ts diet.ts rationale.ts errors.ts types.ts
@@ -64,10 +68,36 @@ Daily totals are the sum of entry snapshots (always grams-normalised), recompute
 
 Recipe ingredients in raw grams → sum nutrients → divide by `cookedYieldG` → per-100 g cooked profile → published as `FoodItem(source=CURATED_RECIPE, state=COOKED)` with household units (e.g. katori 150 g, roti 40 g each). Confidence: HIGH if all ingredients HIGH and yield measured, MEDIUM if yield estimated, LOW if any ingredient LOW. Oil is explicit (recipes specify oil grams; restaurant variants carry +30% fat note).
 
+### Curated catalogue (TAC-14)
+
+Curated content lives in `services/nutrition-service/content/nutrition` (inside the service so the image and `turbo --affected` include it), hand-formatted one record per line and validated with Zod in CI (`test/content.test.ts`):
+
+- `ingredients.json`: ~150 ingredients, per 100 g edible portion `[kcal, protein, available carbs, fat, fibre, Na?, Fe?, Ca?]`, local names, aisle category, diet flags, allergens, density for liquids, household units. Source `CURATED_INGREDIENT`, confidence MEDIUM: starter values from IFCT/FDC-style references until a nutritionist checks them against the licensed source.
+- `units.json`: katori 150 g, roti 40 g, plate 250 g, glass 250 ml, cup 240 ml, ladle 75 ml, tbsp 15 ml, tsp 5 ml. Volume units become grams through each liquid's density.
+- `yield-factors.json`: cooked forms of staples (rice ×2.8, toor dal ×3.0, rajma ×2.4, chicken ×0.75…); cooked values = raw ÷ yield factor, linked by `rawEquivalentId`.
+- `recipes/<region>.json`: ≈300 composite dishes across north, south, east, west, northeast and pan-Indian (breakfasts, drinks, Indo-Chinese, fasting, sweets, cafe bowls), with raw ingredient grams including explicit oil, cooked yield, servings, prep/cook time, cost tier, steps, substitutions and serving units. Diets, allergens, `fastingOk` and oil grams are derived by `compositeRecipe`, never hand-tagged.
+
+Everything imports as `IN_REVIEW` with `reviewRequired = "nutrition"`; nothing is visible to users until a nutrition reviewer publishes it (TAC-44 tracks the sign-off).
+
+### Importers
+
+`pnpm nutrition:import <source> [--dry-run] [--verbose]` (needs `DATABASE_URL`; run from a workstation or a one-off job, never at service start):
+
+| Source | Input | New items | Matching key |
+|---|---|---|---|
+| `curated` | content/nutrition | IN_REVIEW | (CURATED_INGREDIENT \| CURATED_RECIPE, slug); recipes by slug |
+| `fdc --dir` | FoodData Central Foundation + SR Legacy, CSV (`food.csv`, `food_nutrient.csv`, optional `food_category.csv`, `food_portion.csv`) or JSON download | PUBLISHED, confidence HIGH | (USDA_FDC, fdc_id) |
+| `ifct --file` | IFCT 2017 CSV supplied by the owner (licensed, never committed): `code, name, local_names, ENERC (kJ), PROTCNT, FATCE, CHOAVLDF, FIBTG, FREESUGAR?, NA?, FE?, CA?, VITB12?, VITD?` | PUBLISHED, confidence HIGH | (IFCT_2017, code) |
+
+Every run plans first and prints a diff (`+` create, `~` update, `?` revise, counts); `--dry-run` stops there. Runs are idempotent: an unchanged record is left alone. Drafts and items in review are updated in place; a published curated item is never changed underneath users: the new values wait in `pendingRevision` (`revisionStatus = IN_REVIEW`) for a reviewer. Published reference data (FDC/IFCT) updates in place with `version + 1`, since the source is the authority. Carbohydrate is stored as available carbohydrate (FDC "by difference" minus fibre). Diet flags and allergens of imported foods come from the food group and description (`src/import/classify.ts`), erring towards tagging; reviewers correct them in the admin console. Search caches can serve pre-import results for up to 10 minutes.
+
 ## 5. Food search
 
-- Postgres trigram + unaccent on `name` and `localNames`, boosted by: user's recent foods, cuisine preference, diet compatibility, confidence. Results exclude foods violating the user's diet type or allergens unless the user toggles "show all" (excluded items then carry a warning badge).
-- Query cache: Redis 10 min per normalised query + diet + allergens hash.
+- `FoodItem.searchText` = `lower(unaccent(name + local names))`, kept by a trigger and indexed with `gin_trgm_ops`. Candidates: substring match or `word_similarity ≥ 0.45` (typos), text-scored in SQL (exact name or local name +1, name prefix +0.5, word prefix +0.25, word similarity, shorter names first). Up to 100 published candidates per normalised query are cached in Redis for 10 minutes; publish and archive bump a generation key that retires every cached query.
+- Ranking in the app: curated +0.3, cooked/as-sold +0.15 (people log dishes), confidence HIGH +0.1 / MEDIUM +0.05, the user's foods from the last 30 days +0.5, preferred cuisine +0.15, diet-compatible +0.1. The user's own USER foods are searched live, never cached.
+- Exclusion: a food is hidden when its flags meet `DIET_EXCLUSIONS[dietType]` or its allergens meet the user's allergens. `showAll=true` returns them with `warnings: [DIET | ALLERGEN]`. Users without a nutrition profile see everything.
+- `POST /internal/v1/foods/search` (coach-service) takes the diet and allergens in the body and never returns excluded foods.
+- Benchmark: `test/catalogue.int.test.ts` seeds the curated catalogue and requires p95 < 150 ms for uncached searches through the HTTP stack.
 - Barcode: lookup local `FoodItem.barcode` → Open Food Facts API (`/api/v2/product/{code}`) with 2 s timeout → import as `OPEN_FOOD_FACTS` with `confidence=MEDIUM` and status `IN_REVIEW` visible only to the requester until reviewed.
 
 ## 6. Meal-plan generator (`generateMealPlan`)
@@ -86,7 +116,7 @@ Alternatives (C9): `suggestAlternatives(slot, remaining macros, context: eating_
 
 | Method | Path |
 |---|---|
-| GET | /v1/foods?q=&cursor= |
+| GET | /v1/foods?q=&showAll=&limit=&cursor= |
 | GET | /v1/foods/{id} |
 | GET | /v1/foods/barcode/{code} |
 | POST | /v1/foods (user custom food, private) |
@@ -102,12 +132,25 @@ Alternatives (C9): `suggestAlternatives(slot, remaining macros, context: eating_
 | POST | /internal/v1/targets (onboarding, idempotent on onboardingId) |
 | GET | /internal/v1/users/{id}/day/{date} · /internal/v1/foods/search (coach tools) |
 | POST | /internal/v1/proposals/validate · /apply |
+| GET · POST · PATCH | /v1/admin/foods, /v1/admin/foods/{id} (read: any of food:write/review/publish) |
+| POST | /v1/admin/foods/{id}/submit (food:write) · /reject (food:review) · /publish · /archive (food:publish) |
+| GET · POST · PATCH | /v1/admin/recipes, /v1/admin/recipes/{id}, with the same transitions under recipe:* |
+
+### Admin content workflow (foods and recipes)
+
+DRAFT → IN_REVIEW → PUBLISHED → ARCHIVED (`contentTransition` in `@aura/contracts`). Edits to a published item go to `pendingRevision` with its own `revisionStatus`, so users keep seeing the reviewed values until the revision is published (`version + 1`). Every create, edit and transition writes `AuditEvent@1` in the same transaction; every publish writes `ContentPublished@1` (a recipe publish emits one for the recipe and one for its dish).
+
+Publish validation:
+
+- Food: stated energy within ±15% of 4·protein + 4·available carbs + 9·fat + 2·fibre (foods under 5 kcal both ways pass), a `sourceRef` for IFCT/FDC/OFF foods, confidence set, every unit in grams. Otherwise 422 `ENERGY_MISMATCH` or `PUBLISH_VALIDATION_FAILED`.
+- Recipe: every ingredient published (422 `INGREDIENT_NOT_PUBLISHED`), yield set, then the composite dish is regenerated with `compositeRecipe` (allergens, flags, diets, `fastingOk`, oil derived) and must pass the same energy check. The dish is written as `FoodItem(source=CURATED_RECIPE, state=COOKED)` in the same transaction.
 
 ## 8. Tests
 
 - Unit: BMR/TDEE golden values; floors; protein with high BMI; unit conversion for every unit type; raw/cooked branches; composite recipe maths; allergen derivation; meal-plan never violates hard filters (property tests over random recipe sets).
 - Integration: log → summary consistency (sum of entries equals summary within 0.5 kcal); concurrent logs on the same day (row lock); OFF timeout fallback.
-- Data QA: nightly job flags foods whose macros energy (4/4/9 + fibre 2) deviates > 15% from stated energy.
+- Data QA: the worker's `DataQaJob` runs nightly at 03:00 IST (Redis lock, one replica) and sets `qaFlags = [ENERGY_MISMATCH]` on every non-archived food whose macro energy (4/4/9 + fibre 2) deviates > 15% from stated energy, clearing it once fixed; `GET /v1/admin/foods?qa=flagged` lists them.
+- Catalogue (TAC-14): content validation (Zod, references, every ingredient and recipe composite within ±15%), importer unit tests on FDC/IFCT fixtures, integration tests for dry-run/idempotent imports, search relevance ("dal", "roti", "paneer tikka", "idli"), diet/allergen exclusion, the p95 benchmark, admin workflow, permissions and audit.
 
 ## 9. Engine package (`@aura/domain/nutrition`)
 

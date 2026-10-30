@@ -521,6 +521,9 @@ importers:
       '@aura/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@aura/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@aura/service-kit':
         specifier: workspace:*
         version: link:../../packages/service-kit
@@ -536,6 +539,9 @@ importers:
       '@prisma/client':
         specifier: 6.19.3
         version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
+      ioredis:
+        specifier: 5.11.1
+        version: 5.11.1
       prisma:
         specifier: 6.19.3
         version: 6.19.3(magicast@0.3.5)(typescript@5.9.3)

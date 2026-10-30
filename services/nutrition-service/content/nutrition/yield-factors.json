@@ -1,0 +1,21 @@
+{
+  "$comment": "Cooked forms of staples: cooked grams per raw gram (nutrition LLD §3). Nutrients of the cooked form are the raw values divided by the yield factor. Factors are typical for open-pan or pressure cooking and need nutritionist sign-off.",
+  "cooked": [
+    { "raw": "rice-white", "slug": "rice-white-cooked", "name": "Cooked white rice", "local": ["chawal", "sadam", "annam", "bhaat", "anna"], "yieldFactor": 2.8, "units": [["katori", 150], ["plate", 250]] },
+    { "raw": "rice-basmati", "slug": "rice-basmati-cooked", "name": "Cooked basmati rice", "local": ["basmati chawal", "plain rice"], "yieldFactor": 2.9, "units": [["katori", 150], ["plate", 250]] },
+    { "raw": "rice-brown", "slug": "rice-brown-cooked", "name": "Cooked brown rice", "local": ["bhura chawal"], "yieldFactor": 2.6, "units": [["katori", 150]] },
+    { "raw": "rice-parboiled", "slug": "rice-parboiled-cooked", "name": "Cooked parboiled rice", "local": ["puzhungal arisi sadam", "matta rice"], "yieldFactor": 3.0, "units": [["katori", 150], ["plate", 250]] },
+    { "raw": "samak-rice", "slug": "samak-rice-cooked", "name": "Cooked barnyard millet", "local": ["vrat ke chawal"], "yieldFactor": 3.0, "units": [["katori", 150]] },
+    { "raw": "toor-dal", "slug": "toor-dal-cooked", "name": "Cooked toor dal (plain)", "local": ["arhar dal", "paruppu", "pappu"], "yieldFactor": 3.0, "units": [["katori", 150]] },
+    { "raw": "moong-dal", "slug": "moong-dal-cooked", "name": "Cooked moong dal (plain)", "local": ["moong dal", "pasi paruppu"], "yieldFactor": 3.0, "units": [["katori", 150]] },
+    { "raw": "masoor-dal", "slug": "masoor-dal-cooked", "name": "Cooked masoor dal (plain)", "local": ["masoor dal", "musur dal"], "yieldFactor": 2.8, "units": [["katori", 150]] },
+    { "raw": "chana-dal", "slug": "chana-dal-cooked", "name": "Cooked chana dal (plain)", "local": ["chana dal"], "yieldFactor": 2.5, "units": [["katori", 150]] },
+    { "raw": "rajma", "slug": "rajma-cooked", "name": "Boiled kidney beans", "local": ["ubla rajma"], "yieldFactor": 2.4, "units": [["katori", 150]] },
+    { "raw": "kabuli-chana", "slug": "kabuli-chana-cooked", "name": "Boiled chickpeas", "local": ["ubla chana", "chole"], "yieldFactor": 2.2, "units": [["katori", 150]] },
+    { "raw": "kala-chana", "slug": "kala-chana-cooked", "name": "Boiled black chickpeas", "local": ["ubla kala chana"], "yieldFactor": 2.2, "units": [["katori", 150]] },
+    { "raw": "whole-moong", "slug": "whole-moong-cooked", "name": "Boiled whole green gram", "local": ["ubla moong"], "yieldFactor": 2.5, "units": [["katori", 150]] },
+    { "raw": "potato", "slug": "potato-boiled", "name": "Boiled potato", "local": ["ubla aloo"], "yieldFactor": 1.0, "units": [["piece", 150]] },
+    { "raw": "egg", "slug": "egg-boiled", "name": "Boiled egg", "local": ["ubla anda", "avicha muttai"], "yieldFactor": 1.0, "units": [["piece", 50]] },
+    { "raw": "chicken-breast", "slug": "chicken-breast-cooked", "name": "Grilled chicken breast (no oil)", "local": ["grilled chicken"], "yieldFactor": 0.75, "units": [["piece", 120]] }
+  ]
+}

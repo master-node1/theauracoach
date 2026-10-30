@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminFoodInputSchema,
+  adminFoodPatchSchema,
+  contentTransition,
+  foodSearchQuerySchema,
   eventEnvelopeSchema,
   eventKey,
   isKnownEvent,
@@ -94,6 +98,61 @@ describe('role grant input', () => {
     );
     expect(roleGrantSchema.safeParse({ role: 'support' }).success).toBe(false);
     expect(roleGrantSchema.safeParse({ email: 'a@example.com', role: 'user' }).success).toBe(false);
+  });
+});
+
+describe('content workflow', () => {
+  it('moves drafts through review to published and archived, and nothing else', () => {
+    expect(contentTransition('submit', 'DRAFT')).toBe('IN_REVIEW');
+    expect(contentTransition('reject', 'IN_REVIEW')).toBe('DRAFT');
+    expect(contentTransition('publish', 'IN_REVIEW')).toBe('PUBLISHED');
+    expect(contentTransition('archive', 'PUBLISHED')).toBe('ARCHIVED');
+    expect(contentTransition('publish', 'DRAFT')).toBeNull();
+    expect(contentTransition('archive', 'DRAFT')).toBeNull();
+    expect(contentTransition('submit', 'PUBLISHED')).toBeNull();
+  });
+
+  it('validates ContentPublished v1', () => {
+    const data = { kind: 'food', id: '7d5bd1fd-6c40-4c4f-a2f2-5a7a2a7d3c11', version: 2 };
+    expect(parseEventData('ContentPublished@1', data)).toEqual(data);
+    expect(() => parseEventData('ContentPublished@1', { ...data, version: 0 })).toThrow();
+  });
+});
+
+describe('food catalogue inputs', () => {
+  it('parses search queries with defaults and a numeric cursor', () => {
+    expect(foodSearchQuerySchema.parse({ q: ' dal ' })).toEqual({
+      q: 'dal',
+      showAll: false,
+      limit: 20,
+    });
+    expect(
+      foodSearchQuerySchema.parse({ q: 'roti', showAll: 'true', limit: '5', cursor: '20' }),
+    ).toEqual({ q: 'roti', showAll: true, limit: 5, cursor: '20' });
+    expect(() => foodSearchQuerySchema.parse({ q: '' })).toThrow();
+    expect(() => foodSearchQuerySchema.parse({ q: 'x', cursor: 'abc' })).toThrow();
+  });
+
+  it('refuses composite and user sources on hand-entered foods', () => {
+    const food = {
+      name: 'Toor dal',
+      source: 'CURATED_INGREDIENT',
+      confidence: 'MEDIUM',
+      state: 'RAW',
+      nutrients: { energyKcal: 343, proteinG: 22, carbsG: 57, fatG: 1.5, fibreG: 9 },
+    };
+    expect(adminFoodInputSchema.parse(food)).toMatchObject({
+      localNames: [],
+      units: [],
+      flags: [],
+    });
+    expect(() => adminFoodInputSchema.parse({ ...food, source: 'CURATED_RECIPE' })).toThrow();
+    expect(() => adminFoodInputSchema.parse({ ...food, source: 'USER' })).toThrow();
+    expect(() => adminFoodInputSchema.parse({ ...food, flags: ['VEGGIE'] })).toThrow();
+  });
+
+  it('keeps patches to the fields sent', () => {
+    expect(adminFoodPatchSchema.parse({ name: 'Arhar dal' })).toEqual({ name: 'Arhar dal' });
   });
 });
 

@@ -18,3 +18,11 @@ Curated in-house dataset seeded from IFCT 2017 (ICMR-NIN, Indian raw foods), USD
 
 ## Alternatives Rejected
 Commercial API only (cost, weak Indian regional coverage, opaque provenance); crowd-sourced only (quality).
+
+## Implementation notes (TAC-14, 2026-10-28)
+
+- Provenance values in use: `IFCT_2017`, `USDA_FDC`, `OPEN_FOOD_FACTS`, `CURATED_RECIPE` (composite dishes) and `CURATED_INGREDIENT`, added for the content team's starter ingredient values. The build environment could not reach FDC or a licensed IFCT file, so the ~150 starter ingredients carry IFCT/FDC-style values at confidence MEDIUM and stay `IN_REVIEW` until a nutritionist verifies them against the licensed source; re-importing IFCT then supersedes them ingredient by ingredient.
+- Composite dishes: ≈300 recipes ship in the repo (`services/nutrition-service/content/nutrition`), short of the ~800 MVP target; reviewers grow the set through `/v1/admin/recipes`. Composite values come from `@aura/domain/nutrition` `compositeRecipe`; yields are estimated (`yieldMeasured = false`, confidence at most MEDIUM) until kitchen-tested.
+- IFCT is licensed: the importer reads an owner-supplied CSV and the file is never committed. FDC (public domain) imports as published, confidence HIGH.
+- Carbohydrate is stored as available carbohydrate (excluding fibre) for every source, so the energy check is 4·P + 4·C + 9·F + 2·fibre.
+- Open Food Facts records are still to come (barcode work); they will keep their own `source` for ODbL attribution.

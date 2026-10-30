@@ -12,6 +12,8 @@ Next.js `/admin` (server components, MFA-enforced), backed by `/v1/admin/*` API 
 
 Refused publishes answer `422 PUBLISH_CHECKS_FAILED` with one `errors[]` entry per failed check (path and code). Workout codes: `MISSING_PRIMARY_MUSCLE`, `MUSCLE_PRIMARY_AND_SECONDARY`, `MISSING_EQUIPMENT`, `BODYWEIGHT_WITH_EQUIPMENT`, `MISSING_INSTRUCTIONS`, `CONTRAINDICATIONS_NOT_REVIEWED`, `MEDIA_ALT_TEXT_MISSING`, `MEDIA_CAPTIONS_MISSING` (videos), `LINK_TO_SELF`, `UNKNOWN_LINKED_EXERCISE`, `EXERCISE_NOT_PUBLISHED` and `SAMPLE_PLAN_INVALID` (template: the profile, the engine error and the failed `validatePlan` rules). The 20 synthetic profiles are `templateCheckProfiles` in `@aura/domain/workouts`.
 
+Foods and recipes (TAC-14, nutrition-service) keep one row per item instead of a row per version: edits to a published food or recipe are held in `pendingRevision` with its own `revisionStatus` and replace the live values only when published (`version + 1`). Reviewers (`*:review`) can send an item in review back to draft with `POST /{id}/reject` and a note; `PATCH /{id}` edits. Their publish checks answer `422 ENERGY_MISMATCH`, `PUBLISH_VALIDATION_FAILED`, `INGREDIENT_NOT_PUBLISHED` or `YIELD_REQUIRED` (nutrition LLD §7).
+
 | Content | Editor permission | Publisher | Validation on publish |
 |---|---|---|---|
 | Exercise | exercise:write | exercise:publish | media with alt text (+ captions on video), ≥ 1 primary muscle, equipment, instructions, contraindications reviewed, regression/progression links exist |
@@ -21,7 +23,7 @@ Refused publishes answer `422 PUBLISH_CHECKS_FAILED` with one `errors[]` entry p
 | Prompt | prompt:write | prompt:publish | eval suite thresholds met |
 | Policy / model config | policy:write | owner | diff shown, reason required |
 
-Bulk import: CSV/JSON importers for IFCT and FDC with dry-run diff.
+Bulk import: `pnpm nutrition:import <curated|fdc|ifct>` with a dry-run diff (nutrition LLD §4).
 
 ## 3. Review queues
 
@@ -51,7 +53,7 @@ Built in TAC-32:
 
 ## 6. API (prefix /v1/admin, routed by the gateway to the owning service)
 
-`/exercises`, `/templates` (workout) · `/foods`, `/recipes` (nutrition) · `/prompts`, `/model-configs`, `/policies`, `/reviews/safety`, `/feedback`, `/usage` (coach) · `/audit` (audit) · `/roles`, `/users/{id}` (profile). Content routes: `GET` (list versions: `status`, `q`, cursor), `GET /{id}`, `POST` (draft), `PUT /{id}` (edit; 201 when it opens a new version), `/{id}/submit`, `/{id}/publish`, `/{id}/archive`; `{id}` is a version id. The support user view (`/users/{id}`, masked) is assembled by the web BFF from each service's admin read endpoint. Feature flags are managed in AWS AppConfig.
+`/exercises`, `/templates` (workout) · `/foods`, `/recipes` (nutrition) · `/prompts`, `/model-configs`, `/policies`, `/reviews/safety`, `/feedback`, `/usage` (coach) · `/audit` (audit) · `/roles`, `/users/{id}` (profile). Content routes: `GET` (list versions: `status`, `q`, cursor), `GET /{id}`, `POST` (draft), `PUT /{id}` (edit; 201 when it opens a new version), `/{id}/submit`, `/{id}/publish`, `/{id}/archive`; `{id}` is a version id (foods and recipes: the item id, `PATCH /{id}` to edit, `/{id}/reject` with a note, and `GET /v1/admin/foods?qa=flagged` for nightly data QA findings). The support user view (`/users/{id}`, masked) is assembled by the web BFF from each service's admin read endpoint. Feature flags are managed in AWS AppConfig.
 
 Per-service operations live under `/v1/admin/ops/{service}/…` (`AdminOpsController` in service-kit, routed by the gateway to the named service): `users/{id}` (support-view section, `user:support_read`), `usage` and `queues` (`usage:read`), `dlq` and `dlq/{id}/replay` (`event:replay`). A service adds its section and counters by providing `ADMIN_REPORTS`.
 

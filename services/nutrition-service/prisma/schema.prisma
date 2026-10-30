@@ -50,6 +50,8 @@ enum FoodSource {
   USDA_FDC
   OPEN_FOOD_FACTS
   CURATED_RECIPE
+  /// Starter ingredient values entered by the content team, to be verified against IFCT/FDC (ADR-008).
+  CURATED_INGREDIENT
   USER
 }
 
@@ -102,23 +104,41 @@ model Allergen {
 
 model FoodItem {
   id              String             @id @default(uuid()) @db.Uuid
+  /// Stable key for curated content (importers upsert on it); null for imported and user foods.
+  slug            String?            @unique
   name            String
   localNames      String[] // e.g. {"arhar dal","tuvar paruppu"}
+  /// lower(unaccent(name + local names)), kept by a trigger; trigram-indexed for search.
+  searchText      String             @default("")
   brand           String?
   barcode         String?            @unique
   source          FoodSource
   sourceRef       String? // IFCT code, FDC id, OFF code
   confidence      Confidence
   state           FoodState
+  category        String?            @db.VarChar(30) // cereal, pulse, vegetable, dairy, dish... (grocery aisle)
   rawEquivalentId String?            @db.Uuid // cooked item → raw item for yield conversion
   rawEquivalent   FoodItem?          @relation("RawEquivalent", fields: [rawEquivalentId], references: [id])
   cookedForms     FoodItem[]         @relation("RawEquivalent")
   yieldFactor     Decimal?           @db.Decimal(4, 3) // cooked grams per raw gram
   densityGPerMl   Decimal?           @db.Decimal(5, 3)
-  dietTags        String[] // vegetarian, vegan, jain, contains_egg, contains_meat, contains_fish
+  /// Ingredient facts for diet rules (@aura/domain FoodFlag): MEAT, FISH, EGG, DAIRY, HONEY, ROOT_VEGETABLE, ONION, GARLIC, FASTING_OK, OIL.
+  flags           String[]
+  dietTags        String[] // diets the food fits, derived from flags (VEGETARIAN, VEGAN, JAIN...)
   allergens       String[] // Allergen.code
   cuisine         String?
   status          ContentStatus      @default(PUBLISHED)
+  version         Int                @default(1)
+  /// Set while a specialist must sign off, e.g. "nutrition" for curated values.
+  reviewRequired  String?            @db.VarChar(20)
+  /// Edits to a published food wait here until published (admin LLD §2); `revisionStatus` is their state.
+  pendingRevision Json?
+  revisionStatus  ContentStatus?
+  publishedAt     DateTime?
+  publishedById   String?            @db.Uuid
+  /// Data QA findings from the nightly job, e.g. ENERGY_MISMATCH.
+  qaFlags         String[]           @default([])
+  qaCheckedAt     DateTime?
   createdById     String?            @db.Uuid // set only for USER foods
   recipeId        String?            @unique @db.Uuid // composite dish computed from a recipe
   recipe          Recipe?            @relation("RecipeFood", fields: [recipeId], references: [id])
@@ -128,10 +148,11 @@ model FoodItem {
   mealEntries     MealEntry[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
-  // GIN trigram index on name and localNames added in migration SQL
 
+  @@unique([source, sourceRef])
   @@index([status, source])
   @@index([createdById])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "FoodItem_searchText_trgm_idx")
 }
 
 model FoodNutrient {
@@ -156,27 +177,41 @@ model FoodUnit {
 }
 
 model Recipe {
-  id            String             @id @default(uuid()) @db.Uuid
-  slug          String             @unique
-  name          String
-  status        ContentStatus      @default(DRAFT)
-  version       Int                @default(1)
-  cuisine       String?
-  dietTags      String[]
-  allergens     String[] // derived from ingredients on publish
-  servings      Int
-  cookedYieldG  Decimal            @db.Decimal(7, 1) // total cooked weight
-  prepMinutes   Int
-  cookMinutes   Int
-  costTier      Int                @default(2) // 1 budget .. 3 premium
-  steps         String[]
-  substitutions Json // [{ingredientFoodId, alternatives:[foodId], note}]
-  imageKey      String?
-  ingredients   RecipeIngredient[]
-  food          FoodItem?          @relation("RecipeFood")
-  mealPlanItems MealPlanItem[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id              String             @id @default(uuid()) @db.Uuid
+  slug            String             @unique
+  name            String
+  localNames      String[]
+  status          ContentStatus      @default(DRAFT)
+  version         Int                @default(1)
+  cuisine         String?
+  region          String?            @db.VarChar(20) // north, south, east, west, northeast, pan_indian
+  mealSlots       String[] // BREAKFAST, LUNCH, SNACK, DINNER
+  dietTags        String[] // derived from ingredients on publish
+  allergens       String[] // derived from ingredients on publish
+  flags           String[] // derived from ingredients on publish
+  fastingOk       Boolean            @default(false)
+  servings        Int
+  cookedYieldG    Decimal            @db.Decimal(7, 1) // total cooked weight
+  yieldMeasured   Boolean            @default(false)
+  restaurantStyle Boolean            @default(false)
+  oilG            Decimal            @default(0) @db.Decimal(6, 1)
+  prepMinutes     Int
+  cookMinutes     Int
+  costTier        Int                @default(2) // 1 budget .. 3 premium
+  steps           String[]
+  substitutions   Json // [{ingredientFoodId, alternatives:[foodId], note}]
+  units           Json               @default("[]") // household units of the composite dish [{code,label,grams}]
+  imageKey        String?
+  reviewRequired  String?            @db.VarChar(20)
+  pendingRevision Json?
+  revisionStatus  ContentStatus?
+  publishedAt     DateTime?
+  publishedById   String?            @db.Uuid
+  ingredients     RecipeIngredient[]
+  food            FoodItem?          @relation("RecipeFood")
+  mealPlanItems   MealPlanItem[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   @@index([status, cuisine])
 }

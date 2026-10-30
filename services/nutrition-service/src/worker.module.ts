@@ -10,6 +10,7 @@ import {
 import type { ServiceConfig } from './config';
 import { PrismaService } from './prisma.service';
 import { userDataPlan } from './user-data-plan';
+import { DataQaJob } from './qa/data-qa.job';
 
 /** The worker deployment: outbox relay, event consumers and scheduled jobs. */
 @Module({})
@@ -31,6 +32,7 @@ export class WorkerModule {
             }),
         },
         EventWorker,
+        DataQaJob,
       ],
     };
   }

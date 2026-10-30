@@ -1,0 +1,7 @@
+code,name,local_names,ENERC,PROTCNT,FATCE,CHOAVLDF,FIBTG,FREESUGAR,NA,FE,CA
+A015,"Rice, raw, milled",chawal;arisi,1491,7.94,0.52,78.24,2.81,0.12,4.5,0.65,7.49
+B029,"Red gram, dal",arhar dal;tuvar,1384,21.70,1.56,55.23,9.06,,16.1,3.9,85.0
+L002,"Milk, whole, cow",doodh,301,3.26,4.43,4.36,,4.36,45,0.1,118
+O019,"Goat, shoulder",mutton,494,20.79,4.17,0,,,77,2.6,15
+X999,Not a food code,,1,1,1,1,1,,,,
+B030,Missing energy,,,20,1,50,9,,,,

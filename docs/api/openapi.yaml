@@ -725,13 +725,16 @@ paths:
       operationId: searchFoods
       summary: Search foods
       parameters:
-        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 80 } }
-        - { name: includeIncompatible, in: query, schema: { type: boolean, default: false } }
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 80 } }
+        - name: showAll
+          in: query
+          description: Include foods the user's diet or allergens exclude; they come back with warnings
+          schema: { type: string, enum: ['true', 'false'], default: 'false' }
+        - { name: cursor, in: query, schema: { type: string, pattern: '^[0-9]{1,3}$' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
       responses:
         '200':
-          description: Foods ranked for this user
+          description: Foods ranked for this user (curated first, then recent foods, cuisine, diet fit, confidence)
           content:
             application/json:
               schema:
@@ -1489,6 +1492,156 @@ paths:
               schema: { $ref: '#/components/schemas/TemplateRevision' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/foods:
+    get:
+      tags: [admin]
+      operationId: adminListFoods
+      summary: List catalogue foods (any of food:write, food:review, food:publish)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, ARCHIVED] } }
+        - { name: q, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: qa, in: query, description: '`flagged` lists foods the nightly data QA job flagged', schema: { type: string, enum: [flagged] } }
+        - { name: cursor, in: query, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: 'A page of foods with workflow state, QA flags and any pending revision' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [admin]
+      operationId: adminCreateFood
+      summary: Create a food draft (permission food:write); audited
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: 'adminFoodInputSchema in @aura/contracts' }
+      responses:
+        '201': { description: Draft created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/foods/{id}:
+    get:
+      tags: [admin]
+      operationId: adminGetFood
+      summary: Get a food (any of food:write, food:review, food:publish)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200': { description: Food with workflow state }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [admin]
+      operationId: adminUpdateFood
+      summary: Edit a draft, or stage a revision of a published food (permission food:write); audited
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: 'adminFoodPatchSchema in @aura/contracts' }
+      responses:
+        '200': { description: Updated }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/recipes:
+    get:
+      tags: [admin]
+      operationId: adminListRecipes
+      summary: List recipes (any of recipe:write, recipe:review, recipe:publish)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, ARCHIVED] } }
+        - { name: q, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: cursor, in: query, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: 'A page of recipes with derived diets, allergens and oil' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [admin]
+      operationId: adminCreateRecipe
+      summary: Create a recipe draft (permission recipe:write); audited
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: 'adminRecipeInputSchema in @aura/contracts' }
+      responses:
+        '201': { description: Draft created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/recipes/{id}:
+    get:
+      tags: [admin]
+      operationId: adminGetRecipe
+      summary: Get a recipe (any of recipe:write, recipe:review, recipe:publish)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200': { description: Recipe with workflow state }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [admin]
+      operationId: adminUpdateRecipe
+      summary: Edit a draft, or stage a revision of a published recipe (permission recipe:write); audited
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: 'adminRecipePatchSchema in @aura/contracts' }
+      responses:
+        '200': { description: Updated }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /v1/admin/foods/{id}/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectFood
+      summary: Send an item in review back to draft with a note (permission food:review); audited
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: Back to draft }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/admin/recipes/{id}/reject:
+    post:
+      tags: [admin]
+      operationId: adminRejectRecipe
+      summary: Send an item in review back to draft with a note (permission recipe:review); audited
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: Back to draft }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /v1/admin/{contentType}/{id}/submit:
     post:
@@ -2586,30 +2739,52 @@ components:
 
     FoodSummary:
       type: object
-      required: [id, name, source, confidence, state, per100]
+      required: [id, name, localNames, state, source, confidence, category, cuisine, dietTags, allergens, per100g, defaultUnit, warnings]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
-        brand: { type: [string, 'null'] }
-        source: { type: string, enum: [IFCT_2017, USDA_FDC, OPEN_FOOD_FACTS, CURATED_RECIPE, USER] }
+        localNames: { type: array, items: { type: string } }
+        source: { type: string, enum: [IFCT_2017, USDA_FDC, OPEN_FOOD_FACTS, CURATED_RECIPE, CURATED_INGREDIENT, USER] }
         confidence: { $ref: '#/components/schemas/Confidence' }
         state: { $ref: '#/components/schemas/FoodState' }
-        per100: { $ref: '#/components/schemas/NutrientMap' }
-        defaultUnit: { $ref: '#/components/schemas/FoodUnit' }
-        compatible: { type: boolean, description: 'false when it conflicts with the user diet or allergens' }
-        warnings: { type: array, items: { type: string } }
+        category: { type: [string, 'null'] }
+        cuisine: { type: [string, 'null'] }
+        dietTags: { type: array, items: { type: string } }
+        allergens: { type: array, items: { type: string } }
+        per100g:
+          type: object
+          required: [energyKcal, proteinG, carbsG, fatG, fibreG]
+          properties:
+            energyKcal: { type: number }
+            proteinG: { type: number }
+            carbsG: { type: number, description: Available carbohydrate (excluding fibre) }
+            fatG: { type: number }
+            fibreG: { type: number }
+        defaultUnit:
+          oneOf:
+            - $ref: '#/components/schemas/FoodUnit'
+            - type: 'null'
+        warnings:
+          type: array
+          description: Only with showAll. Why the user's diet or allergens would normally hide this food.
+          items: { type: string, enum: [DIET, ALLERGEN] }
 
     Food:
       allOf:
         - $ref: '#/components/schemas/FoodSummary'
         - type: object
+          required: [sourceRef, flags, nutrients, units, cookedFormIds, version]
           properties:
-            localNames: { type: array, items: { type: string } }
-            units: { type: array, items: { $ref: '#/components/schemas/FoodUnit' } }
-            allergens: { type: array, items: { type: string } }
-            dietTags: { type: array, items: { type: string } }
             sourceRef: { type: [string, 'null'] }
-            attribution: { type: [string, 'null'] }
+            flags: { type: array, items: { type: string, enum: [MEAT, FISH, EGG, DAIRY, HONEY, ROOT_VEGETABLE, ONION, GARLIC, FASTING_OK, OIL] } }
+            nutrients: { type: object, description: 'Per 100 g: energyKcal, proteinG, carbsG, fatG, fibreG and optional micros', additionalProperties: { type: number } }
+            units: { type: array, items: { $ref: '#/components/schemas/FoodUnit' } }
+            densityGPerMl: { type: [number, 'null'] }
+            yieldFactor: { type: [number, 'null'] }
+            rawEquivalentId: { type: [string, 'null'], format: uuid }
+            cookedFormIds: { type: array, items: { type: string, format: uuid } }
+            recipeSlug: { type: [string, 'null'] }
+            version: { type: integer }
 
     CustomFoodInput:
       type: object
