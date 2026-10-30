@@ -21,6 +21,8 @@ export interface DevIssuer {
     clientId?: string;
     expiresIn?: string;
     tokenUse?: 'access' | 'id';
+    /** `auth_time`, epoch seconds: when the user last entered credentials. Defaults to now. */
+    authTime?: number;
   }): Promise<string>;
   /** An OIDC id token: audience is the client, carries `email` and the login `nonce`. */
   mintIdToken(input: {
@@ -53,6 +55,7 @@ export async function createDevIssuer(issuer = 'http://localhost:4100'): Promise
         token_use: input.tokenUse ?? 'access',
         client_id: input.clientId ?? DEV_CLIENT_ID,
         'cognito:groups': input.groups ?? [],
+        auth_time: input.authTime ?? Math.floor(Date.now() / 1000),
       };
       if (input.email) claims.email = input.email;
       if (input.amr) claims.amr = input.amr;

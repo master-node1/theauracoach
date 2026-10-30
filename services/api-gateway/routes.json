@@ -4,6 +4,8 @@
     "/v1/me": "profile",
     "/v1/me/profile": "profile",
     "/v1/me/exports/123": "profile",
+    "/v1/me/export-files": "profile",
+    "/v1/me/restore": "profile",
     "/v1/me/sessions/revoke": "profile",
     "/v1/onboarding/complete": "profile",
     "/v1/admin/roles": "profile",
@@ -29,7 +31,16 @@
     "/v1/admin/usage": "coach",
     "/v1/admin/audit": "audit",
     "/v1/me/notification-preferences/x": "notification",
-    "/v1/coach": "coach"
+    "/v1/coach": "coach",
+    "/v1/admin/ops/profile/queues": "profile",
+    "/v1/admin/ops/workout/queues": "workout",
+    "/v1/admin/ops/nutrition/queues": "nutrition",
+    "/v1/admin/ops/progress/queues": "progress",
+    "/v1/admin/ops/coach/queues": "coach",
+    "/v1/admin/ops/notification/queues": "notification",
+    "/v1/admin/ops/audit/queues": "audit",
+    "/v1/admin/users/8f1c2a8e-3b7d-4c55-9b1a-2d4e6f8a0b1c": "profile",
+    "/v1/admin/audit/export.csv": "audit"
   },
   "notRouted": [
     "/internal/v1/plans",
@@ -38,6 +49,8 @@
     "/v1/meals",
     "/v1/meplease",
     "/v1/foodsx",
-    "/v1/coaching"
+    "/v1/coaching",
+    "/v1/admin/ops/billing/queues",
+    "/v1/admin/ops"
   ]
 }

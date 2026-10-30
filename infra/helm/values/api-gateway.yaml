@@ -24,5 +24,6 @@ networkPolicy:
   telemetry: false
 ingress:
   enabled: true
+  publicHost: api
   paths: [/v1]
   priority: 100

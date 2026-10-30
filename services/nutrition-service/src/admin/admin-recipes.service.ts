@@ -325,20 +325,8 @@ export class AdminRecipesService {
         },
       });
     }
-    await contentPublished(tx, {
-      contentType: 'recipe',
-      contentId: row.id,
-      slug: row.slug,
-      version,
-      publishedBy: actor.userId,
-    });
-    await contentPublished(tx, {
-      contentType: 'food',
-      contentId: food.id,
-      slug: row.slug,
-      version: food.version,
-      publishedBy: actor.userId,
-    });
+    await contentPublished(tx, { kind: 'recipe', id: row.id, version });
+    await contentPublished(tx, { kind: 'food', id: food.id, version: food.version });
   }
 
   private async load(db: Tx, id: string, lock = false): Promise<RecipeRow> {

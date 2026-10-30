@@ -26,6 +26,7 @@ const servers = await Promise.all(
               service: svc,
               path: req.url,
               requestId: req.headers['x-request-id'] ?? null,
+              forwardedFor: req.headers['x-forwarded-for'] ?? null,
             }),
           );
         });
@@ -82,6 +83,24 @@ try {
     const okRoute = res.status === 404 && res.headers.get('content-type')?.includes('problem+json');
     if (!okRoute) failures++;
     console.log(`${okRoute ? 'ok  ' : 'FAIL'} ${path} -> ${res.status} (expected 404)`);
+  }
+  // The address services and the per-IP limit see (deployment.md "Edge routing"): the viewer from
+  // CloudFront-Viewer-Address, never what the client put in X-Forwarded-For; the peer without it.
+  const [probe] = Object.keys(routes);
+  for (const [viewer, expected] of [
+    ['203.0.113.7:46532', '203.0.113.7'],
+    ['2001:db8::1:443', '2001:db8::1'],
+    [null, '127.0.0.1'],
+  ]) {
+    const headers = { 'x-forwarded-for': '198.51.100.66' };
+    if (viewer) headers['cloudfront-viewer-address'] = viewer;
+    const res = await fetch(`http://127.0.0.1:${gatewayPort}${probe}`, { headers });
+    const seen = res.ok ? (await res.json()).forwardedFor : res.status;
+    const okIp = seen === expected;
+    if (!okIp) failures++;
+    console.log(
+      `${okIp ? 'ok  ' : 'FAIL'} client ${viewer ?? '(no header)'} -> ${seen} (expected ${expected})`,
+    );
   }
 } finally {
   spawnSync('docker', ['rm', '-f', name], { stdio: 'ignore' });

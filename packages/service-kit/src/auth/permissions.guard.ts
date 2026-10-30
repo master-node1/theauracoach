@@ -20,8 +20,8 @@ export const Permissions = (...permissions: Permission[]) =>
   SetMetadata(REQUIRED_PERMISSIONS, permissions);
 
 /**
- * The caller needs at least one listed permission, e.g. reading drafts, which editors
- * (`food:write`) and reviewers (`food:review`) both do. Combines with @Permissions.
+ * The caller needs at least one of the listed permissions, e.g. a review queue both editors and
+ * reviewers read. Checked in addition to any @Permissions on the same route.
  */
 export const AnyPermission = (...permissions: Permission[]) =>
   SetMetadata(ANY_PERMISSIONS, permissions);
@@ -71,23 +71,20 @@ export class PermissionsGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const targets = [context.getHandler(), context.getClass()];
-    const all = this.reflector.getAllAndOverride<Permission[] | undefined>(
-      REQUIRED_PERMISSIONS,
-      targets,
-    );
-    const any = this.reflector.getAllAndOverride<Permission[] | undefined>(
-      ANY_PERMISSIONS,
-      targets,
-    );
-    if (!all?.length && !any?.length) {
+    const required =
+      this.reflector.getAllAndOverride<Permission[] | undefined>(REQUIRED_PERMISSIONS, targets) ??
+      [];
+    const anyOf =
+      this.reflector.getAllAndOverride<Permission[] | undefined>(ANY_PERMISSIONS, targets) ?? [];
+    if (required.length === 0 && anyOf.length === 0) {
       if (isAdminRoute(context)) throw forbidden();
       return true;
     }
     const user = userOf(context);
     if (!user) throw forbidden();
     const granted = permissionsFor(user.groups);
-    if (all?.length && !all.every((p) => granted.has(p))) throw forbidden();
-    if (any?.length && !any.some((p) => granted.has(p))) throw forbidden();
+    if (!required.every((p) => granted.has(p))) throw forbidden();
+    if (anyOf.length > 0 && !anyOf.some((p) => granted.has(p))) throw forbidden();
     return true;
   }
 }

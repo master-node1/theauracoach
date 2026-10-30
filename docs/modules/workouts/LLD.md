@@ -11,7 +11,10 @@ Exercise library (read side), templates, plan generation, weekly adaptation, ses
 ```text
 services/workout-service/src/
   app.module.ts  main.http.ts  main.worker.ts
-  controllers/ exercises.controller.ts plans.controller.ts sessions.controller.ts
+  content/ exercises.controller.ts admin-content.controller.ts admin-content.service.ts
+           content-store.ts publish-checks.ts engine-mapping.ts library.service.ts library-cache.ts
+           policy.ts importer.ts import.cli.ts content-published.subscription.ts
+  controllers/ plans.controller.ts sessions.controller.ts
   application/ plan.service.ts session.service.ts substitution.service.ts library.service.ts
   infrastructure/ workouts.repository.ts exercise-cache.ts
   events/ publishers (WorkoutCompleted, PlanWeekReady…) consumers (ProfileChanged, OnboardingCompleted, CheckInSaved…)
@@ -129,7 +132,7 @@ Errors: `404 NOT_FOUND` (also for others' resources), `409 SESSION_CLOSED`, `422
 
 ## 8. Caching
 
-Exercise library list and detail: Redis 1 h + `ETag`, invalidated by `ContentPublished(exercise)`. Current plan week: Redis 5 min per user, invalidated on session change or adaptation.
+Exercise library list and detail: Redis 1 h + `ETag` (`Cache-Control: private, no-cache`; a matching `If-None-Match` gets 304). Keys carry a generation number; publishing or archiving an exercise bumps it in the http service, and the worker bumps it on `ContentPublished(exercise)` so other instances and imports catch up. A Redis failure falls through to the database. Current plan week: Redis 5 min per user, invalidated on session change or adaptation.
 
 ## 9. Engine contract and codes
 
@@ -182,8 +185,19 @@ Implementation notes on the rules above:
 
 **Validation rules** (`validatePlan` issues): `UNKNOWN_EXERCISE`, `EXERCISE_NOT_PUBLISHED`, `EQUIPMENT_UNAVAILABLE`, `DIFFICULTY_ABOVE_EXPERIENCE`, `CONTRAINDICATED_EXERCISE`, `INVALID_PRESCRIPTION`, `RPE_ABOVE_CAP`, `LOW_CAP_HEAVY_REPS`, `INVALID_DAY`, `SESSIONS_SAME_DAY`, `SESSION_TOO_LONG`, `WEEKLY_VOLUME_ABOVE_MAX`, `BEGINNER_HINGE_FREQUENCY`.
 
+## 9a. Content library (TAC-13)
+
+Exercises and templates are versioned in `ContentRevision` (kind, slug, version, status, JSON body as in `exerciseContentSchema` / `templateContentSchema` in `@aura/contracts`). The live library is `Exercise` / `WorkoutTemplate`, one row per slug written on publish; its id stays the same across versions, so plans and logs keep pointing at it. Workflow and checks: [admin LLD §2](../admin/LLD.md#2-content-workflow).
+
+- **Vocabularies.** Equipment, muscle, movement pattern and contraindication codes are `EQUIPMENT_CODES`, `MUSCLE_CODES`, `MOVEMENT_PATTERNS`, `CONTRAINDICATION_TAGS` in contracts; the migration seeds `Equipment` and `MuscleGroup` from them (a test keeps them equal). `bodyweight` alone means no equipment; an exercise counts as bodyweight when it needs no load equipment (a bench, bar or box is not load).
+- **Tracking.** `tracking: time` exercises (planks, carries, cardio) prescribe seconds in `repMin`/`repMax`. The engine's goal rep ranges (§9) apply to them too, so strength, muscle-gain and endurance templates avoid time-tracked slots; teaching the engine to keep template ranges for timed exercises is a TAC-18 follow-up.
+- **Policy.** `WorkoutPolicy` holds one row per `WorkoutPolicy` field, seeded from `DEFAULT_WORKOUT_POLICY`; `loadWorkoutPolicy` falls back to the default for any missing field.
+- **Starter dataset.** `content/workouts/` holds 120 exercises (one file per movement pattern) and 13 templates (full body 2–3 days, upper/lower 4 days, push/pull/legs 5–6 days across all goals, gym and home, plus `safe-default-full-body`), all `IN_REVIEW` with `reviewRequired: trainer` until a qualified trainer signs off (TAC-44). Media is empty; `illustrationKey` names a placeholder per pattern.
+- **Import.** `pnpm content:import [--dry-run] [--publish]` (needs `DATABASE_URL`) validates every file, then upserts by slug through the same store as the admin API (audited as `content_import`): new slugs are created, open versions are edited, published ones get a new version, unchanged ones are skipped, so a second run does nothing. `--publish` (refused when `NODE_ENV=production`) publishes every open version, exercises first; it is the local/dev seed.
+
 ## 10. Tests
 
 - Unit (domain): table-driven tests for every progression rule, deload triggers, contraindication filtering, substitution ranking, time budgeting; property tests (fast-check) that generated plans always pass `validatePlan` for random valid inputs.
 - Integration: generate → log → complete → adapt cycle on Testcontainers Postgres; idempotent set upsert; cross-user 404.
+- Content: `content-dataset.test.ts` (schema, coverage, publish checks for every item, plans for every goal × location × days, seed migration = contracts and policy defaults); `content.int.test.ts` (workflow and permissions, immutable versions, ContentPublished and audit once per publish, template refusal by synthetic profile, importer idempotency, library filters, ETag 304 and invalidation).
 - BDD: scenarios in [acceptance-criteria.md](../../requirements/acceptance-criteria.md#workouts).

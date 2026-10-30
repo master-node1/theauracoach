@@ -1,5 +1,16 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { ServiceKitModule, type FeatureFlags, type UserTokenVerifier } from '@aura/service-kit';
+import {
+  ADMIN_REPORTS,
+  AdminOps,
+  AdminOpsController,
+  EVENT_DATABASE,
+  ServiceKitModule,
+  type FeatureFlags,
+  type UserTokenVerifier,
+} from '@aura/service-kit';
+import { AdminUsersController } from './admin/admin-users.controller';
+import { AdminUsersService } from './admin/admin-users.service';
+import { ProfileReports } from './admin/profile-reports';
 import { DEV_IDENTITY_ENDPOINT, type ServiceConfig } from './config';
 import { ConsentsController } from './consents/consents.controller';
 import { ConsentsService } from './consents/consents.service';
@@ -18,11 +29,21 @@ import { MeController } from './identity/me.controller';
 import { SessionsController } from './identity/sessions.controller';
 import { UserProvisioningService } from './identity/user-provisioning.service';
 import { UserContextController } from './internal/user-context.controller';
+import { DeletionService } from './privacy/deletion.service';
+import { ExportsService } from './privacy/exports.service';
+import { IDENTITY_ADMIN, createIdentityAdmin, type IdentityAdmin } from './privacy/identity-admin';
+import { PrivacyController } from './privacy/privacy.controller';
+import { objectStorageProvider } from './privacy/storage';
 import { PrismaService } from './prisma.service';
 import { ProfileController } from './profile/profile.controller';
 import { ProfileService } from './profile/profile.service';
 import { RolesController } from './roles/roles.controller';
 import { RolesService } from './roles/roles.service';
+
+export interface AppModuleOverrides {
+  /** Replace the identity provider admin client (tests). */
+  identityAdmin?: IdentityAdmin;
+}
 
 /** The http deployment: public /v1 and /internal/v1 routes. */
 @Module({})
@@ -33,6 +54,7 @@ export class AppModule {
     flags?: FeatureFlags,
     identityGroups?: IdentityGroups,
     identity?: IdentityProvider,
+    overrides: AppModuleOverrides = {},
   ): DynamicModule {
     return {
       module: AppModule,
@@ -45,11 +67,14 @@ export class AppModule {
       ],
       controllers: [
         MeController,
+        PrivacyController,
         SessionsController,
         ProfileController,
         ConsentsController,
         FlagsController,
         RolesController,
+        AdminUsersController,
+        AdminOpsController,
         UserContextController,
       ],
       providers: [
@@ -58,6 +83,10 @@ export class AppModule {
         ProfileService,
         ConsentsService,
         RolesService,
+        AdminUsersService,
+        AdminOps,
+        { provide: EVENT_DATABASE, useExisting: PrismaService },
+        { provide: ADMIN_REPORTS, useClass: ProfileReports },
         {
           provide: IDENTITY_GROUPS,
           useValue: identityGroups ?? new CognitoIdentityGroups(config),
@@ -67,6 +96,13 @@ export class AppModule {
           useValue:
             identity ??
             new CognitoIdentityProvider(config.IDENTITY_ENDPOINT ?? DEV_IDENTITY_ENDPOINT),
+        },
+        ExportsService,
+        DeletionService,
+        objectStorageProvider,
+        {
+          provide: IDENTITY_ADMIN,
+          useValue: overrides.identityAdmin ?? createIdentityAdmin(config),
         },
       ],
     };

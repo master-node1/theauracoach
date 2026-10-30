@@ -10,11 +10,14 @@ import {
   timeZoneOptions,
   type ConsentPurpose,
   type ConsentResponse,
+  type DataRequestResponse,
   type MeResponse,
   type PreferencesResponse,
   type ProfileResponse,
   type UnitSystem,
 } from '@aura/api-client';
+import { DeleteAccount } from '@/components/privacy/DeleteAccount';
+import { ExportData } from '@/components/privacy/ExportData';
 import { browserApi } from '@/lib/browser-api';
 import { applyTheme } from '@/lib/theme';
 
@@ -44,10 +47,13 @@ export function SettingsForm({
   me,
   consents: initialConsents,
   policyVersion,
+  privacy,
 }: {
   me: MeResponse;
   consents: ConsentResponse[];
   policyVersion: string;
+  /** Export and deletion controls (FEATURE_PRIVACY_V1); null shows them as coming soon. */
+  privacy: { latestExport: DataRequestResponse | null; resumeDelete: boolean } | null;
 }) {
   const ids = useId();
   const [status, setStatus] = useState<Status>(null);
@@ -299,14 +305,23 @@ export function SettingsForm({
               />
             </div>
           ))}
-          <div className="settings-row">
-            <span>Export my data</span>
-            <span className="settings-muted">Coming soon</span>
-          </div>
-          <div className="settings-row">
-            <span className="danger-text">Delete account</span>
-            <span className="settings-muted">Coming soon</span>
-          </div>
+          {privacy ? (
+            <>
+              <ExportData initial={privacy.latestExport} />
+              <DeleteAccount resume={privacy.resumeDelete} />
+            </>
+          ) : (
+            <>
+              <div className="settings-row">
+                <span>Export my data</span>
+                <span className="settings-muted">Coming soon</span>
+              </div>
+              <div className="settings-row">
+                <span className="danger-text">Delete account</span>
+                <span className="settings-muted">Coming soon</span>
+              </div>
+            </>
+          )}
         </div>
         <p className="fine-print">Privacy policy version {policyVersion}</p>
       </section>

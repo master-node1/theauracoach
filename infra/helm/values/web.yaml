@@ -1,19 +1,24 @@
 # web: Next.js user app, admin console and auth BFF (apps/web). Calls the gateway in-cluster and
-# Cognito's token endpoint over 443. The image and a dedicated health route arrive with TAC-37;
-# until then readiness uses the public sign-in page.
+# Cognito's token endpoint over 443. Image: apps/web/Dockerfile (Next.js standalone server).
 kind: web
 image:
   repository: auracoach/web
 containerPort: 3000
-# Next.js writes its fetch and image cache under .next/cache.
-writablePaths: [/app/.next/cache]
+# Next.js writes its fetch and image cache under .next/cache, next to the standalone server.
+writablePaths: [/app/apps/web/.next/cache]
 http:
   probes:
-    livenessPath: /auth/sign-in
-    readinessPath: /auth/sign-in
+    # Answers without config or upstream calls (apps/web/src/app/api/health).
+    livenessPath: /api/health
+    readinessPath: /api/health
   resources:
     requests: { cpu: 50m, memory: 192Mi }
     limits: { memory: 512Mi }
+# Kubernetes sets HOSTNAME to the pod name; the Next.js standalone server binds to it, so pin all interfaces.
+env:
+  HOSTNAME: 0.0.0.0
+  # The viewer address CloudFront sets (deployment.md "Edge routing"); keys the auth rate limit.
+  CLIENT_IP_HEADER: cloudfront-viewer-address
 worker:
   enabled: false
 migration:
@@ -28,5 +33,6 @@ networkPolicy:
   internetEgress: true
 ingress:
   enabled: true
+  publicHost: web
   paths: [/]
   priority: 10

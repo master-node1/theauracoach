@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CONTENT_STATUSES, type ContentStatus } from './content';
+import { CONTENT_STATUSES, type ContentStatus } from './workout-content';
 import { DIET_TYPES } from './me';
 
 /**

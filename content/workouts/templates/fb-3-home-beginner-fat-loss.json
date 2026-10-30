@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "fb-3-home-beginner-fat-loss",
+      "name": "Home fat loss: full body, 3 days",
+      "goal": "FAT_LOSS",
+      "experience": "BEGINNER",
+      "location": "HOME",
+      "split": "full_body",
+      "daysPerWeek": 3,
+      "days": [
+        {
+          "name": "Circuit A",
+          "focus": "full body and cardio",
+          "exercises": [
+            {
+              "exercise": "bodyweight-squat",
+              "sets": 3,
+              "repMin": 15,
+              "repMax": 20,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "push-up",
+              "sets": 3,
+              "repMin": 6,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "band-row",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "glute-bridge",
+              "sets": 2,
+              "repMin": 15,
+              "repMax": 20,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "step-jacks",
+              "sets": 3,
+              "repMin": 30,
+              "repMax": 45,
+              "targetRpe": 6,
+              "restSec": 30
+            }
+          ]
+        },
+        {
+          "name": "Circuit B",
+          "focus": "full body and cardio",
+          "exercises": [
+            {
+              "exercise": "reverse-lunge",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "incline-push-up",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "doorway-row",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dead-bug",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 45
+            },
+            {
+              "exercise": "marching-in-place",
+              "sets": 3,
+              "repMin": 45,
+              "repMax": 60,
+              "targetRpe": 6,
+              "restSec": 30
+            }
+          ]
+        },
+        {
+          "name": "Circuit C",
+          "focus": "full body and cardio",
+          "exercises": [
+            {
+              "exercise": "goblet-squat",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-floor-press",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-row",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "mountain-climber",
+              "sets": 3,
+              "repMin": 20,
+              "repMax": 30,
+              "targetRpe": 6,
+              "restSec": 30
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

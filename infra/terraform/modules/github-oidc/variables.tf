@@ -55,3 +55,14 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "origin_verify_secret_arn" {
+  description = "Secret holding the X-Origin-Verify value; the deploy job passes it to the edge releases."
+  type        = string
+}
+
+variable "promote_from_ecr_repository_arns" {
+  description = "Repositories in another account the deploy role may pull from to promote images (non-prod repositories, prod only)."
+  type        = list(string)
+  default     = []
+}

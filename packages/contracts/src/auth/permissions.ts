@@ -41,6 +41,7 @@ export const PERMISSIONS = [
   'role:grant',
   'user:support_read',
   'flag:write',
+  'event:replay',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

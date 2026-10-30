@@ -1,15 +1,20 @@
 # CloudFront in front of the k3s node's Traefik (ADR-007 Stage 1). Public TLS
-# ends at CloudFront (ACM in us-east-1); the origin is origin.<domain> on 443
-# with a cert-manager certificate, and CloudFront adds a secret X-Origin-Verify
-# header that Traefik requires. content-media is a second origin through origin
-# access control. WAF (managed rules + rate limits) is attached in prod.
+# ends at CloudFront (ACM in us-east-1) and is re-encrypted to the node on 443.
+# CloudFront connects to origin.<domain> (an A record on the node's Elastic IP)
+# but forwards the viewer Host (AllViewer), so the TLS SNI and Host the node sees
+# are the public hosts (app.<env>., api.<env>.): Traefik's IngressRoutes match
+# them and the cert-manager certificate covers them (deployment.md "Edge
+# routing"). It also adds CloudFront-Viewer-Address, the viewer's ip:port, which
+# web and the gateway key per-IP limits on. CloudFront adds a secret X-Origin-Verify header that Traefik
+# requires. content-media is a second origin through origin access control.
+# WAF (managed rules + rate limits) is attached in prod.
 
 locals {
-  aliases = concat([var.web_hostname, var.api_hostname], var.extra_aliases)
+  # One web and one api host per environment; the first environment's web host names the certificate.
+  aliases = flatten([for e in sort(keys(var.public_hosts)) : [var.public_hosts[e].web, var.public_hosts[e].api]])
   # AWS managed policies.
   cache_disabled         = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # CachingDisabled
   cache_optimized        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # CachingOptimized
-  origin_all_viewer      = "216adef6-5c7f-47e4-b989-5492eafa07d3" # AllViewer
   traefik_origin_id      = "k3s-traefik"
   content_media_originid = "content-media"
 }
@@ -38,8 +43,8 @@ resource "aws_secretsmanager_secret_version" "origin_verify" {
 
 resource "aws_acm_certificate" "viewer" {
   provider                  = aws.us_east_1
-  domain_name               = var.web_hostname
-  subject_alternative_names = concat([var.api_hostname], var.extra_aliases)
+  domain_name               = local.aliases[0]
+  subject_alternative_names = slice(local.aliases, 1, length(local.aliases))
   validation_method         = "DNS"
   tags                      = var.tags
 
@@ -232,6 +237,54 @@ resource "aws_cloudfront_origin_access_control" "content_media" {
   signing_protocol                  = "sigv4"
 }
 
+# Every viewer header, Host included, plus the viewer address. tools/ci/check-edge-routing.mjs fails if
+# a behavior to the k3s origin stops using it: the IngressRoutes and the origin certificate are built
+# for the viewer hosts, and the per-IP limits read CloudFront-Viewer-Address.
+resource "aws_cloudfront_origin_request_policy" "k3s" {
+  name    = "${var.name_prefix}-viewer"
+  comment = "All viewer headers (Host included), cookies and query strings, plus CloudFront-Viewer-Address"
+
+  cookies_config {
+    cookie_behavior = "all"
+  }
+  headers_config {
+    header_behavior = "allViewerAndWhitelistCloudFront"
+    headers {
+      items = ["CloudFront-Viewer-Address"]
+    }
+  }
+  query_strings_config {
+    query_string_behavior = "all"
+  }
+}
+
+# CachingOptimized plus Host in the cache key: the origin routes by Host, and environments that share
+# the distribution (dev, staging) must never be served each other's build assets.
+resource "aws_cloudfront_cache_policy" "static_by_host" {
+  name        = "${var.name_prefix}-static-by-host"
+  comment     = "Immutable build assets, cached per viewer host"
+  min_ttl     = 1
+  default_ttl = 86400
+  max_ttl     = 31536000
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "whitelist"
+      headers {
+        items = ["Host"]
+      }
+    }
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+  }
+}
+
 # Security headers on every response. The web app sets its own CSP (nonces), so
 # CloudFront does not override it.
 resource "aws_cloudfront_response_headers_policy" "security" {
@@ -301,7 +354,7 @@ resource "aws_cloudfront_distribution" "this" {
     allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
     cached_methods             = ["GET", "HEAD"]
     cache_policy_id            = local.cache_disabled
-    origin_request_policy_id   = local.origin_all_viewer
+    origin_request_policy_id   = aws_cloudfront_origin_request_policy.k3s.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
     compress                   = true
   }
@@ -312,7 +365,8 @@ resource "aws_cloudfront_distribution" "this" {
     viewer_protocol_policy     = "redirect-to-https"
     allowed_methods            = ["GET", "HEAD"]
     cached_methods             = ["GET", "HEAD"]
-    cache_policy_id            = local.cache_optimized
+    cache_policy_id            = aws_cloudfront_cache_policy.static_by_host.id
+    origin_request_policy_id   = aws_cloudfront_origin_request_policy.k3s.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
     compress                   = true
   }

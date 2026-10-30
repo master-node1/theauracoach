@@ -147,13 +147,7 @@ export class AdminFoodsService {
             publishedById: actor.userId,
           },
         });
-        await contentPublished(tx, {
-          contentType: 'food',
-          contentId: id,
-          slug: row.slug,
-          version,
-          publishedBy: actor.userId,
-        });
+        await contentPublished(tx, { kind: 'food', id: id, version });
         changedCatalogue = true;
       } else if (action === 'archive') {
         await tx.foodItem.update({

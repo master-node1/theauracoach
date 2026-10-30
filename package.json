@@ -15,6 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "turbo run db:migrate",
+    "content:import": "pnpm --filter @aura/workout-service content:import",
     "new-service": "node tools/scaffold/new-service.mjs",
     "stack:observability": "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-lgtm:4318 docker compose --profile observability up --build -d",
     "nutrition:import": "pnpm --filter @aura/nutrition-service run catalogue:import"

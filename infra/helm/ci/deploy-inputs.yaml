@@ -3,11 +3,16 @@
 # from Secrets Manager with set_sensitive. None of these values is real.
 global:
   imageRegistry: 123456789012.dkr.ecr.ap-south-1.amazonaws.com
+  hosts:
+    web: app.example.test
+    api: api.example.test
   auth:
     issuer: https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLE
     jwksUrl: https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_EXAMPLE/.well-known/jwks.json
     clientIds: [example-web-client, example-mobile-client]
     userPoolId: ap-south-1_EXAMPLE
+  objectStorage:
+    bucket: auracoach-123456789012-user-private
 image:
   tag: 0123456789abcdef0123456789abcdef01234567
 web:
@@ -15,6 +20,5 @@ web:
   oidcDomainUrl: https://auth.example.test
   oidcClientId: example-web-client
 ingress:
-  host: origin.example.test
   originVerify:
     value: ci-placeholder-not-a-secret

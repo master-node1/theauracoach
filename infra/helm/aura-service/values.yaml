@@ -30,11 +30,22 @@ global:
     system: aura-system
   # Deploy input: <account>.dkr.ecr.ap-south-1.amazonaws.com
   imageRegistry: ''
+  # Deploy input: the environment's public hosts, the CloudFront aliases. CloudFront forwards the
+  # viewer Host, so the ingress matches these, never origin.<domain> (deployment.md "Edge routing").
+  hosts:
+    web: ''
+    api: ''
   # Every deployable, the namespace tier it runs in and its port. Set in values/common.yaml.
   deployables: {}
   # Synchronous calls allowed between deployables (service catalog §4). Set in values/common.yaml.
   # Drives INTERNAL_SERVICE_URLS, gateway upstreams and the NetworkPolicy allow-lists.
   callGraph: {}
+  # Deploy input: the user-private S3 bucket (Terraform storage module, bucket_names.user_private).
+  # Every node service writes its part of a data export there (users LLD §3). Objects use SSE-KMS
+  # with the bucket's default key unless kmsKeyId is set. The node role grants access (Stage 1).
+  objectStorage:
+    bucket: ''
+    kmsKeyId: ''
   auth:
     # Deploy inputs from the Cognito user pool.
     issuer: ''
@@ -94,8 +105,8 @@ containerPort: 3000
 # Non-secret environment for every container of this release, on top of what the chart derives.
 env: {}
 
-# The service mirrors role grants to Cognito groups (profile-service): renders IDENTITY_ENDPOINT,
-# COGNITO_USER_POOL_ID and AWS_REGION, which it requires in production.
+# The service mirrors role grants to Cognito groups (profile-service): renders IDENTITY_ENDPOINT and
+# COGNITO_USER_POOL_ID, which it requires in production.
 cognitoAdmin: false
 
 # User the image runs as: node (1000) for NestJS and Next.js, nginx (101) for the gateway.
@@ -193,13 +204,13 @@ web:
 
 ingress:
   enabled: false
-  # Deploy input: the origin host CloudFront forwards to, e.g. origin.auracoach.app.
-  host: ''
+  # Which of global.hosts this deployable answers on: web (app.<env>.) or api (api.<env>.).
+  publicHost: ''
   # Path prefixes routed to this deployable.
   paths: ['/']
   # Higher wins when two routes match (api-gateway /v1 over web /).
   priority: 0
-  # Name of the TLS Secret issued by cert-manager in the ingress namespace (infra/k3s).
+  # TLS Secret cert-manager issues in the edge namespace for global.hosts (aura-platform).
   tlsSecretName: origin-tls
   # Reject requests without CloudFront's secret X-Origin-Verify header. The value is a deploy input
   # read from Secrets Manager by Terraform and passed with set_sensitive; it is never in a values file.

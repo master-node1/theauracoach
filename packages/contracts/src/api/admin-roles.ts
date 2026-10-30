@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { auditReasonSchema } from './admin';
 import { GRANTABLE_ROLES, type GrantableRole, type Permission } from '../auth/permissions';
 
 /** `RoleGrantInput` for POST /v1/admin/roles. The target is named by user id or by email. */
@@ -7,6 +8,8 @@ export const roleGrantSchema = z
     userId: z.uuid().optional(),
     email: z.email().max(254).optional(),
     role: z.enum(GRANTABLE_ROLES),
+    /** Why, for the audit log. The console always asks for one (admin LLD §5). */
+    reason: auditReasonSchema.optional(),
   })
   .refine((b) => (b.userId ? !b.email : !!b.email), 'Give exactly one of userId or email');
 export type RoleGrantInput = z.infer<typeof roleGrantSchema>;

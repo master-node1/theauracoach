@@ -4,7 +4,7 @@ Contract: [openapi.yaml](openapi.yaml) (OpenAPI 3.1, lints clean with `redocly l
 
 ## Routing
 
-The public API is one contract served by several services. The nginx `api-gateway` validates nothing itself; it routes by path prefix (`/v1/me`, `/v1/onboarding`, `/v1/admin/roles`, `/v1/admin/flags` → profile; `/v1/exercises`, `/v1/workout-*` → workout; `/v1/foods`, `/v1/nutrition`, `/v1/meal-plans`, `/v1/recipes` → nutrition; `/v1/dashboard`, `/v1/progress` → progress; `/v1/coach`, `/v1/recommendations`, `/v1/admin/usage` → coach; `/v1/me/notification-preferences`, `/v1/me/devices`, `/v1/notifications` → notification; `/v1/admin/audit` → audit; `/v1/admin/{contentType}/…` → the service that owns that content type). More specific prefixes win, so `/v1/me/devices` reaches notification while the rest of `/v1/me` reaches profile. The full table is in the [service catalog](../architecture/service-catalog.md). `/internal/v1` is never routed by the gateway. Each service validates the Cognito token itself.
+The public API is one contract served by several services. The nginx `api-gateway` validates nothing itself; it routes by path prefix (`/v1/me`, `/v1/onboarding`, `/v1/admin/roles`, `/v1/admin/flags` → profile; `/v1/exercises`, `/v1/workout-*` → workout; `/v1/foods`, `/v1/nutrition`, `/v1/meal-plans`, `/v1/recipes` → nutrition; `/v1/dashboard`, `/v1/progress` → progress; `/v1/coach`, `/v1/recommendations`, `/v1/admin/usage` → coach; `/v1/me/notification-preferences`, `/v1/me/devices`, `/v1/notifications` → notification; `/v1/admin/audit` → audit; `/v1/admin/ops/{service}/…` → that service (queues, dead letters, support-view sections, usage counters; TAC-32); `/v1/admin/{contentType}/…` → the service that owns that content type). More specific prefixes win, so `/v1/me/devices` reaches notification while the rest of `/v1/me` reaches profile. The full table is in the [service catalog](../architecture/service-catalog.md). `/internal/v1` is never routed by the gateway. Each service validates the Cognito token itself.
 
 ## Conventions
 
@@ -44,11 +44,11 @@ RFC 9457 problem details with a stable `code`:
 |---|---|
 | 400 | `BAD_REQUEST` (malformed JSON) |
 | 401 | `UNAUTHENTICATED` |
-| 403 | `FORBIDDEN`, `MFA_REQUIRED`, `CONSENT_REQUIRED` |
+| 403 | `FORBIDDEN`, `MFA_REQUIRED`, `CONSENT_REQUIRED`, `REAUTH_REQUIRED` (sign in again, then retry; account deletion) |
 | 404 | `NOT_FOUND` (also for resources owned by someone else) |
-| 409 | `SESSION_CLOSED`, `RECOMMENDATION_STALE`, `EXPORT_IN_PROGRESS`, `VERSION_CONFLICT` |
+| 409 | `SESSION_CLOSED`, `RECOMMENDATION_STALE`, `EXPORT_IN_PROGRESS`, `VERSION_CONFLICT`, `RESTORE_WINDOW_CLOSED` |
 | 422 | `VALIDATION_FAILED`, `UNIT_NOT_SUPPORTED`, `IDEMPOTENCY_KEY_REUSED`, `PLAN_RULE_VIOLATION` |
-| 423 | `ACCOUNT_PENDING_DELETION` |
+| 423 | `ACCOUNT_PENDING_DELETION` (every service except `GET /v1/me`, exports and restore; show the restore screen) |
 | 429 | `RATE_LIMITED`, `COACH_QUOTA_REACHED` |
 | 503 | `COACH_UNAVAILABLE`, `DEPENDENCY_UNAVAILABLE` |
 

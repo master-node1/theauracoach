@@ -11,6 +11,7 @@ locals {
   deployables  = concat(local.services, ["api-gateway", "web"])
   web_hostname = "app.${var.domain_name}"
   api_hostname = "api.${var.domain_name}"
+  hosts        = { prod = { web = local.web_hostname, api = local.api_hostname } }
 
   # Bundled Traefik config from infra/k3s (TAC-35), applied by k3s at first boot.
   traefik_config   = "${path.module}/../../../k3s/traefik-config.yaml"
@@ -152,8 +153,7 @@ module "edge" {
   secret_prefix                    = local.secret_prefix
   kms_key_arn                      = module.kms.key_arn
   route53_zone_id                  = var.route53_zone_id
-  web_hostname                     = local.web_hostname
-  api_hostname                     = local.api_hostname
+  public_hosts                     = local.hosts
   origin_hostname                  = "origin.${var.domain_name}"
   origin_ip                        = module.k3s_node.public_ip
   content_media_bucket_domain_name = module.storage.content_media_regional_domain_name
@@ -169,14 +169,18 @@ module "dns_firewall" {
 }
 
 module "github_oidc" {
-  source               = "../../modules/github-oidc"
-  name_prefix          = local.name_prefix
-  create_oidc_provider = var.create_github_oidc_provider
-  deploy_environments  = local.environments
-  ecr_repository_arns  = module.ecr.repository_arns
-  kms_key_arn          = module.kms.key_arn
-  k3s_instance_arn     = module.k3s_node.instance_arn
-  state_bucket         = var.state_bucket
-  lock_table           = var.lock_table
-  state_kms_key_arn    = var.state_kms_key_arn
+  source                   = "../../modules/github-oidc"
+  name_prefix              = local.name_prefix
+  create_oidc_provider     = var.create_github_oidc_provider
+  deploy_environments      = local.environments
+  ecr_repository_arns      = module.ecr.repository_arns
+  origin_verify_secret_arn = module.edge.origin_verify_secret_arn
+  promote_from_ecr_repository_arns = var.nonprod_account_id == "" ? [] : [
+    for d in local.deployables : "arn:aws:ecr:${var.region}:${var.nonprod_account_id}:repository/auracoach/${d}"
+  ]
+  kms_key_arn       = module.kms.key_arn
+  k3s_instance_arn  = module.k3s_node.instance_arn
+  state_bucket      = var.state_bucket
+  lock_table        = var.lock_table
+  state_kms_key_arn = var.state_kms_key_arn
 }

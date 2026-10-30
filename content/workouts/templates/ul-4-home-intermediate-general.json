@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "ul-4-home-intermediate-general",
+      "name": "Home fitness: upper/lower, 4 days",
+      "goal": "GENERAL_FITNESS",
+      "experience": "INTERMEDIATE",
+      "location": "HOME",
+      "split": "upper_lower",
+      "daysPerWeek": 4,
+      "days": [
+        {
+          "name": "Upper A",
+          "focus": "upper body",
+          "exercises": [
+            {
+              "exercise": "push-up",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-row",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-shoulder-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "band-lat-pulldown",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-curl",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 60
+            }
+          ]
+        },
+        {
+          "name": "Lower A",
+          "focus": "lower body",
+          "exercises": [
+            {
+              "exercise": "goblet-squat",
+              "sets": 3,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-rdl",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-reverse-lunge",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "single-leg-glute-bridge",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 60
+            },
+            {
+              "exercise": "plank",
+              "sets": 2,
+              "repMin": 30,
+              "repMax": 60,
+              "targetRpe": 7,
+              "restSec": 45
+            }
+          ]
+        },
+        {
+          "name": "Upper B",
+          "focus": "upper body",
+          "exercises": [
+            {
+              "exercise": "dumbbell-floor-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "pull-up",
+              "sets": 3,
+              "repMin": 5,
+              "repMax": 8,
+              "targetRpe": 8,
+              "restSec": 120
+            },
+            {
+              "exercise": "band-row",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "band-lateral-raise",
+              "sets": 2,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 45
+            },
+            {
+              "exercise": "diamond-push-up",
+              "sets": 2,
+              "repMin": 6,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 60
+            }
+          ]
+        },
+        {
+          "name": "Lower B",
+          "focus": "lower body",
+          "exercises": [
+            {
+              "exercise": "bulgarian-split-squat",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "single-leg-rdl",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-step-up",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-calf-raise",
+              "sets": 3,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 45
+            },
+            {
+              "exercise": "side-plank",
+              "sets": 2,
+              "repMin": 30,
+              "repMax": 45,
+              "targetRpe": 7,
+              "restSec": 45
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

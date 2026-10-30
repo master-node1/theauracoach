@@ -2,17 +2,28 @@ import type { WebConfig } from './config';
 import { isSameOrigin } from './csrf';
 import type { Session } from './session';
 
-/** Request headers passed through to the gateway; everything else (cookies included) stays here. */
+/**
+ * Request headers passed through to the gateway; everything else (cookies included) stays here.
+ * cloudfront-viewer-address lets the gateway and services count per viewer, not per web pod.
+ */
 const FORWARD_REQUEST = [
   'accept',
   'accept-language',
+  'cloudfront-viewer-address',
   'content-type',
   'idempotency-key',
   'if-match',
   'if-none-match',
   'x-request-id',
 ];
-const FORWARD_RESPONSE = ['content-type', 'etag', 'location', 'retry-after', 'x-request-id'];
+const FORWARD_RESPONSE = [
+  'content-disposition',
+  'content-type',
+  'etag',
+  'location',
+  'retry-after',
+  'x-request-id',
+];
 
 function problem(status: number, code: string, title: string): Response {
   return new Response(JSON.stringify({ type: 'about:blank', title, status, code }), {

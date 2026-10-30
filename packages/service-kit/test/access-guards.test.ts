@@ -7,13 +7,13 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AdminMfaGuard,
+  AnyPermission,
   AuthGuard,
   CONSENT_STATE,
   ConsentGuard,
   describeRoutes,
   guardMatrixViolations,
   InternalOnly,
-  AnyPermission,
   Permissions,
   PermissionsGuard,
   ProblemDetailsFilter,
@@ -32,10 +32,10 @@ class AdminController {
     return { ok: true };
   }
 
-  @AnyPermission('food:write', 'food:review')
-  @Get(':id')
-  read() {
-    return { ok: true };
+  @AnyPermission('exercise:write', 'exercise:publish')
+  @Get()
+  list() {
+    return [];
   }
 
   // Forgot @Permissions: must fail closed.
@@ -137,14 +137,14 @@ describe('admin routes (TC-SEC-3)', () => {
     expect(res.body).toMatchObject({ status: 403, code: 'FORBIDDEN' });
   });
 
-  it('lets any one of @AnyPermission through and refuses staff with none of them', async () => {
-    const read = async (groups: string[]) =>
+  it('lets a route with @AnyPermission through on any one of them', async () => {
+    const list = async (groups: string[]) =>
       request(app.getHttpServer())
-        .get('/v1/admin/things/42')
+        .get('/v1/admin/things')
         .set('authorization', `Bearer ${await token(groups, ['pwd', 'mfa'])}`);
-    expect((await read(['content_editor'])).status).toBe(200);
-    expect((await read(['nutrition_reviewer'])).status).toBe(200);
-    expect((await read(['content_reviewer'])).body).toMatchObject({ code: 'FORBIDDEN' });
+    await list(['content_editor']).then((r) => expect(r.status).toBe(200));
+    await list(['content_reviewer']).then((r) => expect(r.status).toBe(200));
+    await list(['nutrition_reviewer']).then((r) => expect(r.status).toBe(403));
   });
 
   it('refuses an admin route that declares no permissions, even for owners', async () => {
@@ -186,8 +186,9 @@ describe('guard matrix', () => {
     expect(describeRoutes(app)).toEqual([
       expect.objectContaining({ route: 'DELETE /v1/admin/things/:id', permissions: [] }),
       expect.objectContaining({
-        route: 'GET /v1/admin/things/:id',
-        anyPermissions: ['food:write', 'food:review'],
+        route: 'GET /v1/admin/things',
+        permissions: [],
+        anyPermissions: ['exercise:write', 'exercise:publish'],
       }),
       expect.objectContaining({ route: 'GET /v1/coach/conversations', consent: 'AI_COACH' }),
       expect.objectContaining({ route: 'GET /v1/coach/limits', access: 'user' }),

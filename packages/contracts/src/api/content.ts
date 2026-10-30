@@ -3,8 +3,7 @@
  * DRAFT → IN_REVIEW → PUBLISHED → ARCHIVED, with `version` incremented on each publish.
  * Edits to published content are held as a revision that runs through the same states.
  */
-export const CONTENT_STATUSES = ['DRAFT', 'IN_REVIEW', 'PUBLISHED', 'ARCHIVED'] as const;
-export type ContentStatus = (typeof CONTENT_STATUSES)[number];
+import type { ContentStatus } from './workout-content';
 
 export const CONTENT_TYPES = [
   'exercise',

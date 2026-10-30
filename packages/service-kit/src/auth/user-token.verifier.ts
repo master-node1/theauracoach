@@ -53,6 +53,7 @@ export class UserTokenVerifier {
     }
     const groups = payload['cognito:groups'];
     const amr = payload.amr;
+    const authTime = payload.auth_time;
     return {
       userId: payload.sub.toLowerCase(),
       ...(typeof payload.email === 'string' ? { email: payload.email } : {}),
@@ -60,6 +61,7 @@ export class UserTokenVerifier {
       amr: strings(amr),
       clientId,
       issuedAt: typeof payload.iat === 'number' ? payload.iat : 0,
+      ...(typeof authTime === 'number' && Number.isFinite(authTime) ? { authTime } : {}),
     };
   }
 }

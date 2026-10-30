@@ -115,13 +115,7 @@ export function audit(tx: Prisma.TransactionClient, input: AuditInput) {
 
 export function contentPublished(
   tx: Prisma.TransactionClient,
-  input: {
-    contentType: ContentType;
-    contentId: string;
-    slug: string | null;
-    version: number;
-    publishedBy: string;
-  },
+  input: { kind: 'food' | 'recipe'; id: string; version: number },
 ) {
   return writeOutbox(tx, {
     producer: 'nutrition-service',

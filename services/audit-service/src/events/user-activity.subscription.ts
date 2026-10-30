@@ -43,7 +43,7 @@ export const profileChanged = subscribe<'ProfileChanged@1', Prisma.TransactionCl
 export const auditEvent = subscribe<'AuditEvent@1', Prisma.TransactionClient>(
   'AuditEvent@1',
   async (event, tx) => {
-    const { actorId, actorRole, action, entityType, entityId, before, after, requestId } =
+    const { actorId, actorRole, action, entityType, entityId, before, after, requestId, reason } =
       event.data;
     await tx.auditLog.create({
       data: {
@@ -55,6 +55,7 @@ export const auditEvent = subscribe<'AuditEvent@1', Prisma.TransactionClient>(
         before: (before ?? undefined) as Prisma.InputJsonValue | undefined,
         after: (after ?? undefined) as Prisma.InputJsonValue | undefined,
         requestId,
+        reason: reason ?? null,
         createdAt: new Date(event.occurredAt),
       },
     });
@@ -62,3 +63,22 @@ export const auditEvent = subscribe<'AuditEvent@1', Prisma.TransactionClient>(
 );
 
 export const subscriptions = [consentChanged, profileChanged, auditEvent];
+
+/**
+ * Data-subject requests (export, deletion, restore, purge) are audited by action only, from the
+ * export and deletion events this service already takes part in (participantSubscriptions).
+ */
+export function dataRightsAudit(action: string) {
+  return async (tx: Prisma.TransactionClient, userId: string, at: Date): Promise<void> => {
+    await tx.auditLog.create({
+      data: {
+        actorId: userId,
+        actorRole: 'user',
+        action,
+        entityType: 'user',
+        entityId: userId,
+        createdAt: at,
+      },
+    });
+  };
+}

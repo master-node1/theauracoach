@@ -18,24 +18,27 @@ variable "route53_zone_id" {
   type        = string
 }
 
-variable "web_hostname" {
-  description = "Web app host, e.g. app.auracoach.example."
-  type        = string
-}
+variable "public_hosts" {
+  description = "Public hosts per environment served by this distribution, e.g. { prod = { web = \"app.auracoach.example\", api = \"api.auracoach.example\" } }. The same map is the Helm deploy input global.hosts, so the distribution, the IngressRoutes and the origin certificate agree."
+  type = map(object({
+    web = string
+    api = string
+  }))
 
-variable "api_hostname" {
-  description = "API host, e.g. api.auracoach.example."
-  type        = string
-}
+  validation {
+    condition     = length(var.public_hosts) > 0
+    error_message = "public_hosts needs at least one environment."
+  }
 
-variable "extra_aliases" {
-  description = "More hosts on the same distribution (e.g. staging hosts on the non-prod node)."
-  type        = list(string)
-  default     = []
+  # Environments on one distribution are told apart only by host, so no host may serve two of them.
+  validation {
+    condition     = length(distinct(flatten([for h in values(var.public_hosts) : [h.web, h.api]]))) == 2 * length(var.public_hosts)
+    error_message = "Every environment needs its own web and api host; no host may be shared."
+  }
 }
 
 variable "origin_hostname" {
-  description = "Origin host that resolves to the node, e.g. origin.auracoach.example."
+  description = "DNS name CloudFront connects to, resolving to the node, e.g. origin.auracoach.example. Only the address: the viewer Host is forwarded, so TLS and routing use the public hosts."
   type        = string
 }
 

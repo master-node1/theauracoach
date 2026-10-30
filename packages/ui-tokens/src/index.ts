@@ -133,4 +133,5 @@ export const adminSections = [
   'Usage and cost',
   'Audit log',
   'Roles',
+  'Operations',
 ] as const;

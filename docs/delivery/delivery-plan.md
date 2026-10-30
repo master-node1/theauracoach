@@ -64,7 +64,7 @@ flowchart LR
 | Hosting revision: k3s on EC2 for beta, EKS for growth ([TAC-4](https://harisireddi7776.atlassian.net/browse/TAC-4), ADR-007) | Done |
 | Generic Helm chart `aura-service`, `aura-platform` and non-prod `aura-datastores` charts, values for all 9 deployables × dev/staging/prod, k3s add-on values, CI validation (kubeconform, kube-linter, NetworkPolicy vs catalog) and [deployment](../operations/deployment.md) doc; validated, never applied ([TAC-35](https://harisireddi7776.atlassian.net/browse/TAC-35)) | Done |
 | Terraform `platform` stack for Stage 1 (prod and nonprod accounts, state backend, CI fmt/validate/tflint/checkov, plan once credentials exist), validated but not applied; [infrastructure](../operations/infrastructure.md) runbook ([TAC-36](https://harisireddi7776.atlassian.net/browse/TAC-36)) | Done |
-| Terraform `service` stack (add-ons and one `helm_release` per deployable), image push and CD, disabled until AWS accounts exist ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37)) | Not started |
+| CD pipelines: signed arm64 images, Helm deploy per changed deployable, release with staging gates and prod approval, rollback, cluster add-ons ([ADR-010](../architecture/ADR/ADR-010-cd-helm-cli.md)); off until the owner sets `CD_ENABLED` ([TAC-37](https://harisireddi7776.atlassian.net/browse/TAC-37)) | Done (not enabled) |
 | OpenTelemetry tracing, metrics and log correlation in every service, local Grafana stack, [monitoring](../operations/monitoring.md) doc ([TAC-5](https://harisireddi7776.atlassian.net/browse/TAC-5)) | Done |
 | EAS dev builds, remaining operations docs (troubleshooting) | Not started |
 
@@ -87,8 +87,8 @@ Each slice ships API + web + mobile + tests + docs, behind a feature flag, and i
 
 | Increment | Status |
 |---|---|
-| 5.1a Profile, preferences and consents API (`ProfileChanged`, `ConsentChanged`, internal user context), Settings screen on web and mobile behind `settings_v1` ([TAC-6](https://harisireddi7776.atlassian.net/browse/TAC-6)) | In review |
-| 5.1b Data export and account deletion/restore across services (TC-PRV-1..3) | Not started |
+| 5.1a Profile, preferences and consents API (`ProfileChanged`, `ConsentChanged`, internal user context), Settings screen on web and mobile behind `settings_v1` ([TAC-6](https://harisireddi7776.atlassian.net/browse/TAC-6)) | Done |
+| 5.1b Data export and account deletion/restore across services (TC-PRV-1..3), web and mobile behind `privacy_v1` ([TAC-7](https://harisireddi7776.atlassian.net/browse/TAC-7)) | Done |
 | 5.1c Email sign-up, verification, password reset, password sign-in and sign out of all devices on web and mobile; Google/Apple buttons when configured ([TAC-8](https://harisireddi7776.atlassian.net/browse/TAC-8)) | Done (real Cognito pool and IdP apps come with the Terraform ticket) |
 
 Risks: content creation is on the critical path (exercises, media, Indian dishes) → start content production during Phase 4 with the admin import tooling first.

@@ -1,6 +1,17 @@
+import { fileURLToPath } from 'node:url';
 import type { NextConfig } from 'next';
 
+// The container image (apps/web/Dockerfile) sets NEXT_OUTPUT=standalone so `next build` emits a
+// self-contained server; local runs and the Playwright smoke keep `next start`.
+const standalone = process.env.NEXT_OUTPUT === 'standalone';
+
 const nextConfig: NextConfig = {
+  ...(standalone
+    ? {
+        output: 'standalone',
+        outputFileTracingRoot: fileURLToPath(new URL('../..', import.meta.url)),
+      }
+    : {}),
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {

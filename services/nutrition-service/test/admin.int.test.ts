@@ -53,7 +53,7 @@ const outbox = (type: string, entityId: string) =>
     where: {
       type,
       payload: {
-        path: ['data', type === 'AuditEvent' ? 'entityId' : 'contentId'],
+        path: ['data', type === 'AuditEvent' ? 'entityId' : 'id'],
         equals: entityId,
       },
     },
@@ -94,13 +94,7 @@ describe('/v1/admin/foods', () => {
     const events = await outbox('ContentPublished', id);
     expect(events.map((e) => e.payload)).toEqual([
       expect.objectContaining({
-        data: {
-          contentType: 'food',
-          contentId: id,
-          slug: null,
-          version: 1,
-          publishedBy: ids.nutrition_reviewer,
-        },
+        data: { kind: 'food', id, version: 1 },
       }),
     ]);
     const audits = (await outbox('AuditEvent', id)).map(
@@ -285,19 +279,11 @@ describe('/v1/admin/recipes', () => {
       .expect(409);
 
     const events = await h.prisma.outboxEvent.findMany({ where: { type: 'ContentPublished' } });
-    const types = events.map(
-      (e) => (e.payload as { data: { contentType: string; contentId: string } }).data,
-    );
+    const types = events.map((e) => (e.payload as { data: { kind: string; id: string } }).data);
     expect(types).toEqual(
       expect.arrayContaining([
-        {
-          contentType: 'recipe',
-          contentId: id,
-          slug: 'test-moong-dal-tadka',
-          version: 1,
-          publishedBy: ids.nutrition_reviewer,
-        },
-        expect.objectContaining({ contentType: 'food', contentId: published.body.foodId }),
+        { kind: 'recipe', id, version: 1 },
+        expect.objectContaining({ kind: 'food', id: published.body.foodId }),
       ]),
     );
   });

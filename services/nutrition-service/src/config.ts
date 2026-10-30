@@ -1,7 +1,7 @@
-import { baseEnvSchema, loadConfig } from '@aura/service-kit';
+import { baseEnvSchema, loadConfig, objectStorageEnvSchema } from '@aura/service-kit';
 
-/** nutrition-service has no settings beyond the shared ones yet. Extend the schema here when it does. */
-export const configSchema = baseEnvSchema;
+/** Shared settings plus object storage, where this service writes its part of data exports. */
+export const configSchema = baseEnvSchema.extend(objectStorageEnvSchema.shape);
 export type ServiceConfig = ReturnType<typeof configSchema.parse>;
 
 export function loadServiceConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {

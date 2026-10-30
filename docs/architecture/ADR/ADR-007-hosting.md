@@ -54,7 +54,7 @@ The migration is a platform change, not an application change: Terraform `platfo
 
 ### What stays the same in both stages
 - One generic Helm chart, `infra/helm/aura-service`, for every service. Following the-aura-lab convention, Kubernetes workloads are only ever deployed through that chart; no raw manifests or `kubernetes_*` workload resources. Cluster add-ons (Traefik config, cert-manager, External Secrets, system-upgrade-controller) are Helm releases too.
-- Terraform `helm_release` per service with `infra/terraform/service/services/<name>.tfvars.json`; a stage only changes cluster connection and a few values (replicas, autoscaling, service account annotations).
+- One Helm release per service from `infra/helm/values`; a stage only changes cluster connection and a few values (replicas, autoscaling, service account annotations). The CD job runs the Helm CLI rather than Terraform `helm_release` ([ADR-010](ADR-010-cd-helm-cli.md)).
 - GitHub Actions with OIDC (no static AWS keys) builds and deploys only changed services. In Stage 1 the k3s API is not internet-facing: the deploy job opens an SSM Session Manager port forward to port 6443 and runs Terraform through it.
 - Secrets in AWS Secrets Manager, synced by External Secrets Operator.
 - Default-deny NetworkPolicies (k3s ships an enforcing network policy controller), health probes, the nginx `api-gateway`, OpenTelemetry to Grafana Cloud.

@@ -1,0 +1,16 @@
+# Used instead of the root .dockerignore when building apps/web/Dockerfile (BuildKit).
+# Same as the root file, except that the web app is included and mobile still is not.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/src/generated
+**/.env
+**/.env.*
+!**/.env.example
+.git
+docs
+coverage
+apps/mobile
+apps/web/playwright-report
+apps/web/test-results

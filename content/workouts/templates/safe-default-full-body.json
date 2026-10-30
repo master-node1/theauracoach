@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "safe-default-full-body",
+      "name": "Safe start: full body",
+      "goal": "GENERAL_FITNESS",
+      "experience": "BEGINNER",
+      "location": "HOME",
+      "split": "full_body",
+      "daysPerWeek": 2,
+      "days": [
+        {
+          "name": "Full body A",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "bodyweight-squat",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 6,
+              "restSec": 60
+            },
+            {
+              "exercise": "incline-push-up",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 60
+            },
+            {
+              "exercise": "doorway-row",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 60
+            },
+            {
+              "exercise": "plank",
+              "sets": 2,
+              "repMin": 20,
+              "repMax": 30,
+              "targetRpe": 6,
+              "restSec": 45
+            }
+          ]
+        },
+        {
+          "name": "Full body B",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "reverse-lunge",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 60
+            },
+            {
+              "exercise": "incline-push-up",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 60
+            },
+            {
+              "exercise": "doorway-row",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 6,
+              "restSec": 60
+            },
+            {
+              "exercise": "glute-bridge",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 15,
+              "targetRpe": 6,
+              "restSec": 60
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

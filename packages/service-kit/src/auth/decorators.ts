@@ -23,6 +23,8 @@ export interface AuthenticatedUser {
   clientId: string;
   /** The access token's `iat`, epoch seconds; compared with the user's revocation cut-off. */
   issuedAt: number;
+  /** When the user last signed in with their credentials (epoch seconds, `auth_time`); refreshes keep it. */
+  authTime?: number;
 }
 
 export interface ServiceCaller {

@@ -66,12 +66,14 @@ Our own screens call Cognito's public user API (`cognito-idp` JSON protocol, app
 - Password policy mirrors the pool: at least 10 characters with upper- and lower-case letters and a number (`PASSWORD_POLICY` in `packages/contracts`). Emails are trimmed and lower-cased before every call.
 - Codes are six digits, valid 15 minutes, single use; five wrong guesses lock the code (`LimitExceeded`). dev-auth enforces the same rules and prints codes to its log and `GET /test/codes?email=` instead of emailing them.
 - Errors come back as Cognito exception names without `Exception` (`UsernameExists`, `CodeMismatch`, `ExpiredCode`, `LimitExceeded`, `InvalidPassword`, `NotAuthorized`, `UserNotConfirmed`, …); `IDENTITY_ERROR_MESSAGES` in `packages/api-client` holds the copy both apps show.
-- BFF auth routes (`login` and every email route) allow 10 requests a minute per client IP (429 + `Retry-After`), counted per web replica; the client IP is read `TRUSTED_PROXY_HOPS` entries from the right of `X-Forwarded-For`. All of them are same-origin POSTs (CSRF) and return only `{redirect}`, never tokens.
+- BFF auth routes (`login` and every email route) allow 10 requests a minute per client IP (429 + `Retry-After`), counted per web replica; the client IP is `CLIENT_IP_HEADER` (`cloudfront-viewer-address` in the cluster, port stripped) when set and present, otherwise `TRUSTED_PROXY_HOPS` entries from the right of `X-Forwarded-For` (deployment.md "Edge routing"). All of them are same-origin POSTs (CSRF) and return only `{redirect}`, never tokens.
 - Cognito pool settings these flows need (Terraform ticket): app client flows `ALLOW_USER_PASSWORD_AUTH`, `ALLOW_USER_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH`; `PreventUserExistenceErrors` on; email verification by code; password policy as above.
 
 ### Sign out of all devices
 
 `POST /v1/me/sessions/revoke` (profile-service) writes a per-user cut-off `auth:revoked-before:<sub>` (epoch seconds, 24 h TTL) to the shared Redis and then calls Cognito `GlobalSignOut` with the caller's token. The `AuthGuard` in every service rejects access tokens whose `iat` is at or before the cut-off, so tokens on other devices get 401 before they expire, and their refresh tokens no longer work. A cut-off rather than a deny-list of `jti`/`origin_jti`: the API never sees the token ids of the user's other devices, and one key per user covers them all. The guard fails closed when Redis is unreachable (readiness already reports Redis down). If `GlobalSignOut` fails the route answers `503 IDENTITY_UNAVAILABLE` (the cut-off stays) and the apps ask the user to retry. Web: Settings → "Sign out of all devices" (`POST /api/auth/logout-everywhere`); mobile: the same row in Settings.
+
+Fresh sign-in for sensitive actions: account deletion needs a sign-in from the last 5 minutes, judged by the access token's `auth_time` claim (`AuthenticatedUser.authTime`). Otherwise the API answers `403 REAUTH_REQUIRED` and the client starts a new authorization with `prompt=login&max_age=0` (web: `/api/auth/login?reauth=1&returnTo=…`; mobile: a second auth request), then retries. Deleting an account also deletes the Cognito user (`AdminDeleteUser`) once every service has purged its data.
 
 ## 3. User identity across services
 
@@ -84,7 +86,7 @@ The AuraCoach user id **is** the Cognito `sub` (a UUID). profile-service creates
 - `@Permissions('exercise:publish')` checked by `PermissionsGuard` from the token's `cognito:groups` claim through the shared permission map (the caller needs every listed permission). An admin route without `@Permissions` is refused, so a forgotten decorator fails closed.
 - Every `/v1/admin/*` route (read from route metadata, not the URL): callers with no admin permission get `403 FORBIDDEN`; staff whose token `amr` has no MFA method (`mfa`, `otp`, `hwk`, `swk`) get `403 MFA_REQUIRED`; staff with MFA but without the route's permission get `403 FORBIDDEN` (TC-SEC-3).
 - Ownership in repositories; 404 for non-owned.
-- Permission catalogue (MVP): `exercise:*`, `food:*`, `recipe:*`, `template:*`, `prompt:*`, `policy:*`, `review:*`, `feedback:read`, `usage:read`, `audit:read`, `role:grant`, `user:support_read`, `flag:write` (TAC-10, owner only).
+- Permission catalogue (MVP): `exercise:*`, `food:*`, `recipe:*`, `template:*`, `prompt:*`, `policy:*`, `review:*`, `feedback:read`, `usage:read`, `audit:read`, `role:grant`, `user:support_read`, `flag:write` (TAC-10, owner only), `event:replay` (TAC-32, owner only: list and replay dead-lettered events).
 
 ### 4.1 Roles
 
@@ -124,7 +126,7 @@ Every service's `app.int.test.ts` reads all routes from Nest metadata (`describe
 
 ## 5. Errors
 
-`401 UNAUTHENTICATED` (missing/invalid/expired token), `403 FORBIDDEN`, `403 MFA_REQUIRED`, `403 CONSENT_REQUIRED` (with a `purpose` member, e.g. `AI_COACH`), `404 USER_NOT_FOUND` / `ROLE_GRANT_NOT_FOUND`, `409 LAST_OWNER`, `423 ACCOUNT_PENDING_DELETION`, `503 IDENTITY_UNAVAILABLE`.
+`401 UNAUTHENTICATED` (missing/invalid/expired token), `403 FORBIDDEN`, `403 MFA_REQUIRED`, `403 CONSENT_REQUIRED` (with a `purpose` member, e.g. `AI_COACH`), `403 REAUTH_REQUIRED`, `404 USER_NOT_FOUND` / `ROLE_GRANT_NOT_FOUND`, `409 LAST_OWNER`, `423 ACCOUNT_PENDING_DELETION` (from every service while the account waits out its deletion grace period), `503 IDENTITY_UNAVAILABLE`.
 
 ## 6. Tests
 

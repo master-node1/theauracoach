@@ -1,6 +1,8 @@
 {{- if .Values.ingress.enabled }}
 {{- $name := include "aura.name" . -}}
-{{- $host := required "ingress.host is required (deploy input)" .Values.ingress.host -}}
+{{- /* CloudFront forwards the viewer Host, so routes match the environment's public host (deployment.md "Edge routing"). */}}
+{{- $hostKey := required "ingress.publicHost is required (web or api)" .Values.ingress.publicHost -}}
+{{- $host := required (printf "global.hosts.%s is required (deploy input)" $hostKey) (index (.Values.global.hosts | default dict) $hostKey) -}}
 {{- $verify := .Values.ingress.originVerify -}}
 {{- if $verify.enabled }}
 {{- $_ := required "ingress.originVerify.value is required (deploy input from Secrets Manager, passed with set_sensitive)" $verify.value }}

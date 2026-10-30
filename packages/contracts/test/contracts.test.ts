@@ -112,13 +112,7 @@ describe('content workflow', () => {
   });
 
   it('validates ContentPublished v1', () => {
-    const data = {
-      contentType: 'food',
-      contentId: '7d5bd1fd-6c40-4c4f-a2f2-5a7a2a7d3c11',
-      slug: null,
-      version: 2,
-      publishedBy: null,
-    };
+    const data = { kind: 'food', id: '7d5bd1fd-6c40-4c4f-a2f2-5a7a2a7d3c11', version: 2 };
     expect(parseEventData('ContentPublished@1', data)).toEqual(data);
     expect(() => parseEventData('ContentPublished@1', { ...data, version: 0 })).toThrow();
   });

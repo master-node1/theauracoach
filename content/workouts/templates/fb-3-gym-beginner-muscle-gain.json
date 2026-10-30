@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "status": "IN_REVIEW",
+  "reviewRequired": "trainer",
+  "templates": [
+    {
+      "slug": "fb-3-gym-beginner-muscle-gain",
+      "name": "Gym muscle: full body, 3 days",
+      "goal": "MUSCLE_GAIN",
+      "experience": "BEGINNER",
+      "location": "GYM",
+      "split": "full_body",
+      "daysPerWeek": 3,
+      "days": [
+        {
+          "name": "Full body A",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "leg-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-bench-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "lat-pulldown",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-lateral-raise",
+              "sets": 2,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 60
+            },
+            {
+              "exercise": "dumbbell-curl",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 60
+            }
+          ]
+        },
+        {
+          "name": "Full body B",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "dumbbell-rdl",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "incline-dumbbell-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "seated-cable-row",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "leg-curl",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 60
+            },
+            {
+              "exercise": "triceps-pushdown",
+              "sets": 2,
+              "repMin": 10,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 60
+            }
+          ]
+        },
+        {
+          "name": "Full body C",
+          "focus": "full body",
+          "exercises": [
+            {
+              "exercise": "goblet-squat",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "machine-chest-press",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-row",
+              "sets": 3,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "dumbbell-hip-thrust",
+              "sets": 2,
+              "repMin": 8,
+              "repMax": 12,
+              "targetRpe": 7,
+              "restSec": 90
+            },
+            {
+              "exercise": "face-pull",
+              "sets": 2,
+              "repMin": 12,
+              "repMax": 15,
+              "targetRpe": 7,
+              "restSec": 60
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
